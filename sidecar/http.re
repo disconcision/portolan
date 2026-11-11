@@ -172,31 +172,22 @@ let sse = (oc, s) => {
   output_string(oc, "\n\n");
 };
 
-/* Live: everything so far at once, then a marker, then events as they come. */
-/* A viewer joining late needs only the newest graph: the earlier ones
-   were steps towards it, and each is the whole project. */
-let newest_graph_only = batch =>
-  snd(
-    List.fold_right(
-      (line, (seen, kept)) =>
-        Bus.type_of(line) == Some("graph")
-          ? (true, seen ? kept : [line, ...kept]) : (seen, [line, ...kept]),
-      batch,
-      (false, []),
-    ),
-  );
-
+/* Live: the trace so far at once, then a marker, then events as they
+   come. A viewer joining late needs only the latest graph, so the
+   backlog's graph events are sent as one. If the trace is started over,
+   the same again from its start. */
 let events_live = oc => {
   sse_headers(oc);
-  let cursor = ref(0)
-  and first = ref(true);
+  let cursor = ref(Bus.origin);
   while (true) {
-    let batch = Bus.wait_from(cursor^);
-    List.iter(sse(oc), first^ ? newest_graph_only(batch) : batch);
-    cursor := cursor^ + List.length(batch);
-    if (first^) {
+    let (batch, next, from_start) = Bus.wait(cursor^);
+    cursor := next;
+    if (from_start) {
+      sse(oc, "{\"type\":\"reset\"}");
+      List.iter(sse(oc), Graphs.collapse(batch));
       sse(oc, "{\"type\":\"caught_up\"}");
-      first := false;
+    } else {
+      List.iter(sse(oc), batch);
     };
     flush(oc);
   };

@@ -10,6 +10,8 @@ usage:
   ./portolan new <name> [flags]      start a fresh project under local/runs/<name> and serve it
   ./portolan serve <dir> [flags]     serve an existing dune project
   ./portolan replay <trace.jsonl> [--port N] [--speed X]   play back a recorded trace
+  ./portolan compact <trace.jsonl> <out.jsonl>   rewrite an older trace, which holds every graph
+                                     whole, with graph changes: much smaller, plays the same
   ./portolan build-canvas            rebuild canvas/dist after changing canvas/
   ./portolan help
 
@@ -34,7 +36,7 @@ EOF
 }
 
 case "${1:-}" in
-  new|serve|replay|build-canvas) ;;
+  new|serve|replay|compact|build-canvas) ;;
   help|--help|-h) usage; exit 0 ;;
   *) usage >&2; exit 2 ;;
 esac
@@ -53,5 +55,5 @@ fi
 BIN="$HERE/_build/default/sidecar/main.exe"
 case "$1" in
   new) name="${2:?name}"; shift 2; exec "$BIN" serve "$HERE/local/runs/$name" --home "$HERE" "$@" ;;
-  serve|replay) exec "$BIN" "$@" --home "$HERE" ;;
+  serve|replay|compact) exec "$BIN" "$@" --home "$HERE" ;;
 esac

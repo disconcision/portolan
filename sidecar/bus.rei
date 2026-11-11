@@ -14,9 +14,24 @@ let emit: list((string, Yojson.Safe.t)) => unit;
     how many events were loaded. */
 let record: string => int;
 
-/** Blocks until there are events at or past the given index, then
-    returns all of them, as JSON text, oldest first. */
-let wait_from: int => list(string);
+/** A place in the stream of events. */
+type cursor;
+
+/** Before the first event. */
+let origin: cursor;
+
+/** Blocks until there are events past the cursor, then returns them, as
+    JSON text, oldest first, with the cursor past them. The flag is true
+    when they are the events of a trace from its start: at the first wait
+    from [origin], and after [start_over]. */
+let wait: cursor => (list(string), cursor, bool);
+
+/** [start_over(~archive, opening)] moves the trace file to the path
+    [archive] and starts a new, empty trace in its place, opening with
+    the events [opening] (each a list of fields, as for [emit]). The
+    events so far are forgotten and the clock starts from zero. */
+let start_over:
+  (~archive: string, list(list((string, Yojson.Safe.t)))) => unit;
 
 /** Every event so far, as JSON text, oldest first. */
 let all: unit => list(string);

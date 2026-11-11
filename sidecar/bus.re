@@ -1,34 +1,42 @@
 let m = Mutex.create();
 let c = Condition.create();
 let events: Dynarray.t(string) = Dynarray.create();
-let trace: ref(option(out_channel)) = ref(None);
+/* The trace file being written, with its path. */
+let trace: ref(option((string, out_channel))) = ref(None);
+/* How many times the trace has been started over. */
+let traces = ref(0);
 
 /* The clock: milliseconds since this process started, on top of where the
    trace left off. */
 let started = Unix.gettimeofday();
 let base = ref(0);
-let now_ms = () =>
-  base^ + int_of_float((Unix.gettimeofday() -. started) *. 1000.);
+let elapsed = () => int_of_float((Unix.gettimeofday() -. started) *. 1000.);
+let now_ms = () => base^ + elapsed();
 
 let locked = f => {
   Mutex.lock(m);
   Fun.protect(~finally=() => Mutex.unlock(m), f);
 };
 
-let emit = fields =>
-  locked(() => {
-    let s =
-      Yojson.Safe.to_string(`Assoc([("t", `Int(now_ms())), ...fields]));
-    Dynarray.add_last(events, s);
-    switch (trace^) {
-    | Some(oc) =>
-      output_string(oc, s);
-      output_char(oc, '\n');
-      flush(oc);
-    | None => ()
-    };
-    Condition.broadcast(c);
-  });
+/* Call with [m] held. */
+let add = fields => {
+  let s =
+    Yojson.Safe.to_string(`Assoc([("t", `Int(now_ms())), ...fields]));
+  Dynarray.add_last(events, s);
+  switch (trace^) {
+  | Some((_, oc)) =>
+    output_string(oc, s);
+    output_char(oc, '\n');
+    flush(oc);
+  | None => ()
+  };
+  Condition.broadcast(c);
+};
+
+let emit = fields => locked(() => add(fields));
+
+let append = path =>
+  open_out_gen([Open_append, Open_creat, Open_binary], 0o644, path);
 
 let time_of = line =>
   switch (Yojson.Safe.from_string(line)) {
@@ -64,26 +72,57 @@ let record = path => {
   locked(() => {
     List.iter(Dynarray.add_last(events), earlier);
     base := last_t;
-    let oc =
-      open_out_gen([Open_append, Open_creat, Open_binary], 0o644, path);
+    let oc = append(path);
     if (text != "" && !String.ends_with(~suffix="\n", text)) {
       output_char(oc, '\n');
     };
-    trace := Some(oc);
+    trace := Some((path, oc));
     Condition.broadcast(c);
   });
   List.length(earlier);
 };
 
-let wait_from = from => {
+let start_over = (~archive, opening) =>
+  locked(() => {
+    switch (trace^) {
+    | Some((path, oc)) =>
+      close_out_noerr(oc);
+      Files.mkdir_p(Filename.dirname(archive));
+      Sys.rename(path, archive);
+      trace := Some((path, append(path)));
+    | None => ()
+    };
+    Dynarray.clear(events);
+    incr(traces);
+    base := - elapsed();
+    List.iter(add, opening);
+  });
+
+type cursor = {
+  trace: int,
+  index: int,
+};
+
+let origin = {
+  trace: (-1),
+  index: 0,
+};
+
+let wait = cursor => {
   Mutex.lock(m);
-  while (Dynarray.length(events) <= from) {
+  let from = () => cursor.trace == traces^ ? cursor.index : 0;
+  while (Dynarray.length(events) <= from()) {
     Condition.wait(c, m);
   };
-  let n = Dynarray.length(events);
+  let from = from()
+  and n = Dynarray.length(events);
   let batch = List.init(n - from, i => Dynarray.get(events, from + i));
+  let next = {
+    trace: traces^,
+    index: n,
+  };
   Mutex.unlock(m);
-  batch;
+  (batch, next, cursor.trace != next.trace);
 };
 
 let all = () => locked(() => Dynarray.to_list(events));

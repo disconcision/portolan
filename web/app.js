@@ -417,6 +417,15 @@
     if (output) f.appendChild(document.createTextNode(output.split('\n').slice(0, 14).join('\n')));
   }
 
+  // A graph event carries the whole graph or the change from the one before it (sidecar/delta.rei):
+  // fields set or dropped, and each changed list as runs [i, n] of the old list and added items.
+  function patched(old, d) {
+    const g = { ...old, ...(d.set || {}) };
+    (d.drop || []).forEach(k => delete g[k]);
+    Object.entries(d.lists || {}).forEach(([k, ops]) => { g[k] = ops.flatMap(op => (Array.isArray(op) ? old[k].slice(op[0], op[0] + op[1]) : op.add)); });
+    return g;
+  }
+
   let buildOut = '';
   const handlers = {
     hello(e) { project = e.project; $('project').textContent = e.project; $('mode').textContent = e.agent && e.agent.startsWith('script') ? '· scripted agent' : ''; },
@@ -435,7 +444,8 @@
     },
     tests(e) { cell('tests', e.failing.length ? e.failing.length + ' test' + (e.failing.length > 1 ? 's' : '') + ' failing' : e.ok ? 'tests pass' : 'tests did not run', e.failing.length || !e.ok ? 'bad' : ''); },
     async graph(e) {
-      latest = e.graph;
+      if (!e.graph && !(e.delta && latest)) return;
+      latest = e.graph || patched(latest, e.delta);
       drawPicker();
       drawSyntax();
       marked = !!e.partial;

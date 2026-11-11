@@ -5,6 +5,19 @@
 """
 import json, sys
 
+
+
+def patched(old, d):
+    """A graph event holds the whole graph or the change from the one before (sidecar/delta.rei)."""
+    g = {**old, **d.get("set", {})}
+    for k in d.get("drop", []):
+        g.pop(k, None)
+    for k, ops in d.get("lists", {}).items():
+        g[k] = [x for op in ops for x in (old[k][op[0]:op[0] + op[1]] if isinstance(op, list) else op["add"])]
+    return g
+
+
+g = None
 ev = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
 quiet = "--quiet" in sys.argv
 out = (lambda *a: None) if quiet else print
@@ -12,7 +25,7 @@ prev, graphs, adds, writes, edits, fails, fail_start, broken_ms, done = set(), 0
 for e in ev:
     t, ty = e.get("t", 0) / 1000, e["type"]
     if ty == "graph":
-        g = e["graph"]
+        g = e["graph"] if "graph" in e else patched(g, e["delta"])
         ids = {("n", n["key"]) for n in g["nodes"] if n["kind"] == "alias"} | {("e", x["name"]) for x in g["edges"]}
         add, rem = ids - prev, prev - ids
         prev = ids

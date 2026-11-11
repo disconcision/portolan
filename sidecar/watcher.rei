@@ -6,8 +6,8 @@
    runs the tests. It reports each step on the bus:
 
    - `build {ok, output, ms}` after every build;
-   - `graph {graph, cause}` when the graph differs from the last one sent.
-     When the build failed the graph is drawn from what still compiled,
+   - a `graph` event (see [Graphs]) when the graph differs from the last
+     one sent. When the build failed the graph is drawn from what still compiled,
      with the rest carried over from the last graph and the definitions
      holding an error marked; the event then also has `partial: true`;
    - `tests {ok, output, failing: [{file, line}]}` after a good build;

@@ -5,9 +5,10 @@
                             files under `web/`
      GET  /canvas/FILE      the canvas bundle, from `canvas/dist/`
      GET  /events           server-sent events: each `data:` line is one
-                            bus event, plus `caught_up` once the backlog
-                            has been sent (and `replay_end` in a replay);
-                            of the backlog's graphs only the newest is sent
+                            bus event. First `reset`, the trace so far
+                            (its graph events as one whole graph) and
+                            `caught_up`; the same again if the trace is
+                            started over. A replay ends with `replay_end`
      GET  /trace            every event so far, one JSON object per line
      GET  /source?file=REL  a project file, as text
      GET  /refmt?file=REL&line=N&end_line=M&to=re|ml
