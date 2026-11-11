@@ -584,10 +584,11 @@
       flux(e.ok, marked, e.output); // the marks from the last partial graph still stand until a build succeeds
       if (e.ok) marked = false;
     },
-    tests(e) { cell('tests', e.failing.length ? e.failing.length + ' test' + (e.failing.length > 1 ? 's' : '') + ' failing' : e.ok ? 'tests pass' : 'tests did not run', e.failing.length || !e.ok ? 'bad' : ''); },
+    tests(e) { lastTests = e; drawTests(); },
     async graph(e) {
       if (!e.graph && !(e.delta && latest)) return;
       latest = e.graph || patched(latest, e.delta);
+      drawTests();
       drawPicker();
       drawSyntax();
       marked = !!e.partial;
@@ -606,6 +607,15 @@
   // One event at a time, in order: a graph waits for its types before it is drawn.
   let turn = Promise.resolve();
   // A feed that was at its end stays there, whatever the event added or grew.
+  // How many tests fail: counted in the graph, where each test appears once however the run reported it.
+  let lastTests = null;
+  function drawTests() {
+    const e = lastTests; if (!e) return;
+    const seen = new Set();
+    if (latest) [...latest.edges.flatMap(x => x.tests || []), ...(latest.loose_tests || [])].forEach(t => { if (t.status === 'fail') seen.add(t.name + '@' + (t.at ? t.at.file + ':' + t.at.line : '')); });
+    const n = e.failing.length ? seen.size || e.failing.length : 0;
+    cell('tests', n ? n + ' test' + (n > 1 ? 's' : '') + ' failing' : e.ok ? 'tests pass' : 'tests did not run', n || !e.ok ? 'bad' : '');
+  }
   const dispatch = e => {
     turn = turn.then(async () => { const stick = pinned(); await (handlers[e.type] || (() => {}))(e); if (stick) feed.scrollTop = feed.scrollHeight; }).catch(err => console.error(err));
   };
