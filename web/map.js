@@ -39,7 +39,7 @@ window.PortolanMap = (function () {
     const edges = [...uses.entries()].map(([k, names]) => {
       const [a, b] = k.split(' '), list = [...names];
       return {
-        name: a + ' uses ' + b, label: String(list.length), m_path: [], ty: a + ' uses ' + b + ': ' + list.slice(0, 12).join(', ') + (list.length > 12 ? ', …' : ''),
+        name: a + ' uses ' + b, label: '', m_path: [], ty: a + ' uses ' + b + ': ' + list.slice(0, 12).join(', ') + (list.length > 12 ? ', …' : ''),
         src: a, dst: b, doc: null, err: false, hole: false, main: false, deps: [], exported: true, tests: [], at: mods.get(a).at,
       };
     });

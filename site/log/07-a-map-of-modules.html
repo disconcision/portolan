@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A Map of Modules</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+<link rel="stylesheet" href="log.css">
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · <a href="./">logbook</a> · 07 · 11 November 2026</span>
+  <h1>Is a map of modules a better front door than a menu?</h1>
+  <p class="result">For a small project, yes. At 40 modules it shows the project's large-scale shape at once, and one fact about Portolan I had only inferred from the source, but the busiest part is a knot. Not tried at Hazel's size.</p>
+</header>
+
+<section>
+  <dl class="parts">
+    <dt>Why</dt>
+    <dd><p>The page shows one module at a time and offers the rest in a menu. Entry 2 found 853 names in that menu for Hazel. The page needs a level above the module.</p></dd>
+    <dt>What I did</dt>
+    <dd><p>Added "map of modules" to the menu. It is made on the page from the graph the extractor already sends: a node for each top-level module, an arrow from a module to each module it uses (a function, value or type), and a region for each folder. Clicking a module opens it. The canvas draws it like any other graph, with whichever layout is chosen. Tried on the dungeon example (7 modules) and on Portolan (40).</p></dd>
+  </dl>
+</section>
+
+<section>
+  <div class="col"><h2>What happened</h2></div>
+  <div class="pair">
+    <figure>
+      <img src="img/07-map-dungeon.jpg" alt="Seven module nodes in one region with about twenty arrows between them, each arrow with a small number." loading="lazy">
+      <figcaption><strong>The dungeon example</strong>, layered layout. <code>Script</code> and <code>Turn</code> use everything; <code>Pos</code> uses nothing. The numbers counted how many names each arrow stands for, and were dropped afterwards as noise.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/07-map-portolan.jpg" alt="Forty module nodes in three separate groups: a dense one on the left, a small column in the middle, a cluster on the right." loading="lazy">
+      <figcaption><strong>Portolan</strong>, compact layout, straight edges. Three islands: the canvas (left), the extractor with the graph record and its tests (middle), the sidecar (right).</figcaption>
+    </figure>
+  </div>
+  <div class="col">
+    <p>The three islands are the finding. The graph record is meant to be the boundary between the extractor and the canvas, yet no arrow reaches <code>Graph</code> from the canvas or from the sidecar: both handle its JSON themselves. Entry 1 guessed this from a repeated cluster of helpers; here it is one look.</p>
+    <p>The left island is Hazel's canvas code, where nearly every module uses nearly every other, and the map can only say so.</p>
+  </div>
+</section>
+
+<section>
+  <dl class="parts">
+    <dt>What it means</dt>
+    <dd><p>Worth keeping as the way in. Two things are needed before it works at size: a level above it (folders as nodes, opened in place), and a way to thin a dense island, for instance showing only the arrows that are not implied by others.</p></dd>
+    <dt>Not done</dt>
+    <dd><p>Hazel. Module size shown on the node. The map combined with entry 8, so each module shows what its interface exports. An arrow drawn with no label still leaves a small empty chip.</p></dd>
+  </dl>
+</section>
+</main>
+</body>
+</html>
