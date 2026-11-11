@@ -162,13 +162,20 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
 .ask-always input { flex: 1 1 12em; min-width: 0; font: inherit; color: var(--text-default); background: transparent; border: 0; border-bottom: 0.6px solid var(--border-soft); padding: 1px 2px; }
 .ask-said { font: 400 11px var(--code-font); color: var(--text-accent); } .ask.deny .ask-said, .ask.cancelled .ask-said { color: var(--err); }
 .turn { font-size: 0.7em; color: var(--text-muted); text-align: center; letter-spacing: 0.06em; text-transform: uppercase; }
+.turn.plain { font-size: 0.75em; letter-spacing: 0; text-transform: none; overflow-wrap: anywhere; }
 #ask { padding: 0.8em 1em 1em; position: relative; border-top: 0.6px solid var(--border-default); }
 #prompt { width: 100%; resize: none; min-height: 4.2em; max-height: 40vh; padding: 0.6em 2.6em 0.6em 0.8em; border-radius: 8px; border: 0.6px solid var(--border-default);
   background: var(--df-bg); color: var(--text-default); font: 400 0.9em/1.4 var(--ui-font); outline: none; }
 #prompt:hover, #prompt:focus { border-color: var(--border-strong); }
 #send { position: absolute; right: 1.5em; bottom: 1.55em; width: 26px; height: 26px; border-radius: 6px; border: 0; cursor: pointer; background: var(--surface-highlight); color: var(--text-strong); font-size: 15px; line-height: 1; }
-#stop { position: absolute; right: 1.5em; top: 1.3em; font: 400 11px var(--code-font); color: var(--text-muted); background: none; border: 0; cursor: pointer; }
-#stop:hover { color: var(--err); }
+#ask-bar { display: flex; align-items: center; gap: 12px; min-height: 20px; margin-bottom: 6px; font: 400 11px var(--code-font); color: var(--text-muted); }
+#ask-bar .spacer { flex: 1; }
+#ask-bar button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+#stop:hover, #new.armed { color: var(--err); } #new:hover { color: var(--text-strong); }
+#about { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 1px 4px 1px 8px; border: 0.6px solid var(--border-default); border-radius: 10px; background: var(--df-bg); color: var(--text-default); }
+#about code { font: inherit; color: var(--token-pat); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#about button { padding: 0 3px; font-size: 13px; line-height: 1; color: var(--text-muted); } #about button:hover { color: var(--err); }
+.msg.you .about { display: block; margin-top: 0.45em; font: 400 11px var(--code-font); color: var(--text-accent); }
 
 /* ---- bottom bar ---- */
 #bottom-bar { display: flex; align-items: stretch; background: var(--ui-bkg); border-top: 0.6px solid var(--border-default); font-size: 14px; min-width: 0; }

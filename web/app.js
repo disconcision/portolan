@@ -137,7 +137,7 @@
     $('canvas').innerHTML = '';
     view = views[name];
     view.mount($('canvas'));
-    view.onSelect(showSource);
+    view.onSelect((item, kind, at) => { showSource(item, kind, at); attach(item, at); });
     view.reset();
     if (shown && live) view.show(shown);
     $('which').textContent = name === 'hazel' ? 'plain view' : 'canvas';
@@ -547,18 +547,24 @@
     return g;
   }
 
-  let buildOut = '';
+  let buildOut = '', drawn = false; // drawn: the canvas has shown a graph, so a rebuilt feed need not redraw it
   const handlers = {
     hello(e) { project = e.project; $('project').textContent = e.project; $('mode').textContent = e.agent && e.agent.startsWith('script') ? '· scripted agent' : ''; },
-    async caught_up() { if (latest) await learnTypes(latest); live = true; present(null, true); },
+    // The stream starts over, at first and after a new conversation or a reconnection: the feed is rebuilt from it.
+    reset() { feed.replaceChildren(); seen = new Set(); tools = {}; asks = {}; liveEl = liveTool = null; lastWho = ''; live = false; },
+    async caught_up() { if (latest) await learnTypes(latest); live = true; present(null, !drawn); drawn = true; },
     session(e) {
       Object.keys(asks).forEach(id => settle(id, 'cancelled')); // whoever asked is gone
       if (e.restart && feed.children.length) { add('turn', 'earlier session above'); lastWho = ''; }
     },
+    conversation(e) { add('turn plain', 'New conversation. The earlier one is kept in .portolan/' + e.earlier); lastWho = ''; },
     ask(e) { lastWho = 'Claude'; askCard(e); },
     answer(e) { settle(e.id, e.decision, e); },
     replay_end() { $('mode').textContent = '· replay finished'; },
-    prompt(e) { add('msg you', e.text, 'You'); },
+    prompt(e) {
+      const d = add('msg you', e.text, 'You'), a = e.about;
+      if (a) d.appendChild(el('span', 'about', 'about ' + a.name + (a.file ? ' · ' + a.file + ':' + a.line + (a.end_line > a.line ? '–' + a.end_line : '') : '')));
+    },
     agent(e) { agent(e.ev); },
     agent_raw(e) { add('tool bad', e.line); },
     agent_state(e) {
@@ -623,13 +629,34 @@
   }
 
   // ---- prompt box ----
+  // The definition selected on the canvas rides along with the next message, unless taken off.
+  let about = null;
+  function attach(item, at) {
+    const name = item && (item.name || item.key || item.label);
+    about = name ? { name, ...(at && at.file ? { file: at.file, line: at.line, end_line: at.end_line } : {}) } : null;
+    $('about').hidden = !about;
+    $('about-name').textContent = about ? about.name : '';
+    $('about').title = about && about.file ? about.file + ', lines ' + about.line + ' to ' + about.end_line : '';
+  }
+  $('about-drop').onclick = () => attach(null);
   async function send() {
     const text = $('prompt').value.trim();
     if (!text) return;
     $('prompt').value = '';
-    await post('prompt', { text });
+    const body = about ? { text, about } : { text };
+    attach(null);
+    await post('prompt', body);
   }
   $('ask').addEventListener('submit', ev => { ev.preventDefault(); send(); });
   $('prompt').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); send(); } });
   $('stop').onclick = () => post('stop');
+  // A new conversation takes a second click, so a slip does not end the one under way.
+  let arming = 0;
+  const disarm = () => { clearTimeout(arming); arming = 0; $('new').textContent = 'new'; $('new').classList.remove('armed'); };
+  $('new').onclick = () => {
+    if (arming) { disarm(); post('new'); return; }
+    $('new').textContent = 'start a new conversation?';
+    $('new').classList.add('armed');
+    arming = setTimeout(disarm, 4000);
+  };
 })();
