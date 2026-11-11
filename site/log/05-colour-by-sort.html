@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colour by Sort</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+<link rel="stylesheet" href="log.css">
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · <a href="./">logbook</a> · 05 · 11 November 2026</span>
+  <h1>Can code be coloured by sort without a parser?</h1>
+  <p class="result">Mostly, yes. A lexer and one pass that keeps track of whether it is inside a pattern, a type or an expression gets ordinary Reason and OCaml right, with a short list of misses.</p>
+</header>
+
+<section>
+  <dl class="parts">
+    <dt>Why</dt>
+    <dd><p>Andrew asked for a real code view (CodeMirror) in Hazel's colours. Hazel colours code by sort: expressions, patterns and types each have a colour. Hazel knows the sort of everything because it edits structure. A page showing a slice of a text file does not.</p></dd>
+    <dt>What was done</dt>
+    <dd>
+      <p>A helper agent wrote the highlighter: the whole text is split into tokens, then one pass assigns each a sort from context. After a colon comes a type, until something ends it. Names bound by <code>let</code>, by a function's parameters or by a <code>switch</code> arm are patterns. Declarations after <code>type</code> are types. It is the same code for Reason and OCaml, with different rules for where things end.</p>
+      <p>It was run over Portolan's 58 source files, Hazel's 646 Reason files and some of the OCaml standard library, looking for places where the colouring ran away. I checked the merged result on two definitions.</p>
+    </dd>
+  </dl>
+</section>
+
+<section>
+  <div class="col"><h2>What happened</h2></div>
+  <div class="pair">
+    <figure>
+      <img src="img/05-reason.jpg" alt="A Reason function in the code panel: bound names in blue, the type after the colon in purple, strings in ochre." loading="lazy">
+      <figcaption><strong>Reason.</strong> <code>Watcher.cycle</code>: bound names in the pattern colour, the signature in the type colour.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/05-ocaml.jpg" alt="The same function converted to OCaml syntax, coloured the same way." loading="lazy">
+      <figcaption><strong>OCaml.</strong> The same definition after conversion.</figcaption>
+    </figure>
+  </div>
+  <div class="col">
+    <p>No file made the colouring run away. Where it is wrong, it is wrong for one construct at a time:</p>
+    <ul>
+      <li>a function written inside a <code>when</code> guard, and the name bound by a <code>for</code> loop, in Reason;</li>
+      <li>a module signature written inline, which is coloured as an expression;</li>
+      <li>objects, classes and JSX, which are not handled;</li>
+      <li>constructors and module names take the colour of whatever sort they sit in, as in Hazel.</li>
+    </ul>
+  </div>
+  <figure>
+    <img src="img/05-file-view.jpg" alt="The whole file in the code panel with other definitions folded to one line each and the picked definition open." loading="lazy">
+    <figcaption><strong>A proposal that came out of it: the file view.</strong> The whole file, every other definition folded to its first line with a count of the lines hidden, the picked one open.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <dl class="parts">
+    <dt>What it means</dt>
+    <dd><p>Context tracking is enough for reading. It will not be enough for editing, where a half-typed definition has to keep its colours; that is one more reason editing wants the compiler's parse rather than a tokenizer.</p></dd>
+    <dt>Open</dt>
+    <dd>
+      <p>In the dark theme the pattern and type colours are the same grey, so types are set in italics. Comments are darker than Hazel's so interface comments can be read. The folded-lines chip reads <span class="mono">…+N</span>. All three are proposals.</p>
+      <p>The panel does not yet refresh when the agent changes the file being shown.</p>
+    </dd>
+  </dl>
+</section>
+</main>
+</body>
+</html>
