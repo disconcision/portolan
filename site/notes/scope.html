@@ -118,7 +118,7 @@ tr.pick td { background: var(--mark-soft); }
   <div class="verdict">
     <span class="eyebrow">In short</span>
     <ul>
-      <li><strong>First build.</strong> The parts of Hazel's canvas that translate, for a dune project: types as nodes, functions as arrows, modules as hulls, tests as pips, Trine, replay, and a click through to the code. It works on a repository at rest, on a recorded run, and live beside Claude Code.</li>
+      <li><strong>First build.</strong> The parts of Hazel's canvas that translate, for a dune project: types as nodes, functions as arrows, modules as hulls, tests as pips, Trine, replay, and a click through to the code. It works on a repository at rest, on a recorded run, and live beside Claude Code. The first target is small greenfield projects from the Hazel demo prompts; the Hazel repository comes second.</li>
       <li><strong>How.</strong> A native OCaml sidecar turns the project into the graph record Hazel's canvas already draws. The canvas code is copied behind that record, free to be shared with Hazel or to diverge later.</li>
       <li><strong>Directions, sketched and not in the first build.</strong> Interfaces as the map, change sets as pictures, several agents at once, voice and ink, editing by definition, properties on the diagram.</li>
       <li><strong>This page is kept current.</strong> It records the scope as it is talked through: your directions, and ones proposed here, marked as such.</li>
@@ -237,13 +237,15 @@ tr.pick td { background: var(--mark-soft); }
   </div>
   <div class="col">
     <p><strong>How it hears about the agent.</strong> Two signals, joined by time and path. The file watcher is ground truth and is enough alone: any change by any tool produces a new snapshot. Claude Code's tool-call hooks post to the sidecar and say which agent did it, where, and what it read. Codex hooks have nearly the same shape, and OpenCode has an event stream. A trace records snapshots and causes, so a run replays in a browser with no OCaml toolchain.</p>
-    <p><strong>Scale.</strong> Hazel is 552 modules and about 158,000 lines, so the first build opens at the library level with hulls collapsed, and frames what was touched.</p>
+    <p><strong>Two targets, in order.</strong> First, small greenfield projects: give a coding agent the prompts used for the Hazel demos (the vector scene, the turn-based game, the crafting system, the dungeon with modules) in an empty dune project, and watch. This is the like-for-like comparison with Hazel, and small enough that scale is not in the way. Then the Hazel repository, 552 modules and about 158,000 lines, which needs the library-level view with hulls collapsed.</p>
+    <p><strong>What the first runs answer.</strong> Whether an agent editing OCaml as text gives a picture like Hazel's, or whether the code arrives in one chunk and is only replayed. My guess is in between: a first file written whole, then smaller edits. The canvas turns a whole-file write into one beat per definition in program order, so it will still read, but as a staged replay. The Hazel prompts already ask for incremental work with tests throughout, so the same wording can be run plain and with a nudge toward small steps and inline tests. That is the lowest rung of shaping, tried before anything heavier.</p>
     <ol class="steps">
-      <li>Index one Hazel library to graph JSON. Check three modules by hand.</li>
-      <li>Copy the Hazel-free canvas files into a new repository behind the graph record. Render that JSON on a static page.</li>
-      <li>Watch files: a hand edit re-indexes the touched module and the existing score plays. Selecting a node shows its code.</li>
+      <li>Index a small hand-written OCaml project, the vector scene ported, to graph JSON. Check it by hand.</li>
+      <li>Copy the Hazel-free canvas files into this repository behind the graph record. Render that JSON on a static page.</li>
+      <li>Watch files: a hand edit re-indexes the touched module and the existing score plays. A broken file keeps its last good picture. Selecting a node shows its code.</li>
       <li>Claude Code hook adapter: cause labels and Trine's site, keyed by session. Record and replay a trace.</li>
-      <li>Run a real task on Hazel and look at it together, live and then from the trace.</li>
+      <li>Run the vector prompt in an empty project and watch, then the other demo prompts. Compare with the Hazel recordings of the same prompts.</li>
+      <li>Point it at the Hazel repository.</li>
     </ol>
     <p class="muted">Not measured yet: how fast <code>ocamllsp</code> answers on a 2,000-line Reason file mid-edit. If too slow, a parse-only reader goes in front of it.</p>
   </div>
