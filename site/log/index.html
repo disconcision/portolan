@@ -53,6 +53,9 @@ const LOG = [
   { n: 8, date: '2026-11-11', state: 'done', href: '08-a-module-as-its-interface.html',
     title: 'What does a module look like as only its interface?',
     result: 'Much smaller and readable at a glance: Agent goes from 18 definitions to the 8 it exports. A first cut, as one switch for the whole view.' },
+  { n: 9, date: '2026-11-11', state: 'done', href: '09-modules-at-three-levels.html',
+    title: 'Can modules be opened in place, one at a time?',
+    result: 'Yes, as a first cut: each module is closed, shown as its interface, or open, and a click moves it on. Lines into an opened module from closed ones are lost.' },
 ];
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const STATE = { done: ['done', ''], running: ['running', ' wait'], idea: ['idea', ' wait'] };

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modules at Three Levels</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+<link rel="stylesheet" href="log.css">
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · <a href="./">logbook</a> · 09 · 11 November 2026</span>
+  <h1>Can modules be opened in place, one at a time?</h1>
+  <p class="result">Yes, as a first cut: in the whole-project view each module is closed, shown as its interface, or open, and a click moves it to the next level. An opened module keeps its lines to the closed ones it uses. Lines into it from closed modules are lost.</p>
+</header>
+
+<section>
+  <dl class="parts">
+    <dt>Why</dt>
+    <dd><p>Entries 7 and 8 each gave half of what Andrew asked for: a map with every module closed, and a switch that shows interfaces for the whole view at once. The useful thing is one board where the module you are reading is open and its neighbours are not.</p></dd>
+    <dt>What I did</dt>
+    <dd>
+      <p>First I tried what came over from Hazel. Its canvas can already collapse a module, from a small arrow above the module's node.</p>
+      <p>Then, on the page, I gave every module in the whole-project view a level. Closed: one node, with an arrow to each closed module it uses. Interface: only what it exports, abstract types drawn closed. Open: everything. A closed module stands in for its own types, so a function in an open module that takes one of them draws its line to the closed module. A project of more than 60 definitions starts all closed. Tried on the dungeon example.</p>
+    </dd>
+  </dl>
+</section>
+
+<section>
+  <div class="col"><h2>What happened</h2></div>
+  <figure>
+    <img src="img/09-hazel-collapse.jpg" alt="Seven coloured discs, each with a module name and a count, and a row of unconnected small type nodes above them." loading="lazy">
+    <figcaption><strong>Hazel's collapse, as ported.</strong> Each module folds to a disc with a count of what is hidden. Nothing connects the discs, and unnamed types that belonged to the folded modules are left behind at the top.</figcaption>
+  </figure>
+  <div class="pair">
+    <figure>
+      <img src="img/09-closed.jpg" alt="Seven module nodes with arrows between them." loading="lazy">
+      <figcaption><strong>All closed.</strong> The seven modules and which uses which.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/09-turn-interface.jpg" alt="Six closed module nodes and, in a tinted region, the Turn module's exported types and functions with rows of test pips; lines run from its functions to the closed modules Dungeon, Pos and Creatures." loading="lazy">
+      <figcaption><strong>After one click on <code>Turn</code>.</strong> Its interface, in place: three types, seven functions with their tests. <code>room</code> and <code>player</code> draw their lines to the closed <code>Dungeon</code> and <code>Creatures</code>.</figcaption>
+    </figure>
+  </div>
+  <div class="col">
+    <p>The second picture answers "what does <code>Turn</code> offer, and what does it need from its neighbours" in one look, which neither the map nor the one-module view does.</p>
+    <p>What is wrong with it: the arrows that said <code>Script</code> and <code>Render</code> use <code>Turn</code> vanish when it opens, because use-arrows are only drawn between closed modules. The change is a redraw, not a motion. And a click both selects and changes level, which will get in the way.</p>
+  </div>
+</section>
+
+<section>
+  <dl class="parts">
+    <dt>What it means</dt>
+    <dd><p>Three levels per module on one board is the right shape for reading a project. It wants to be done inside the canvas rather than on the page, so that opening is an animated act, a module's node stays where it was, and Hazel's collapse and this one are a single mechanism.</p></dd>
+    <dt>Not done</dt>
+    <dd><p>Arrows from a closed module into an open one. Folders as a level above modules. Nested modules, which stay inside their parent. A visible mark for which level a module is at, and a count of what it hides.</p></dd>
+  </dl>
+</section>
+</main>
+</body>
+</html>

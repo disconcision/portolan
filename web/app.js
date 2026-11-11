@@ -47,7 +47,7 @@
   function moduleView(g, mod) {
     if (mod === PortolanMap.MAP) return PortolanMap.graph(g);
     if (surface) g = outside(g);
-    if (!mod) return flatten(g);
+    if (!mod) return wholeView(g);
     const inMod = x => top(x) === mod, cut = x => ({ ...x, m_path: (x.m_path || []).slice(1) });
     const edges = g.edges.filter(inMod), values = (g.values || []).filter(inMod);
     const byKey = new Map(g.nodes.map(n => [n.key, n])), want = new Set();
@@ -57,6 +57,44 @@
     values.forEach(v => need(v.key));
     const nodes = g.nodes.filter(n => want.has(n.key)).map(n => (n.kind === 'alias' && !inMod(n) ? { ...n, kind: 'ghost', label: n.key, m_path: [] } : cut(n)));
     return { ...g, nodes, edges: edges.map(cut), values: values.map(cut), loose_tests: (g.loose_tests || []).filter(t => t.at && moduleOfFile(g, t.at.file) === mod) };
+  }
+  // ---- the whole project, each module at one of three levels (an experiment, logbook entry 9) ----
+  // closed: one node, with arrows to the closed modules it uses; interface: what it exports; open: everything.
+  // A click on a module's node moves it to the next level. A large project starts all closed.
+  let levels = null;
+  const level = (g, m) => {
+    if (!levels) { try { levels = JSON.parse(kept('levels.' + project) || '{}'); } catch (e) { levels = {}; } }
+    return levels[m] || (modules(g).reduce((n, x) => n + x.size, 0) > 60 ? 'closed' : 'open');
+  };
+  function wholeView(g) {
+    const ms = modules(g);
+    if (ms.length < 2) return flatten(g);
+    const lvl = x => level(g, top(x)), closed = new Set(ms.filter(m => level(g, m.name) === 'closed').map(m => m.name));
+    const kept_ = x => !closed.has(top(x)) && (lvl(x) !== 'interface' || x.exported !== false);
+    const owner = new Map(g.nodes.filter(n => n.kind === 'alias').map(n => [n.key, top(n)]));
+    const sub = k => (closed.has(owner.get(k)) ? owner.get(k) : k); // a closed module stands in for its types
+    const edges = g.edges.filter(kept_).map(e => ({ ...e, src: sub(e.src), dst: sub(e.dst) }));
+    const values = (g.values || []).filter(kept_).map(v => ({ ...v, key: sub(v.key) }));
+    const byKey = new Map(g.nodes.map(n => [n.key, n])), want = new Set();
+    const need = k => { const n = byKey.get(k); if (!n || want.has(k)) return; want.add(k); (n.parts || []).forEach(need); };
+    g.nodes.forEach(n => { if (n.kind === 'alias' && kept_(n)) need(n.key); });
+    edges.forEach(e => { need(e.src); need(e.dst); });
+    values.forEach(v => need(v.key));
+    const nodes = g.nodes.filter(n => want.has(n.key) && !(n.kind === 'alias' && closed.has(top(n))))
+      .map(n => ({ ...(n.kind === 'alias' && lvl(n) === 'interface' ? opaque(n) : n), parts: [...new Set((n.parts || []).map(sub))] }));
+    const map = PortolanMap.graph(g);
+    return {
+      ...g, values,
+      nodes: [...nodes, ...map.nodes.filter(n => closed.has(n.key)).map(n => ({ ...n, m_path: [] }))],
+      edges: [...edges, ...map.edges.filter(e => closed.has(e.src) && closed.has(e.dst))],
+      loose_tests: (g.loose_tests || []).filter(t => !t.at || !closed.has(moduleOfFile(g, t.at.file))),
+    };
+  }
+  function cycle(m) {
+    const now = level(latest, m), hides = [...latest.nodes, ...latest.edges, ...(latest.values || [])].some(x => top(x) === m && x.exported === false);
+    levels[m] = now === 'closed' ? (hides ? 'interface' : 'open') : now === 'interface' ? 'open' : 'closed';
+    keep('levels.' + project, JSON.stringify(levels));
+    present(null, 'morph');
   }
   function drawPicker() {
     const ms = latest ? modules(latest) : [], sel = $('module');
@@ -98,7 +136,8 @@
     shown = g;
     shownKey = key;
     if (!live) return;
-    if (fresh) { view.reset(); view.show(g); } else view.push(g, cause);
+    if (fresh === 'morph') view.show(g); // the same board, changed by the reader: no score, no reset
+    else if (fresh) { view.reset(); view.show(g); } else view.push(g, cause);
   }
   $('module').onchange = () => choose($('module').value);
 
@@ -166,8 +205,9 @@
       push: (g, c) => PC.push(g, { label: (c && c.label) || 'edit', ok: true }),
       show: g => { PC.show(g); fitWhenSettled(); },
       reset: () => PC.reset(),
-      onSelect: cb => PC.onSelect((name, _kind, at) => {
+      onSelect: cb => PC.onSelect((name, kind, at) => {
         const g = shown;
+        if (moduleName === '' && latest && modules(latest).length > 1 && modules(latest).some(m => m.name === name) && (kind === 'module' || level(latest, name) === 'closed')) return cycle(name);
         if (moduleName === PortolanMap.MAP && latest && modules(latest).some(m => m.name === name)) return choose(name); // on the map, a module opens
         const item = g && (g.edges.find(e => e.name === name || e.label === name) || g.nodes.find(n => n.key === name || n.label === name) || (g.values || []).find(v => v.name === name));
         cb(item || { label: name, at }, item && g.edges.includes(item) ? 'edge' : 'node', at || (item && item.at));
