@@ -4,45 +4,61 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Portolan</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
 <link rel="stylesheet" href="canvas/canvas.css">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app">
-  <header id="bar">
-    <span class="brand">portolan</span>
-    <span class="crumb" id="project">/</span>
-    <span class="chip" id="mode"></span>
-    <span class="spacer"></span>
-    <span class="chip" id="agent">agent: idle</span>
-    <span class="chip" id="build">no build yet</span>
-    <span class="chip" id="tests"></span>
-    <button class="plain" id="which" title="Switch between the ported Hazel canvas and the plain view">view: plain</button>
-    <a class="plain" href="trace" target="_blank" rel="noopener">trace</a>
-  </header>
+<div id="page">
+  <div id="top-bar">
+    <div id="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="20" height="20"><g stroke="currentColor" stroke-width="1" fill="none"><circle cx="12" cy="12" r="7"/><path d="M12 1v22M1 12h22M4.2 4.2l15.6 15.6M19.8 4.2L4.2 19.8"/></g><circle cx="12" cy="12" r="1.8" fill="currentColor"/></svg>
+    </div>
+    <div id="title">portolan</div>
+    <div id="editor-mode"><span>/</span><span id="project">…</span><span id="mode"></span></div>
+    <div class="spacer"></div>
+    <div id="top-right"><a href="trace" target="_blank" rel="noopener">trace</a></div>
+  </div>
 
-  <main id="stage">
-    <div id="canvas-host"><div id="canvas"></div><div id="flux" hidden></div></div>
-    <section id="info">
-      <div id="info-head"><span id="info-path">Select a type or a function to see its code.</span><span id="info-type"></span></div>
-      <pre id="info-code"></pre>
-    </section>
-  </main>
-
-  <aside id="chat">
-    <div id="feed" aria-live="polite"></div>
-    <form id="ask">
-      <textarea id="prompt" rows="3" placeholder="Message the agent. Enter sends, Shift+Enter makes a new line."></textarea>
-      <div class="ask-row">
-        <button type="button" class="plain" id="stop">Stop</button>
-        <button type="submit" id="send">Send</button>
+  <div id="main">
+    <div id="canvas-pane">
+      <div class="canvas-header">
+        <span class="canvas-title">Chart</span>
+        <div class="canvas-toolbar">
+          <button class="canvas-tool-btn tool-active" id="pace" title="Play each change as a paced score">pace</button>
+          <button class="canvas-tool-btn tool-active" id="follow" title="The camera follows the agent">follow</button>
+          <button class="canvas-tool-btn" id="fit" title="Frame the whole graph">fit</button>
+          <span class="toolbar-spacer"></span>
+          <button class="canvas-tool-btn" id="which" hidden></button>
+        </div>
       </div>
-    </form>
-  </aside>
+      <div id="canvas-host"><div id="canvas"></div><div id="flux" hidden></div></div>
+      <section id="info">
+        <div id="info-head"><span id="info-path">Pick a function or type on the canvas to see its definition.</span><span id="info-type"></span></div>
+        <pre id="info-code"></pre>
+      </section>
+    </div>
+
+    <aside id="sidebar">
+      <div id="feed" aria-live="polite"></div>
+      <form id="ask">
+        <textarea id="prompt" rows="3" placeholder="Message the agent. Enter sends, Shift+Enter makes a new line."></textarea>
+        <button type="button" id="stop" title="Stop the agent">stop</button>
+        <button type="submit" id="send" title="Send" aria-label="Send">↑</button>
+      </form>
+    </aside>
+  </div>
+
+  <div id="bottom-bar">
+    <span class="lead">RUN</span>
+    <span class="cell" id="build">no build yet</span>
+    <span class="cell" id="tests"></span>
+    <span class="spacer"></span>
+    <span class="cell tail" id="agent">agent: idle</span>
+  </div>
 </div>
 <script src="view.js"></script>
-<script src="canvas/portolan_canvas.js" onerror="window.PortolanCanvasMissing = true"></script>
+<script src="canvas/portolan_canvas.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

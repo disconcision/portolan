@@ -1,0 +1,23 @@
+
+/* ---- Portolan: canvas/tools/portolan.css ---- */
+
+/* the mount point: the canvas fills whatever box the host gives it */
+.portolan-canvas {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: var(--pc-df-bg);
+  color: var(--pc-token-exp);
+  font-family: var(--pc-code-font, monospace);
+}
+
+/* the dot field's colour is read by the canvas code under Hazel's name */
+.portolan-canvas .canvas-scroll {
+  --surface-shard: var(--pc-surface-shard);
+}
+
+/* colours the canvas code writes as SVG attributes: a rule outranks a
+   presentation attribute, so these make them themeable too */
+.rig-beam-grad stop {
+  stop-color: var(--pc-avatar-beam, #ffe58a);
+}

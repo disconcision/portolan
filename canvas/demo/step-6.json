@@ -1,0 +1,318 @@
+{
+ "nodes": [
+  {
+   "key": "int",
+   "label": "int",
+   "m_path": [],
+   "kind": "builtin",
+   "ctors": [],
+   "ty": null,
+   "doc": null,
+   "err": false,
+   "parts": [],
+   "abstract": false,
+   "exported": true,
+   "at": null
+  },
+  {
+   "key": "point",
+   "label": "point",
+   "m_path": [],
+   "kind": "alias",
+   "ctors": [],
+   "ty": "int * int",
+   "doc": null,
+   "err": false,
+   "parts": [
+    "int",
+    "int"
+   ],
+   "abstract": false,
+   "exported": true,
+   "at": {
+    "file": "lib/scene.ml",
+    "path": "point",
+    "line": 3,
+    "end_line": 3
+   }
+  },
+  {
+   "key": "shape",
+   "label": "shape",
+   "m_path": [],
+   "kind": "alias",
+   "ctors": [
+    "Circle",
+    "Rect",
+    "Line"
+   ],
+   "ty": "Circle of point * int | Rect of point * point | Line of point * point",
+   "doc": "A shape is a sum whose variants carry tuple payloads.",
+   "err": false,
+   "parts": [],
+   "abstract": false,
+   "exported": true,
+   "at": {
+    "file": "lib/scene.ml",
+    "path": "shape",
+    "line": 6,
+    "end_line": 9
+   }
+  },
+  {
+   "key": "scene",
+   "label": "scene",
+   "m_path": [],
+   "kind": "alias",
+   "ctors": [],
+   "ty": "shape list",
+   "doc": null,
+   "err": false,
+   "parts": [
+    "shape"
+   ],
+   "abstract": false,
+   "exported": true,
+   "at": {
+    "file": "lib/scene.ml",
+    "path": "scene",
+    "line": 11,
+    "end_line": 11
+   }
+  },
+  {
+   "key": "(point, shape)",
+   "label": "()",
+   "m_path": [],
+   "kind": "product",
+   "ctors": [],
+   "ty": null,
+   "doc": null,
+   "err": false,
+   "parts": [
+    "point",
+    "shape"
+   ],
+   "abstract": false,
+   "exported": true,
+   "at": null
+  },
+  {
+   "key": "(int, shape)",
+   "label": "()",
+   "m_path": [],
+   "kind": "product",
+   "ctors": [],
+   "ty": null,
+   "doc": null,
+   "err": false,
+   "parts": [
+    "int",
+    "shape"
+   ],
+   "abstract": false,
+   "exported": true,
+   "at": null
+  },
+  {
+   "key": "(point, scene)",
+   "label": "()",
+   "m_path": [],
+   "kind": "product",
+   "ctors": [],
+   "ty": null,
+   "doc": null,
+   "err": false,
+   "parts": [
+    "point",
+    "scene"
+   ],
+   "abstract": false,
+   "exported": true,
+   "at": null
+  }
+ ],
+ "edges": [
+  {
+   "name": "area",
+   "label": "area",
+   "m_path": [],
+   "ty": "shape -> int",
+   "src": "shape",
+   "dst": "int",
+   "doc": "Twice the area, so everything stays in the integers.",
+   "err": false,
+   "hole": false,
+   "main": false,
+   "deps": [],
+   "exported": true,
+   "tests": [
+    {
+     "name": "area of a rect",
+     "status": "pass",
+     "refs": [
+      "area"
+     ],
+     "at": {
+      "file": "lib/scene.ml",
+      "path": "area of a rect",
+      "line": 20,
+      "end_line": 20
+     }
+    },
+    {
+     "name": "area of a line",
+     "status": "pass",
+     "refs": [
+      "area"
+     ],
+     "at": {
+      "file": "lib/scene.ml",
+      "path": "area of a line",
+      "line": 21,
+      "end_line": 21
+     }
+    }
+   ],
+   "at": {
+    "file": "lib/scene.ml",
+    "path": "area",
+    "line": 14,
+    "end_line": 18
+   }
+  },
+  {
+   "name": "translate",
+   "label": "translate",
+   "m_path": [],
+   "ty": "point -> shape -> shape",
+   "src": "(point, shape)",
+   "dst": "shape",
+   "doc": null,
+   "err": false,
+   "hole": false,
+   "main": false,
+   "deps": [],
+   "exported": true,
+   "tests": [
+    {
+     "name": "translate moves a circle",
+     "status": "pass",
+     "refs": [
+      "translate"
+     ],
+     "at": {
+      "file": "lib/scene.ml",
+      "path": "translate moves a circle",
+      "line": 30,
+      "end_line": 30
+     }
+    }
+   ],
+   "at": {
+    "file": "lib/scene.ml",
+    "path": "translate",
+    "line": 23,
+    "end_line": 28
+   }
+  },
+  {
+   "name": "scale",
+   "label": "scale",
+   "m_path": [],
+   "ty": "int -> shape -> shape",
+   "src": "(int, shape)",
+   "dst": "shape",
+   "doc": null,
+   "err": false,
+   "hole": false,
+   "main": false,
+   "deps": [],
+   "exported": true,
+   "tests": [],
+   "at": {
+    "file": "lib/scene.ml",
+    "path": "scale",
+    "line": 33,
+    "end_line": 38
+   }
+  },
+  {
+   "name": "total_area",
+   "label": "total_area",
+   "m_path": [],
+   "ty": "scene -> int",
+   "src": "scene",
+   "dst": "int",
+   "doc": null,
+   "err": false,
+   "hole": false,
+   "main": false,
+   "deps": [
+    "area"
+   ],
+   "exported": true,
+   "tests": [
+    {
+     "name": "total area adds up",
+     "status": "pass",
+     "refs": [
+      "total_area"
+     ],
+     "at": {
+      "file": "lib/scene.ml",
+      "path": "total area adds up",
+      "line": 42,
+      "end_line": 42
+     }
+    }
+   ],
+   "at": {
+    "file": "lib/scene.ml",
+    "path": "total_area",
+    "line": 40,
+    "end_line": 40
+   }
+  },
+  {
+   "name": "move_all",
+   "label": "move_all",
+   "m_path": [],
+   "ty": "point -> scene -> scene",
+   "src": "(point, scene)",
+   "dst": "scene",
+   "doc": null,
+   "err": false,
+   "hole": false,
+   "main": false,
+   "deps": [
+    "translate"
+   ],
+   "exported": true,
+   "tests": [],
+   "at": {
+    "file": "lib/scene.ml",
+    "path": "move_all",
+    "line": 45,
+    "end_line": 45
+   }
+  }
+ ],
+ "values": [
+  {
+   "name": "origin",
+   "label": "origin",
+   "m_path": [],
+   "key": "point",
+   "ty": "point",
+   "err": false,
+   "at": {
+    "file": "lib/scene.ml",
+    "path": "origin",
+    "line": 50,
+    "end_line": 50
+   }
+  }
+ ],
+ "loose_tests": []
+}

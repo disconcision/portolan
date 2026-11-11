@@ -1,0 +1,43 @@
+{
+ "nodes": [
+  {
+   "key": "int",
+   "label": "int",
+   "m_path": [],
+   "kind": "builtin",
+   "ctors": [],
+   "ty": null,
+   "doc": null,
+   "err": false,
+   "parts": [],
+   "abstract": false,
+   "exported": true,
+   "at": null
+  },
+  {
+   "key": "point",
+   "label": "point",
+   "m_path": [],
+   "kind": "alias",
+   "ctors": [],
+   "ty": "int * int",
+   "doc": null,
+   "err": false,
+   "parts": [
+    "int",
+    "int"
+   ],
+   "abstract": false,
+   "exported": true,
+   "at": {
+    "file": "lib/scene.ml",
+    "path": "point",
+    "line": 3,
+    "end_line": 3
+   }
+  }
+ ],
+ "edges": [],
+ "values": [],
+ "loose_tests": []
+}

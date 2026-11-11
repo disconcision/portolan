@@ -1,0 +1,26 @@
+; The Constellation canvas, ported from Hazel (see UPSTREAM.md).
+; upstream/  files copied from Hazel, byte for byte
+; edited/    files copied from Hazel with a few marked edits
+; shim/      small stand-ins for the Hazel modules those files mention
+; *.re here  what was rewritten for Portolan (graph record, pacing, director)
+
+(include_subdirs unqualified)
+
+(data_only_dirs demo tools)
+
+(library
+ (name portolan_canvas)
+ (modules :standard \ portolan_canvas_js)
+ (modes byte)
+ (libraries js_of_ocaml virtual_dom yojson)
+ (js_of_ocaml)
+ (preprocess
+  (pps js_of_ocaml-ppx)))
+
+(executable
+ (name portolan_canvas_js)
+ (modules portolan_canvas_js)
+ (libraries portolan_canvas)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx)))

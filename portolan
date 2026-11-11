@@ -3,6 +3,7 @@
 #   ./portolan new <name> [flags]     start a fresh project under local/runs/<name> and serve it
 #   ./portolan serve <dir> [flags]    serve an existing dune project
 #   ./portolan replay <trace.jsonl> [--speed X]
+#   ./portolan build-canvas           rebuild canvas/dist after changing canvas/
 # Flags: --port N (default 8791), --agent claude|script:FILE, --model NAME
 # The OCaml switch is taken from PORTOLAN_SWITCH (default: editor-output).
 set -euo pipefail
@@ -13,5 +14,10 @@ BIN="$HERE/_build/default/sidecar/main.exe"
 case "${1:-}" in
   new) name="${2:?name}"; shift 2; exec "$BIN" serve "$HERE/local/runs/$name" --home "$HERE" "$@" ;;
   serve|replay) exec "$BIN" "$@" --home "$HERE" ;;
-  *) sed -n '2,7p' "$0"; exit 2 ;;
+  build-canvas)
+    # Rebuild the canvas bundle the page loads (canvas/dist/ is committed, so this is only needed after changing canvas/).
+    (cd "$HERE" && dune build --profile release --build-dir _build_release ./canvas) \
+      && cp -f "$HERE/_build_release/default/canvas/portolan_canvas_js.bc.js" "$HERE/canvas/dist/portolan_canvas.js" \
+      && cp -f "$HERE/canvas/canvas.css" "$HERE/canvas/dist/canvas.css" && echo "canvas/dist updated" ;;
+  *) sed -n '2,8p' "$0"; exit 2 ;;
 esac

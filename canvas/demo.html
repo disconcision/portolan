@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Portolan canvas — demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="canvas.css">
+<style>
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; font: 13px/1.4 system-ui, sans-serif; background: #f4f1e6; color: #333; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #d8c9a3; }
+  header h1 { font-size: 13px; margin: 0 8px 0 0; text-transform: uppercase; letter-spacing: .04em; }
+  header button { font: inherit; padding: 2px 10px; }
+  #status { margin-left: auto; opacity: .8; font-variant-numeric: tabular-nums; }
+  #stage { flex: 1 1 auto; min-height: 0; }
+  #picked { padding: 6px 12px; border-top: 1px solid #d8c9a3; min-height: 1.4em; font-family: ui-monospace, monospace; font-size: 12px; }
+  .note { padding: 12px; }
+
+  /* Theming: the host page overrides the stylesheet's custom properties.
+     This is the whole dark theme. */
+  body.dark { background: #15181c; color: #cfd6dd; }
+  body.dark header, body.dark #picked { border-color: #333a42; }
+  body.dark {
+    --pc-df-bg: #1b1f24;
+    --pc-cell-active: #1b1f24;
+    --pc-ui-bkg: #20252b;
+    --pc-surface-raised: #262c33;
+    --pc-surface-shard: #39424c;
+    --pc-surface-highlight: #4d4320;
+    --pc-surface-highlight-soft: #2f2c22;
+    --pc-border-default: #55606b;
+    --pc-border-soft: #3b444d;
+    --pc-border-strong: #7b8792;
+    --pc-border-black: #dfe6ec;
+    --pc-text-default: #cfd6dd;
+    --pc-text-strong: #e6dcc0;
+    --pc-text-accent: #c9b98c;
+    --pc-token-exp: #cfd6dd;
+    --pc-token-typ: #c39af0;
+    --pc-token-pat: #6fb4ee;
+    --pc-ui-header-text: #c9b98c;
+    --pc-paper-1: #20252b; --pc-paper-2: #1b1f24; --pc-paper-3: #20252b;
+    --pc-paper-4: #262c33; --pc-paper-5: #2b3138; --pc-paper-7: #2b3138;
+    --pc-white: #1b1f24;
+    --pc-grey-8: #cfd6dd; --pc-grey-9: #dfe6ec; --pc-grey-7: #aab4bd;
+    --pc-ink-3: #c9b98c; --pc-ink-4: #d8c9a3; --pc-ink-5: #e0d4b4; --pc-ink-6: #eadfc4;
+    --pc-purple-1: #c39af0;
+    --pc-tan-1: #55606b;
+    --pc-canvas-select: #7fd3a0; --pc-canvas-select-bg: #1f3a2b;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Portolan canvas</h1>
+  <button id="play">Play</button>
+  <button id="step">Step</button>
+  <button id="reset">Reset</button>
+  <button id="fit">Fit</button>
+  <label><input type="checkbox" id="follow" checked> follow</label>
+  <label><input type="checkbox" id="pace" checked> pace</label>
+  <label><input type="checkbox" id="dark"> dark</label>
+  <label>every <input type="number" id="gap" value="2500" min="0" step="250" style="width:5em"> ms</label>
+  <span id="status">loading…</span>
+</header>
+<div id="stage"></div>
+<div id="picked">click a type, a function, a test pip or a value</div>
+
+<!-- the dev bundle, as `dune build ./canvas` leaves it -->
+<script src="../_build/default/canvas/portolan_canvas_js.bc.js"></script>
+<script>
+(async function () {
+  const $ = (id) => document.getElementById(id);
+  const status = (s) => { $("status").textContent = s; };
+  if (!window.PortolanCanvas) {
+    $("stage").innerHTML = '<p class="note">The bundle is not built. Run <code>dune build ./canvas</code> at the repository root, serve the repository root over http, and open <code>/canvas/demo.html</code>.</p>';
+    status("no bundle");
+    return;
+  }
+  const C = window.PortolanCanvas;
+  C.mount($("stage"));
+  C.onSelect((name, kind, at) => {
+    $("picked").textContent = kind + " " + name + (at ? "  —  " + at.file + ":" + at.line : "");
+  });
+
+  let steps = [];
+  try {
+    const index = await (await fetch("demo/steps.json")).json();
+    steps = await Promise.all(index.steps.map(async (s) => ({
+      cause: s.cause,
+      snapshot: await (await fetch("demo/" + s.snapshot)).text(),
+    })));
+  } catch (e) {
+    $("stage").insertAdjacentHTML("afterbegin", '<p class="note">Could not load the snapshots (' + e + '). Open this page over http, not from the file system.</p>');
+    status("no snapshots");
+    return;
+  }
+
+  let next = 0, timer = null;
+  const show = () => status(next + " / " + steps.length + " pushed, " + C.pending() + " queued");
+  const push = () => {
+    if (next >= steps.length) return false;
+    const s = steps[next++];
+    C.push(s.snapshot, JSON.stringify(s.cause));
+    show();
+    return true;
+  };
+  // the agent stays "busy" until the last queued beat has been shown
+  let busy = false;
+  const setBusy = (b) => { busy = b; C.setBusy(b); };
+  const stop = () => { clearInterval(timer); timer = null; $("play").textContent = "Play"; };
+  const play = () => {
+    if (next >= steps.length) { C.reset(); next = 0; }
+    setBusy(true);
+    $("play").textContent = "Pause";
+    push();
+    timer = setInterval(() => { if (!push()) stop(); }, Math.max(0, +$("gap").value));
+  };
+  $("play").onclick = () => (timer ? stop() : play());
+  $("step").onclick = () => { stop(); setBusy(true); push(); };
+  $("reset").onclick = () => { stop(); setBusy(false); C.reset(); next = 0; show(); };
+  $("fit").onclick = () => C.fit();
+  $("follow").onchange = (e) => C.setFollow(e.target.checked);
+  $("pace").onchange = (e) => C.setPace(e.target.checked);
+  $("dark").onchange = (e) => document.body.classList.toggle("dark", e.target.checked);
+  setInterval(() => {
+    show();
+    if (busy && !timer && C.pending() === 0) setBusy(false);
+  }, 500);
+  show();
+
+  // for poking at it from the console or a test: ?autoplay starts at once
+  window.demo = { steps, push, play, stop };
+  if (new URLSearchParams(location.search).has("autoplay")) play();
+})();
+</script>
+</body>
+</html>

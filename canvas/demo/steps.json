@@ -1,0 +1,61 @@
+{
+ "about": "A vector-graphics model growing step by step (hand-written Graph JSON, the shape of graph/graph.ml's Graph.to_string).",
+ "steps": [
+  {
+   "snapshot": "step-1.json",
+   "cause": {
+    "label": "type point",
+    "site": "point",
+    "ok": true
+   }
+  },
+  {
+   "snapshot": "step-2.json",
+   "cause": {
+    "label": "types shape, scene",
+    "site": "scene",
+    "ok": true
+   }
+  },
+  {
+   "snapshot": "step-3.json",
+   "cause": {
+    "label": "let area + tests",
+    "site": "area",
+    "ok": true
+   }
+  },
+  {
+   "snapshot": "step-4.json",
+   "cause": {
+    "label": "let translate, scale",
+    "site": "scale",
+    "ok": true
+   }
+  },
+  {
+   "snapshot": "step-5.json",
+   "cause": {
+    "label": "let total_area, move_all, origin",
+    "site": "total_area",
+    "ok": true
+   }
+  },
+  {
+   "snapshot": "step-6.json",
+   "cause": {
+    "label": "fix total_area",
+    "site": "total_area",
+    "ok": true
+   }
+  },
+  {
+   "snapshot": "step-7.json",
+   "cause": {
+    "label": "module Bounds",
+    "site": "Bounds",
+    "ok": true
+   }
+  }
+ ]
+}

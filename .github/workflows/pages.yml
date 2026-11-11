@@ -23,7 +23,7 @@ jobs:
       # The notebook, plus the page itself under app/ so recorded runs in site/runs/ can be replayed
       # in the browser (app/?trace=../runs/<name>.jsonl) with no sidecar.
       - name: Assemble the site
-        run: mkdir _site && cp -R site/. _site/ && cp -R web _site/app
+        run: mkdir _site && cp -R site/. _site/ && cp -R web _site/app && cp -R canvas/dist _site/app/canvas
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

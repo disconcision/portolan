@@ -1,24 +1,42 @@
-// The page: relays the sidecar's event stream into a chat feed and a canvas.
+// The page: relays the sidecar's event stream into a chat feed and the canvas.
 (function () {
   const $ = id => document.getElementById(id);
   const feed = $('feed');
-  let project = '', live = false, graphs = [], seen = new Set(), tools = {}, liveEl = null, liveTool = null, toolJson = '';
-  let view = null, which = 'plain';
   const params = new URLSearchParams(location.search), traceUrl = params.get('trace'), speed = Math.max(0.25, +params.get('speed') || 1);
+  const PC = window.PortolanCanvas;
+  let project = '', live = false, graphs = [], seen = new Set(), tools = {}, liveEl = null, liveTool = null, toolJson = '', lastWho = '';
   let files = null; // file contents carried by a recorded trace
+  let view = null, which = '';
 
-  // ---- canvas: the ported Hazel canvas when its bundle is present, else the plain view ----
+  // A project that is one compilation unit is drawn flat, as a Hazel program is:
+  // the file's own module is not a region. Several files keep theirs.
+  function flatten(g) {
+    const items = [...g.nodes.filter(n => n.kind === 'alias'), ...g.edges, ...(g.values || [])];
+    const tops = new Set(items.map(x => (x.m_path || [])[0]).filter(Boolean));
+    if (tops.size !== 1 || items.some(x => !(x.m_path || []).length)) return g;
+    const cut = x => ({ ...x, m_path: (x.m_path || []).slice(1) });
+    return { ...g, nodes: g.nodes.map(cut), edges: g.edges.map(cut), values: (g.values || []).map(cut) };
+  }
+
+  // ---- canvas: Hazel's, ported. The plain view is only a fallback when its bundle is missing. ----
   const views = {
-    plain: { mount: el => PlainView.mount(el), push: (g, c, a) => PlainView.push(g, c, a), reset: () => PlainView.reset(), onSelect: cb => PlainView.onSelect(cb) },
     hazel: {
-      mount: el => window.PortolanCanvas.mount(el),
-      push: (g, c) => window.PortolanCanvas.push(JSON.stringify(g), JSON.stringify(c || {})),
-      reset: () => window.PortolanCanvas.reset && window.PortolanCanvas.reset(),
-      onSelect: cb => window.PortolanCanvas.onSelect && window.PortolanCanvas.onSelect((name, kind) => {
-        const g = graphs.length ? graphs[graphs.length - 1].graph : null;
-        const item = g && (kind === 'node' ? g.nodes.find(n => n.key === name || n.label === name) : g.edges.find(e => e.name === name || e.label === name));
-        if (item) cb(item, kind);
+      mount: el => PC.mount(el),
+      push: (g, c) => PC.push(g, { label: (c && c.label) || 'edit', ok: true }),
+      show: g => PC.show(g),
+      reset: () => PC.reset(),
+      onSelect: cb => PC.onSelect((name, _kind, at) => {
+        const g = graphs.length ? graphs[graphs.length - 1] : null;
+        const item = g && (g.edges.find(e => e.name === name || e.label === name) || g.nodes.find(n => n.key === name || n.label === name) || (g.values || []).find(v => v.name === name));
+        cb(item || { label: name, at }, item && g.edges.includes(item) ? 'edge' : 'node', at || (item && item.at));
       }),
+    },
+    plain: {
+      mount: el => PlainView.mount(el),
+      push: (g, c) => PlainView.push(g, c, true),
+      show: g => PlainView.push(g, null, false),
+      reset: () => PlainView.reset(),
+      onSelect: cb => PlainView.onSelect((item, kind) => cb(item, kind, item.at)),
     },
   };
   function use(name) {
@@ -28,18 +46,21 @@
     view.mount($('canvas'));
     view.onSelect(showSource);
     view.reset();
-    graphs.forEach(e => view.push(e.graph, e.cause, false));
-    $('which').textContent = 'view: ' + name;
+    if (graphs.length) view.show(graphs[graphs.length - 1]);
+    $('which').textContent = name === 'hazel' ? 'plain view' : 'canvas';
   }
-  $('which').onclick = () => { if (window.PortolanCanvas) use(which === 'plain' ? 'hazel' : 'plain'); };
-  if (!window.PortolanCanvas) $('which').title = 'The ported Hazel canvas is not built yet; this is the plain view.';
-  use(window.PortolanCanvas ? 'hazel' : 'plain');
+  $('which').hidden = !PC;
+  $('which').onclick = () => use(which === 'hazel' ? 'plain' : 'hazel');
+  use(PC ? 'hazel' : 'plain');
+  const toggle = (id, set) => { const b = $(id); b.onclick = () => { const on = !b.classList.contains('tool-active'); b.classList.toggle('tool-active', on); if (PC) set(on); }; };
+  toggle('pace', on => PC.setPace(on));
+  toggle('follow', on => PC.setFollow(on));
+  $('fit').onclick = () => PC && PC.fit();
 
   // ---- the selected definition's code ----
-  async function showSource(item, kind) {
-    const at = item.at;
-    $('info-path').textContent = at ? at.path : item.label || item.name;
-    $('info-type').textContent = kind === 'edge' ? ': ' + item.ty : item.ty ? '= ' + item.ty : '';
+  async function showSource(item, kind, at) {
+    $('info-path').textContent = at ? at.path : item.label || item.name || '';
+    $('info-type').textContent = kind === 'edge' && item.ty ? ': ' + item.ty : item.ty ? '= ' + item.ty : '';
     $('info-code').textContent = '';
     if (!at) return;
     try {
@@ -51,32 +72,29 @@
   // ---- chat feed ----
   const rel = p => { const k = '/' + project + '/'; const i = p ? p.lastIndexOf(k) : -1; return i >= 0 ? p.slice(i + k.length) : p || ''; };
   const pinned = () => feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
-  function add(cls, text) {
-    const stick = pinned();
+  function append(d) { const stick = pinned(); feed.appendChild(d); if (stick) feed.scrollTop = feed.scrollHeight; return d; }
+  function add(cls, text, who) {
+    if (who && who !== lastWho) { const w = document.createElement('div'); w.className = 'who' + (who === 'You' ? ' you' : ''); w.textContent = who; append(w); }
+    if (who) lastWho = who;
     const d = document.createElement('div');
     d.className = cls;
     d.textContent = text;
-    feed.appendChild(d);
-    if (stick) feed.scrollTop = feed.scrollHeight;
-    return d;
+    return append(d);
   }
   function toolRow(name, input) {
     let what = name, more = '';
-    if (name === 'Write') { what = 'Write ' + rel(input.file_path) + ' (' + String(input.content || '').split('\n').length + ' lines)'; }
+    if (name === 'Write') what = 'Write ' + rel(input.file_path) + (input.content != null ? ' (' + String(input.content).split('\n').length + ' lines)' : '');
     else if (name === 'Edit' || name === 'MultiEdit') { what = 'Edit ' + rel(input.file_path); more = String(input.new_string || '').split('\n').slice(0, 6).join('\n'); }
-    else if (name === 'Bash') { what = '$ ' + String(input.command || ''); }
-    else if (name === 'Read') { what = 'Read ' + rel(input.file_path); }
-    else if (input && (input.pattern || input.path)) { what = name + ' ' + (input.pattern || rel(input.path)); }
-    const stick = pinned();
+    else if (name === 'Bash') what = '$ ' + String(input.command || '');
+    else if (name === 'Read') what = 'Read ' + rel(input.file_path);
+    else if (input && (input.pattern || input.path)) what = name + ' ' + (input.pattern || rel(input.path));
     const d = document.createElement('div');
     d.className = 'tool';
     d.innerHTML = '<span class="dot">●</span><span class="what"></span><span class="more"></span>';
     d.children[1].textContent = what;
     d.children[1].title = what;
     d.children[2].textContent = more;
-    feed.appendChild(d);
-    if (stick) feed.scrollTop = feed.scrollHeight;
-    return d;
+    return append(d);
   }
   function dropLive() { if (liveEl) { liveEl.remove(); liveEl = null; } if (liveTool) { liveTool.remove(); liveTool = null; } }
 
@@ -87,14 +105,11 @@
       if (e.type === 'content_block_start') {
         dropLive();
         const b = e.content_block || {};
-        if (b.type === 'text') liveEl = add('msg say', '');
-        else if (b.type === 'thinking') liveEl = add('msg think', '');
+        if (b.type === 'text') liveEl = add('msg say', '', 'Claude');
         else if (b.type === 'tool_use') { toolJson = ''; liveTool = toolRow(b.name + ' …', {}); liveTool.dataset.name = b.name; }
       } else if (e.type === 'content_block_delta') {
-        const d = e.delta || {};
-        const stick = pinned();
-        if (d.type === 'text_delta' && liveEl) liveEl.textContent += d.text;
-        else if (d.type === 'thinking_delta' && liveEl) liveEl.textContent += d.thinking || '';
+        const d = e.delta || {}, stick = pinned();
+        if (d.type === 'text_delta' && liveEl) { liveEl.textContent += d.text; if (PC) PC.setThought(liveEl.textContent); }
         else if (d.type === 'input_json_delta' && liveTool) {
           toolJson += d.partial_json || '';
           const m = toolJson.match(/"file_path"\s*:\s*"([^"]+)"/);
@@ -111,9 +126,9 @@
         const key = (msg.id || '') + ':' + (b.id || b.type + ':' + i + ':' + String(b.text || b.thinking || '').length);
         if (seen.has(key)) return;
         seen.add(key);
-        if (b.type === 'text' && b.text.trim()) add('msg say', b.text);
-        else if (b.type === 'thinking' && (b.thinking || '').trim()) add('msg think', b.thinking);
-        else if (b.type === 'tool_use') tools[b.id] = toolRow(b.name, b.input || {});
+        if (b.type === 'text' && b.text.trim()) add('msg say', b.text, 'Claude');
+        else if (b.type === 'thinking' && (b.thinking || '').trim()) add('msg think', b.thinking, 'Claude');
+        else if (b.type === 'tool_use') { lastWho = 'Claude'; tools[b.id] = toolRow(b.name, b.input || {}); }
       });
     } else if (ev.type === 'user') {
       const c = (ev.message || {}).content;
@@ -126,28 +141,28 @@
     } else if (ev.type === 'result') {
       dropLive();
       add('turn', ev.is_error ? 'stopped' : 'turn done');
+      lastWho = '';
     }
   }
 
-  function chip(id, text, cls) { const c = $(id); c.textContent = text; c.className = 'chip' + (cls ? ' ' + cls : ''); }
+  function cell(id, text, cls) { const c = $(id); c.textContent = text; c.className = 'cell' + (id === 'agent' ? ' tail' : '') + (cls ? ' ' + cls : ''); }
 
   const handlers = {
-    hello(e) { project = e.project; $('project').textContent = '/ ' + e.project; chip('mode', e.agent && e.agent.startsWith('script') ? 'scripted agent' : ''); },
-    caught_up() { live = true; },
-    replay_end() { chip('mode', 'replay finished'); },
-    prompt(e) { add('msg you', e.text); },
+    hello(e) { project = e.project; $('project').textContent = e.project; $('mode').textContent = e.agent && e.agent.startsWith('script') ? '· scripted agent' : ''; },
+    caught_up() { live = true; if (graphs.length) view.show(graphs[graphs.length - 1]); },
+    replay_end() { $('mode').textContent = '· replay finished'; },
+    prompt(e) { add('msg you', e.text, 'You'); },
     agent(e) { agent(e.ev); },
     agent_raw(e) { add('tool bad', e.line); },
-    agent_state(e) { chip('agent', 'agent: ' + e.state, e.state === 'running' ? 'live' : ''); },
+    agent_state(e) { cell('agent', 'agent: ' + e.state, e.state === 'running' ? 'live' : ''); if (PC && live) PC.setBusy(e.state === 'running'); },
     build(e) {
-      chip('build', e.ok ? 'build ok · ' + e.ms + ' ms' : 'build failing', e.ok ? 'ok' : 'bad');
+      cell('build', e.ok ? 'build ok · ' + e.ms + ' ms' : 'build failing', e.ok ? 'ok' : 'bad');
       const f = $('flux');
       f.hidden = e.ok;
       if (!e.ok) { f.innerHTML = '<b>Build failing. The picture is the last good state.</b>\n'; f.appendChild(document.createTextNode(e.output.split('\n').slice(0, 14).join('\n'))); }
     },
-    tests(e) { chip('tests', e.failing.length ? e.failing.length + ' test' + (e.failing.length > 1 ? 's' : '') + ' failing' : e.ok ? 'tests pass' : 'tests did not run', e.failing.length || !e.ok ? 'bad' : 'ok'); },
-    graph(e) { graphs.push(e); view.push(e.graph, e.cause, live); },
-    extract(e) { if (!e.ok) chip('build', 'extractor failed', 'bad'); },
+    tests(e) { cell('tests', e.failing.length ? e.failing.length + ' test' + (e.failing.length > 1 ? 's' : '') + ' failing' : e.ok ? 'tests pass' : 'tests did not run', e.failing.length || !e.ok ? 'bad' : 'ok'); },
+    graph(e) { const g = flatten(e.graph); graphs.push(g); if (live) view.push(g, e.cause); },
     error(e) { add('tool bad', e.where + ': ' + e.message); },
     files(e) { files = e.files; },
   };
@@ -156,7 +171,7 @@
   if (traceUrl) {
     // A recorded run, played in the page with its own timing. No sidecar involved.
     $('ask').hidden = true;
-    chip('mode', 'recorded run · ' + speed + '×');
+    $('mode').textContent = '· recorded run, ' + speed + '×';
     fetch(traceUrl).then(r => r.text()).then(async text => {
       const evs = text.split('\n').filter(l => l.trim()).map(l => { try { return JSON.parse(l); } catch (x) { return null; } }).filter(Boolean);
       evs.filter(e => e.type === 'files').forEach(dispatch);
@@ -171,12 +186,12 @@
         while (i < run.length && due[i] <= now) dispatch(run[i++]);
         if (i < run.length) await new Promise(r => setTimeout(r, Math.min(250, Math.max(15, due[i] - now))));
       }
-      chip('mode', 'recorded run · finished');
-    }).catch(() => chip('mode', 'could not load the recording', 'bad'));
+      $('mode').textContent = '· recorded run, finished';
+    }).catch(() => { $('mode').textContent = '· could not load the recording'; });
   } else {
     const es = new EventSource('events');
     es.onmessage = m => { let e; try { e = JSON.parse(m.data); } catch (x) { return; } dispatch(e); };
-    es.onerror = () => chip('agent', 'disconnected', 'bad');
+    es.onerror = () => cell('agent', 'disconnected', 'bad');
   }
 
   // ---- prompt box ----
