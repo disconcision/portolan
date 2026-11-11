@@ -2659,6 +2659,15 @@ let fit = (): unit => {
   request_render();
 };
 
+/* PORTOLAN: the host selects a definition by its qualified name (a search
+   result), as a click on it would. */
+let select = (~is_type: bool, name: string): unit => {
+  focused_value := None;
+  focused := is_type ? None : Some(name);
+  focused_ty := is_type ? Some(name) : None;
+  request_render();
+};
+
 /* PORTOLAN: the layout and the edge style (CanvasOptions). The graph on
    the board is laid out again and glides to its new places; positions
    set by dragging belonged to the old arrangement and are dropped. */

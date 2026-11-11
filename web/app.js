@@ -61,6 +61,7 @@
   function drawPicker() {
     const ms = latest ? modules(latest) : [], sel = $('module');
     $('module-wrap').hidden = ms.length < 2;
+    $('find-wrap').hidden = !ms.length;
     const sig = JSON.stringify(ms);
     if (sel.dataset.sig !== sig) {
       sel.dataset.sig = sig;
@@ -100,6 +101,47 @@
     if (fresh) { view.reset(); view.show(g); } else view.push(g, cause);
   }
   $('module').onchange = () => choose($('module').value);
+
+  // ---- find a definition by name, anywhere in the project ----
+  const find = $('find'), hits = $('hits');
+  let found = [], at = 0;
+  function matches(q) {
+    q = q.trim().toLowerCase();
+    if (!latest || !q) return [];
+    const all = [...latest.edges.map(x => [x, 'edge']), ...latest.nodes.filter(n => n.kind === 'alias').map(x => [x, 'type']), ...(latest.values || []).map(x => [x, 'value'])];
+    const out = [];
+    for (const [x, kind] of all) {
+      const name = x.name || x.key || '', label = (x.label || '').toLowerCase(), i = label.indexOf(q), j = name.toLowerCase().indexOf(q);
+      if (i >= 0 || j >= 0) out.push({ x, kind, name, rank: label === q ? 0 : i === 0 ? 1 : i > 0 ? 2 : 3 });
+    }
+    return out.sort((a, b) => a.rank - b.rank || a.name.length - b.name.length).slice(0, 14);
+  }
+  function drawHits() {
+    hits.hidden = !found.length;
+    hits.replaceChildren(...found.map((h, i) => {
+      const row = document.createElement('div');
+      row.className = 'hit' + (i === at ? ' on' : '');
+      const mod = (h.x.m_path || []).join('.');
+      row.innerHTML = '<span>' + esc(h.x.label || h.name) + '</span><span class="in">' + esc(mod) + '</span><span class="ty">' + esc(h.kind === 'type' ? 'type' : h.x.ty || '') + '</span>';
+      row.onmousedown = e => { e.preventDefault(); go(h); };
+      return row;
+    }));
+  }
+  function go(h) {
+    found = []; drawHits(); find.value = ''; find.blur();
+    const mod = top(h.x);
+    if (mod && mod !== moduleName) choose(mod);
+    showSource(h.x, h.kind === 'edge' ? 'edge' : 'node', h.x.at);
+    if (PC && PC.select && h.kind !== 'value') setTimeout(() => PC.select(h.name, h.kind === 'type'), 700); // once the module is on the board
+  }
+  find.oninput = () => { found = matches(find.value); at = 0; drawHits(); };
+  find.onkeydown = e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); at = (at + (e.key === 'ArrowDown' ? 1 : found.length - 1)) % Math.max(1, found.length); drawHits(); }
+    else if (e.key === 'Enter' && found[at]) go(found[at]);
+    else if (e.key === 'Escape') { found = []; drawHits(); find.blur(); }
+  };
+  find.onblur = () => { found = []; drawHits(); };
+  document.addEventListener('keydown', e => { if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !document.activeElement.closest('.cm-editor')) { e.preventDefault(); find.focus(); } });
 
   // A graph shown at once is framed before its layout has settled, and comes out cut off or far
   // too small. Watch the board until it stops changing, then frame it; a hidden tab draws late.

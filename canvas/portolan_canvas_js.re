@@ -230,6 +230,19 @@ let () = {
         ),
       ),
       (
+        "select",
+        Js.Unsafe.inject(
+          Js.wrap_callback((name: Js.Unsafe.any, is_type: Js.Unsafe.any) =>
+            guard("select", () =>
+              CanvasDirector.select(
+                ~is_type=Js.to_bool(Js.Unsafe.coerce(is_type)),
+                Js.to_string(Js.Unsafe.coerce(name)),
+              )
+            )
+          ),
+        ),
+      ),
+      (
         "setEdges",
         Js.Unsafe.inject(
           Js.wrap_callback((k: Js.Unsafe.any) =>

@@ -45,6 +45,7 @@ sh canvas/tools/diff_upstream.sh /path/to/hazel-worktree     # upstream/ must be
 | `setBusy(bool)` | The agent is working: the avatar is embodied and "thinks" between edits. |
 | `setThought(text)` | Streamed reasoning, shown in the thought cloud while busy. |
 | `fit()` | Frame the whole graph. |
+| `select(name, isType)` | Selects a function or value (or, with `isType`, a type) by its qualified name, as a click would. For a host's search. |
 | `onSelect(fn(name, kind, at))` | A click on a function, type, module, value or test pip. `at` is `{file, path, line, end_line}` or `null`. |
 | `pending()` | Beats still queued. |
 | `log()` | The canvas journal (beats, scores, `SCORE:` / `JUMP:` / `ORPHAN:` checks) as text. |

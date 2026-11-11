@@ -66,6 +66,15 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
 #module-wrap { display: flex; align-items: center; gap: 8px; }
 #module { font: inherit; color: var(--text-default); background: transparent; border: 0; padding: 0 2px; max-width: 16em; cursor: pointer; }
 #module:focus-visible { outline: 0.6px solid var(--border-strong); outline-offset: 2px; }
+#find-wrap { position: relative; display: flex; align-items: center; }
+#find { font: 400 12px var(--code-font); color: var(--text-default); background: transparent; border: 0.6px solid var(--border-soft); border-radius: 4px; padding: 2px 8px; width: 13em; }
+#find::placeholder { color: var(--text-muted); }
+#find:focus { outline: none; border-color: var(--border-strong); }
+#hits { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 22em; max-width: 34em; background: var(--surface-tab); border: 0.6px solid var(--border-default); border-radius: 4px; padding: 3px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12); }
+#hits .hit { display: flex; gap: 10px; align-items: baseline; padding: 3px 8px; border-radius: 3px; cursor: pointer; font: 400 12px var(--code-font); white-space: nowrap; }
+#hits .hit .in { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+#hits .hit .ty { color: var(--text-muted); margin-left: auto; overflow: hidden; text-overflow: ellipsis; max-width: 16em; }
+#hits .hit.on, #hits .hit:hover { background: var(--surface-highlight-soft); }
 #top-bar .spacer { flex: 1; }
 #top-right { display: flex; align-items: center; gap: 14px; padding-right: 12px; font-size: 13px; color: var(--text-muted); }
 #top-right a { color: var(--text-accent); text-decoration: none; } #top-right a:hover { text-decoration: underline; }
