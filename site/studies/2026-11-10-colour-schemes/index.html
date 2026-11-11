@@ -188,7 +188,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
       <button id="star" aria-pressed="false" title="Mark as a favourite" aria-label="Favourite">★</button>
     </div>
     <p id="blurb"></p>
-    <p class="hint">Click a part of the picture to find its colour, or a row here to see what it paints; click the same spot again for the next colour under it. Drag one colour onto another to swap them (Alt copies). <kbd>⌘Z</kbd> undoes. <span id="picked"></span></p>
+    <p class="hint">Click a part of the picture to find its colour, or a row here to see what it paints; click the same spot again for the next colour under it. The outline shows for a moment, then goes. Drag one colour onto another to swap them (Alt copies). <kbd>⌘Z</kbd> undoes. <span id="picked"></span></p>
     <div id="rows"></div>
     <div class="tune">
       <label>Hue of the accents <input type="range" id="hue" min="-180" max="180" value="0"><output id="hue-out">0°</output></label>
@@ -366,6 +366,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
       if (hex.toLowerCase() === own(selected, role).toLowerCase() && !scheme(selected).custom) delete cs[role]; else cs[role] = hex.toUpperCase();
     }
     edit(selected, { colors: cs });
+    mark(null);
     paintSelected();
     Object.keys(patch).forEach(syncRow);
     drawFoot(selected);
@@ -521,10 +522,17 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
     textContent: WHERE.map(([sel, role, how]) => sel.split(',').map(x => '#stage[data-mark="' + role + '"] ' + x.trim()).join(', ') + ' { ' + HOW[how] + ' }').join('\n'),
   }));
   const labelOf = role => { for (const [, rs] of ROLES) for (const [id, label] of rs) if (id === role) return label; return role; };
-  let picked = null, lastSpot = null, turn = 0;
+  let picked = null, lastSpot = null, turn = 0, unmark = 0;
+  // The outline is only to find the thing: it shows for a moment and goes, so it never sits on a colour being judged.
+  const mark = role => {
+    clearTimeout(unmark);
+    if (!role) { delete stage.dataset.mark; return; }
+    stage.dataset.mark = role;
+    unmark = setTimeout(() => { delete stage.dataset.mark; }, 1400);
+  };
   function pick(role) {
     picked = role;
-    if (role) stage.dataset.mark = role; else delete stage.dataset.mark;
+    mark(role);
     document.querySelectorAll('.row.sel').forEach(r => r.classList.remove('sel'));
     const row = role && document.querySelector('.row[data-role="' + role + '"]');
     if (row) { row.classList.add('sel'); row.scrollIntoView({ block: 'nearest' }); }
@@ -548,7 +556,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
     const r = ev.target.closest('.row');
     if (!r || ev.target.matches('input[type="text"], .undo') || Date.now() < quiet) return;
     lastSpot = null;
-    pick(picked === r.dataset.role && !ev.target.matches('input') ? null : r.dataset.role);
+    pick(r.dataset.role); // on the row already selected, this shows its outline again
   });
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape') pick(null); });
 
