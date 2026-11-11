@@ -163,7 +163,7 @@ more of them than Hazel:
 - **text nodes:** every other unnamed type (a function type, a type applied to
   arguments, an inferred variant) keeps its text, shortened by `Abbreviate`
   (variants to their first tags, module paths to their last module, inner
-  brackets closed up, 30 characters at most). The whole type is in the tooltip,
+  brackets closed up, 32 characters at most). The whole type is in the tooltip,
   through `n_doc`. The layout draws no formation lines into a `Derived` node,
   so a text node shows no parts;
 - **value captions:** a node that is only there because values have that type

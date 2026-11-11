@@ -213,7 +213,7 @@ let former_key = (path: list(string)): string =>
 /* PORTOLAN: short labels for long printed types (Hazel cuts a label at 20
    characters; OCaml's inferred types need more care than that). */
 module Abbreviate = {
-  let limit = 30;
+  let limit = 32;
   let dots = {js|…|js};
 
   let is_id = c =>
@@ -338,38 +338,45 @@ module Abbreviate = {
     Buffer.contents(b);
   };
 
-  /* what is inside the brackets nested deeper than [keep] becomes "…" */
-  let collapse = (~keep: int, s: string): string => {
-    let b = Buffer.create(String.length(s));
-    let depth = ref(0);
-    String.iter(
-      c =>
-        if (opens(c)) {
-          if (depth^ <= keep) {
-            Buffer.add_char(b, c);
-          };
-          if (depth^ == keep) {
-            Buffer.add_string(b, dots);
-          };
-          incr(depth);
-        } else if (closes(c)) {
-          decr(depth);
-          if (depth^ <= keep) {
-            Buffer.add_char(b, c);
-          };
-        } else if (depth^ <= keep) {
-          Buffer.add_char(b, c);
-        },
-      s,
-    );
-    Buffer.contents(b);
-  };
-
   /* characters, not bytes: "…" is three bytes */
   let length = (s: string): int => {
     let n = ref(0);
     String.iter(c => Char.code(c) land 0xC0 != 0x80 ? incr(n) : (), s);
     n^;
+  };
+
+  /* "CanvasGraph.tynode" -> "tynode"; "Effect.t" stays: [t] alone
+     names nothing */
+  let bare = (id: string): string =>
+    switch (List.rev(String.split_on_char('.', id))) {
+    | [last, _, ..._] when String.length(last) > 1 => last
+    | _ => id
+    };
+
+  /* what is inside the brackets nested deeper than [keep] becomes "…",
+     unless it is short anyway */
+  let collapse = (~keep: int, s: string): string => {
+    let b = Buffer.create(String.length(s));
+    let rec go = (i, stop, depth) =>
+      if (i < stop) {
+        switch (opens(s.[i]) ? closing(s, i) : None) {
+        | Some(close) when close < stop =>
+          Buffer.add_char(b, s.[i]);
+          if (depth >= keep
+              && length(String.sub(s, i + 1, close - i - 1)) > 6) {
+            Buffer.add_string(b, dots);
+          } else {
+            go(i + 1, close, depth + 1);
+          };
+          Buffer.add_char(b, s.[close]);
+          go(close + 1, stop, depth);
+        | _ =>
+          Buffer.add_char(b, s.[i]);
+          go(i + 1, stop, depth);
+        };
+      };
+    go(0, String.length(s), 0);
+    Buffer.contents(b);
   };
 
   let cut = (s: string): string =>
@@ -383,13 +390,15 @@ module Abbreviate = {
     };
 
   /* The first of these that fits: the type as printed; with variants
-     reduced to their tags; with module paths cut to their last module;
-     with the inner brackets closed up; cut off. */
+     reduced to their tags; with module paths cut to their last module,
+     then dropped; with the inner brackets closed up, then the outer
+     ones; cut off. */
   let ty = (s: string): string => {
     let fits = s => length(s) <= limit;
     let steps = [
       variants,
       map_idents(short_path),
+      map_idents(bare),
       collapse(~keep=1),
       collapse(~keep=0),
       cut,
@@ -766,20 +775,11 @@ module Read = {
         },
       nodes0,
     );
-    /* the module a node with no declaration belongs to: that of the
-       first function it is an end of, else of what it is a part of */
-    let rec home = (seen: list(string), k: string): list(string) =>
-      switch (Hashtbl.find_opt(fn_ends, k), Hashtbl.find_opt(hosts, k)) {
-      | (Some(m_path), _) => m_path
-      | (None, Some(host)) when host.kind == Alias => host.m_path
-      | (None, Some(host)) when !List.mem(host.key, seen) =>
-        home([k, ...seen], host.key)
-      | _ =>
-        switch (Hashtbl.find_opt(holds, k)) {
-        | Some([v, ..._]) => v.m_path
-        | _ => []
-        }
-      };
+    /* A tuple or a dot is in the module of the first function it is an
+       end of. One that is only a part of types stays outside: a module's
+       former has room for few members around it. */
+    let home = (k: string): list(string) =>
+      Option.value(Hashtbl.find_opt(fn_ends, k), ~default=[]);
     let is_variable = (n: tynode): bool =>
       n.kind == Derived
       && String.length(n.label) >= 2
@@ -838,7 +838,7 @@ module Read = {
                 kind: Product,
                 label: glyph,
                 former: None,
-                m_path: home([], n.key),
+                m_path: home(n.key),
                 n_doc: shown_whole(n, glyph),
               }
             | (Derived, None) =>
@@ -862,7 +862,7 @@ module Read = {
               };
             | (Product, _) when !is_former_key(n.key) => {
                 ...n,
-                m_path: home([], n.key),
+                m_path: home(n.key),
               }
             | (Ghost, _) =>
               let label = Abbreviate.ty(n.label);
@@ -888,7 +888,14 @@ module Read = {
                     )
                   : p,
               n.parts,
-            );
+            )
+            /* one line per part: a record with five [string list] fields
+               would otherwise count as five lines for the layout to
+               keep other nodes off */
+            |> List.fold_left(
+                 (acc, p) => List.mem(p, acc) ? acc : acc @ [p],
+                 [],
+               );
           let former =
             former_given
               ? switch (n.former) {
