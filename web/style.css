@@ -89,6 +89,10 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
   background: transparent; color: inherit; font: inherit; }
 .canvas-tool-btn:hover { background: var(--surface-highlight-soft); }
 .canvas-tool-btn.tool-active { background: var(--surface-highlight); color: var(--text-strong); }
+.canvas-tool-select { border: 0.6px solid var(--border-default); border-radius: 4px; padding: 1px 4px; cursor: pointer; background: transparent; color: inherit; font: inherit; max-width: 15em; }
+.canvas-tool-select:hover { background: var(--surface-highlight-soft); }
+.canvas-tool-select:focus-visible { outline: 0.6px solid var(--border-strong); outline-offset: 1px; }
+.canvas-tool-select option { background: var(--surface-default, Canvas); color: var(--text-default, CanvasText); }
 .canvas-tool-btn:focus-visible, #send:focus-visible, #prompt:focus-visible { outline: 0.6px solid var(--border-strong); outline-offset: 1px; }
 #canvas-host { position: relative; min-height: 0; overflow: hidden; background: var(--board); }
 #canvas { position: absolute; inset: 0; }
