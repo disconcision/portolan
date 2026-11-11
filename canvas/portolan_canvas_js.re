@@ -19,6 +19,13 @@
      PortolanCanvas.layout() / edges()      the ones in use (ids)
      PortolanCanvas.setLayout(id)           lays the board out again; false
      PortolanCanvas.setEdges(id)            for an id that is not on offer
+     PortolanCanvas.contours()              [{id, label}]: what a module's
+                                            region is drawn around
+     PortolanCanvas.pulls()                 [{id, label}]: how hard a module's
+                                            members are drawn together
+     PortolanCanvas.contour() / pull()      the ones in use (ids)
+     PortolanCanvas.setContour(id)          false for an id that is not on
+     PortolanCanvas.setPull(id)             offer
      PortolanCanvas.layoutStats()           {calls, ms, hits, phases}: layouts
                                             computed, their total time, memo
                                             hits, time by phase */
@@ -250,6 +257,50 @@ let () = {
           Js.wrap_callback((k: Js.Unsafe.any) =>
             Js.bool(
               CanvasDirector.set_edges(Js.to_string(Js.Unsafe.coerce(k))),
+            )
+          ),
+        ),
+      ),
+      (
+        "contours",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() => options(CanvasContour.styles)),
+        ),
+      ),
+      (
+        "pulls",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() => options(CanvasPull.strengths)),
+        ),
+      ),
+      (
+        "contour",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() => Js.string(CanvasContour.chosen())),
+        ),
+      ),
+      (
+        "pull",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() => Js.string(CanvasPull.id())),
+        ),
+      ),
+      (
+        "setContour",
+        Js.Unsafe.inject(
+          Js.wrap_callback((k: Js.Unsafe.any) =>
+            Js.bool(
+              CanvasDirector.set_contour(Js.to_string(Js.Unsafe.coerce(k))),
+            )
+          ),
+        ),
+      ),
+      (
+        "setPull",
+        Js.Unsafe.inject(
+          Js.wrap_callback((k: Js.Unsafe.any) =>
+            Js.bool(
+              CanvasDirector.set_pull(Js.to_string(Js.Unsafe.coerce(k))),
             )
           ),
         ),

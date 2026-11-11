@@ -328,6 +328,28 @@ let hull_paths_of = (lay: CanvasLayout.t): list(list(string)) =>
   |> List.sort_uniq(compare)
   |> List.sort((a, b) => compare(List.length(a), List.length(b)));
 
+/* PORTOLAN: the module a node is drawn with under a contour that goes by
+   members (CanvasContour.home), kept for the layout it was asked about */
+let hull_home_memo:
+  ref(option((list(CanvasLayout.node_layout), string => list(string)))) =
+  ref(Option.none);
+let hull_home = (lay: CanvasLayout.t): (string => list(string)) =>
+  switch (hull_home_memo^) {
+  | Some((nodes, home)) when nodes === lay.nodes => home
+  | _ =>
+    let home =
+      CanvasContour.home(
+        List.map((nl: CanvasLayout.node_layout) => nl.node, lay.nodes),
+        List.map((el: CanvasLayout.edge_layout) => el.edge, lay.edges),
+      );
+    hull_home_memo := Some((lay.nodes, home));
+    home;
+  };
+
+/* PORTOLAN: what the Smooth contour adds to every circle and link */
+let hull_swell = (): float =>
+  CanvasContour.style() == Smooth ? CanvasContour.swell : 0.;
+
 let hull_circles_at =
     (
       lay: CanvasLayout.t,
@@ -428,7 +450,47 @@ let hull_circles_at =
         },
       lay.edges,
     );
-  node_circles @ label_circles;
+  /* PORTOLAN: a contour around members also circles a built-in type that
+     only this module's functions share, and circles a function's label
+     only when the function lies wholly inside the module or wholly
+     outside it: one that crosses the edge is an arrow leaving the region,
+     its label with it */
+  if (CanvasContour.style() == Arrows) {
+    node_circles @ label_circles;
+  } else {
+    let home = hull_home(lay);
+    let inside = (k: string) => hull_is_prefix(path, home(k));
+    let adopted =
+      List.filter_map(
+        (nl: CanvasLayout.node_layout) =>
+          nl.node.m_path == [] && inside(nl.node.key)
+            ? Some((
+                "hullc-n-"
+                ++ sanitize(nl.node.key)
+                ++ (home(nl.node.key) == path ? "" : vsuffix),
+                nl.p,
+                46. +. depth_pad(home(nl.node.key)),
+              ))
+            : None,
+        lay.nodes,
+      );
+    let whole =
+      List.filter_map(
+        (el: CanvasLayout.edge_layout) =>
+          hull_is_prefix(path, el.edge.m_path)
+          && inside(el.edge.e_src) == inside(el.edge.dst)
+            ? Some("hullc-l-" ++ sanitize(el.edge.e_name)) : None,
+        lay.edges,
+      );
+    node_circles
+    @ adopted
+    @ List.filter(
+        ((id, _, _)) =>
+          List.exists(w => id == w || id == w ++ vsuffix, whole),
+        label_circles,
+      )
+    |> List.map(((id, p, r)) => (id, p, r +. hull_swell()));
+  };
 };
 
 /* the full circle enumeration: (id, target pos, radius) across every
@@ -446,9 +508,34 @@ let hull_targets =
 let hull_sausage_d = (el: CanvasLayout.edge_layout): string =>
   CanvasLayout.edge_path(el);
 
-let hull_sausages_at =
+/* PORTOLAN: a contour drawn around members only (CanvasContour) has no
+   band along an arrow. What keeps a spread-out module one shape is a
+   shortest tree of thin links between its circles. They take the
+   sausages' place, so whatever follows a drag or a glide follows them. */
+let hull_link_w = 22.;
+let hull_links_at =
     (lay: CanvasLayout.t, path: list(string))
     : list((string, string, float)) => {
+  let tail = (id: string) => String.sub(id, 6, String.length(id) - 6);
+  hull_circles_at(lay, hull_paths_of(lay), path)
+  |> List.map(((id, p: CanvasLayout.pos, r)) => (id, (p.x, p.y), r))
+  |> CanvasContour.links
+  |> List.map((((ia, (ax, ay)), (ib, (bx, by)))) =>
+       (
+         "hulls-m-" ++ tail(ia) ++ "--" ++ tail(ib),
+         Printf.sprintf("M %.1f,%.1f L %.1f,%.1f", ax, ay, bx, by),
+         hull_link_w +. 2. *. hull_swell(),
+       )
+     );
+};
+
+let hull_sausages_at =
+    (lay: CanvasLayout.t, path: list(string))
+    : list((string, string, float)) =>
+  /* PORTOLAN */
+  if (CanvasContour.style() != Arrows) {
+    hull_links_at(lay, path);
+  } else {
   let vsuffix = "--v" ++ sanitize(String.concat(".", path));
   List.filter_map(
     (el: CanvasLayout.edge_layout) =>
@@ -467,7 +554,7 @@ let hull_sausages_at =
       },
     lay.edges,
   );
-};
+  };
 
 /* Claim keyboard focus after selection's deferred editor focus. Used by
    Canvas objects and by the sample navigator inside an expanded card. */
@@ -1561,6 +1648,45 @@ let view =
                           ),
                         ],
                       ),
+                      /* PORTOLAN: the Smooth contour's filter. Its shapes
+                         are drawn larger by CanvasContour.swell; this
+                         blurs by as much and keeps only what is nearly
+                         solid, which takes the swell back off the outside
+                         of the shape and leaves the hollows filled. */
+                      Node.create_svg(
+                        "filter",
+                        ~attrs=[
+                          Attr.id("metaball-smooth"),
+                          Attr.create("x", "-60%"),
+                          Attr.create("y", "-60%"),
+                          Attr.create("width", "220%"),
+                          Attr.create("height", "220%"),
+                        ],
+                        [
+                          Node.create_svg(
+                            "feGaussianBlur",
+                            ~attrs=[
+                              Attr.create("in", "SourceGraphic"),
+                              Attr.create(
+                                "stdDeviation",
+                                fmt(CanvasContour.swell),
+                              ),
+                            ],
+                            [],
+                          ),
+                          Node.create_svg(
+                            "feColorMatrix",
+                            ~attrs=[
+                              Attr.create("mode", "matrix"),
+                              Attr.create(
+                                "values",
+                                "1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 40 -32",
+                              ),
+                            ],
+                            [],
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                   ...List.concat_map(
@@ -1598,7 +1724,13 @@ let view =
                                ]),
                                Attr.create(
                                  "style",
-                                 "filter: url(#metaball); fill: "
+                                 /* PORTOLAN: the contour's filter */
+                                 "filter: url(#"
+                                 ++ (
+                                   CanvasContour.style() == Smooth
+                                     ? "metaball-smooth" : "metaball"
+                                 )
+                                 ++ "); fill: "
                                  ++ color
                                  ++ "; stroke: "
                                  ++ color

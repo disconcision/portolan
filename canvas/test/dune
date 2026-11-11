@@ -1,7 +1,9 @@
-; What CanvasGraph makes of a graph record, checked natively:
+; What CanvasGraph makes of a graph record, and what the two region
+; settings (CanvasContour, CanvasPull) make of a placed graph, checked
+; natively:
 ;   dune test canvas/test
 (include_subdirs no)
 
-(test
- (name test_canvas_graph)
+(tests
+ (names test_canvas_graph test_regions)
  (libraries portolan_canvas_graph portolan_graph alcotest))

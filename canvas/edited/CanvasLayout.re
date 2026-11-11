@@ -1448,6 +1448,41 @@ let layout_core =
       node_layouts,
     );
   };
+  /* PORTOLAN: the pull toward each module's centre (CanvasPull), after
+     whichever layout placed the nodes and before anything is routed */
+  let node_layouts =
+    switch (CanvasPull.chosen()) {
+    | None => node_layouts
+    | Some(strength) =>
+      let t_pull = Util.PerfTimer.now();
+      let moved: Hashtbl.t(string, (float, float)) = Hashtbl.create(64);
+      List.iter(
+        ((k, p)) => Hashtbl.replace(moved, k, p),
+        CanvasPull.apply(
+          strength,
+          g,
+          List.map(
+            (n: node_layout) => (n.node.key, (n.p.x, n.p.y), n.r),
+            node_layouts,
+          ),
+        ),
+      );
+      Util.PerfTimer.record("layout/pull", Util.PerfTimer.now() -. t_pull);
+      List.map(
+        (n: node_layout) =>
+          switch (Hashtbl.find_opt(moved, n.node.key)) {
+          | Some((x, y)) => {
+              ...n,
+              p: {
+                x,
+                y,
+              },
+            }
+          | None => n
+          },
+        node_layouts,
+      );
+    };
   let node_layouts = apply_manual_positions(~offsets, ~pins, node_layouts);
   let placed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
   List.iter(
@@ -2467,6 +2502,8 @@ type layout_key = {
   k_cards: list((string, (float, float))),
   /* PORTOLAN: the pane shape a packing layout aimed for */
   k_aspect: float,
+  /* PORTOLAN: the pull in use (CanvasPull) */
+  k_pull: string,
 };
 let layout_memo: ref(list((layout_key, t))) = ref([]);
 let layout_memo_hits: ref(int) = ref(0);
@@ -2485,7 +2522,8 @@ let same_key = (a: layout_key, b: layout_key) =>
   && a.k_offsets == b.k_offsets
   && a.k_pins == b.k_pins
   && a.k_cards == b.k_cards
-  && a.k_aspect == b.k_aspect;
+  && a.k_aspect == b.k_aspect
+  && a.k_pull == b.k_pull;
 let core_memo = ref([]);
 let layout =
     (
@@ -2520,6 +2558,7 @@ let layout =
     k_pins: pins,
     k_cards: cards,
     k_aspect: packs ? CanvasOptions.aspect^ : 0.,
+    k_pull: CanvasPull.id(),
   };
   switch (List.find_opt(((k, _)) => same_key(k, key), layout_memo^)) {
   | Some((_, r)) =>

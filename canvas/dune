@@ -9,17 +9,19 @@
 
 (data_only_dirs demo tools)
 
-; The graph the canvas draws, and how it is made from the graph record.
+; The graph the canvas draws, how it is made from the graph record, and the
+; two region settings that are geometry over it (CanvasContour, CanvasPull).
 ; Nothing of the browser is in it, so it also builds natively: test/ runs it.
 (library
  (name portolan_canvas_graph)
- (modules CanvasGraph Haz3lcore)
+ (modules CanvasGraph Haz3lcore CanvasContour CanvasPull)
  (wrapped false)
  (libraries portolan_graph yojson))
 
 (library
  (name portolan_canvas)
- (modules :standard \ portolan_canvas_js CanvasGraph Haz3lcore)
+ (modules :standard \ portolan_canvas_js CanvasGraph Haz3lcore CanvasContour
+   CanvasPull)
  (modes byte)
  (libraries js_of_ocaml virtual_dom yojson portolan_canvas_graph)
  (js_of_ocaml)

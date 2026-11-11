@@ -261,8 +261,9 @@
   $('fit').onclick = () => PC && PC.fit();
   $('surface').classList.toggle('tool-active', surface);
   $('surface').onclick = () => { surface = !surface; keep('surface', surface ? '1' : '0'); $('surface').classList.toggle('tool-active', surface); present(null, true); };
-  // The layout and the edge style: the canvas lists what it offers; the choice is kept, and
-  // ?layout= and ?edges= in the address override it.
+  // The layout, the edge style, and the two region settings (contour and pull, logbook entry 15):
+  // the canvas lists what it offers; the choice is kept, and ?layout=, ?edges=, ?contour= and
+  // ?pull= in the address override it.
   const chooser = (id, key, list, set) => {
     const sel = $(id), want = params.get(key) || kept(key);
     sel.replaceChildren(...list.map(o => Object.assign(document.createElement('option'), { value: o.id, textContent: key + ': ' + o.label })));
@@ -273,6 +274,10 @@
   if (PC && PC.setLayout) {
     chooser('layout', 'layout', PC.layouts(), id => PC.setLayout(id));
     chooser('edges', 'edges', PC.edgeStyles(), id => PC.setEdges(id));
+  }
+  if (PC && PC.setContour) {
+    chooser('contour', 'contour', PC.contours(), id => PC.setContour(id));
+    chooser('pull', 'pull', PC.pulls(), id => PC.setPull(id));
   }
   const redraw = () => window.dispatchEvent(new Event('resize')); // the canvas sizes and paints its dot grid by script
 
