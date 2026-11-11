@@ -143,49 +143,10 @@ let take_cause = a => {
 };
 
 /* Note which file a tool call is about to change, to label the next graph. */
-let track = (a, ev: Yojson.Safe.t) =>
-  Yojson.Safe.Util.(
-    try(
-      if (ev |> member("type") |> to_string == "assistant") {
-        ev
-        |> member("message")
-        |> member("content")
-        |> to_list
-        |> List.iter(b =>
-             if (b |> member("type") |> to_string == "tool_use") {
-               let name = b |> member("name") |> to_string;
-               let input = b |> member("input");
-               let text = key =>
-                 try(input |> member(key) |> to_string) {
-                 | _ => ""
-                 };
-               switch (name) {
-               | "Write"
-               | "Edit"
-               | "MultiEdit" =>
-                 let file = text("file_path");
-                 let file =
-                   Option.value(
-                     Project.relative(a.project, file),
-                     ~default=file,
-                   );
-                 set_cause(
-                   a,
-                   Wrote({
-                     tool: name,
-                     file,
-                   }),
-                 );
-               | "Bash" =>
-                 set_cause(a, Ran(Event.clip(~n=120, text("command"))))
-               | _ => ()
-               };
-             }
-           );
-      }
-    ) {
-    | _ => ()
-    }
+let track = (a, ev) =>
+  Option.iter(
+    set_cause(a),
+    Protocol.cause(~relative=Project.relative(a.project), ev),
   );
 
 /* ---------- asking the user ---------- */
@@ -226,13 +187,13 @@ let drop_pending = a => {
 
 /* ---------- Claude Code's stream ---------- */
 
-/* One line of JSON to Claude Code. Call with [a.m] held. */
-let send = (a, json) =>
+/* One line to Claude Code. Call with [a.m] held. */
+let send = (a, message) =>
   switch (a.input) {
   | Some(oc) =>
     try(
       {
-        output_string(oc, Yojson.Safe.to_string(json));
+        output_string(oc, Protocol.to_string(message));
         output_char(oc, '\n');
         flush(oc);
       }
@@ -241,57 +202,6 @@ let send = (a, json) =>
     }
   | None => ()
   };
-
-/* The answer to one of Claude Code's control requests. */
-let control_response = (~id, response) =>
-  `Assoc([
-    ("type", `String("control_response")),
-    (
-      "response",
-      `Assoc([
-        ("subtype", `String("success")),
-        ("request_id", `String(id)),
-        ("response", response),
-      ]),
-    ),
-  ]);
-
-/* Claude Code asks its host before using a tool nothing has allowed
-   (`can_use_tool`), and to put its own questions to the user (the same
-   request, for the tool AskUserQuestion). */
-let control_request = (a, ev) => {
-  open Yojson.Safe.Util;
-  let id = ev |> member("request_id") |> to_string;
-  let request = ev |> member("request");
-  locked(a, () =>
-    switch (request |> member("subtype")) {
-    | `String("can_use_tool") =>
-      ask(
-        a,
-        ~id,
-        ~tool=request |> member("tool_name") |> to_string,
-        ~input=request |> member("input"),
-        ~suggestions=request |> member("permission_suggestions"),
-        ~tool_use=request |> member("tool_use_id") |> to_string_option,
-      )
-    | _ =>
-      send(
-        a,
-        `Assoc([
-          ("type", `String("control_response")),
-          (
-            "response",
-            `Assoc([
-              ("subtype", `String("error")),
-              ("request_id", `String(id)),
-              ("error", `String("Portolan does not handle this request.")),
-            ]),
-          ),
-        ]),
-      )
-    }
-  );
-};
 
 /* One event of the agent's stream onto the bus, noting what it means for
    the agent's state. */
@@ -331,36 +241,27 @@ let event = (a, ev: Yojson.Safe.t) => {
 
 /* One line of Claude Code's output. */
 let relay = (a, line) =>
-  switch (Yojson.Safe.from_string(line)) {
-  | ev =>
-    switch (Yojson.Safe.Util.member("type", ev)) {
-    | `String("control_request") =>
-      try(control_request(a, ev)) {
-      | _ => ()
+  switch (Protocol.read(line)) {
+  | Asked({id, tool, input, suggestions, tool_use}) =>
+    locked(a, () => ask(a, ~id, ~tool, ~input, ~suggestions, ~tool_use))
+  | Asked_other(id) => locked(a, () => send(a, Protocol.refusal(~id)))
+  | Withdrew(id) =>
+    locked(a, () =>
+      if (Hashtbl.mem(a.pending, id)) {
+        Hashtbl.remove(a.pending, id);
+        Bus.emit(
+          Answer({
+            id,
+            answer: None,
+          }),
+        );
       }
-    /* A request withdrawn, for instance because the turn was stopped. */
-    | `String("control_cancel_request") =>
-      locked(a, () =>
-        switch (Yojson.Safe.Util.member("request_id", ev)) {
-        | `String(id) when Hashtbl.mem(a.pending, id) =>
-          Hashtbl.remove(a.pending, id);
-          Bus.emit(
-            Answer({
-              id,
-              answer: None,
-            }),
-          );
-        | _ => ()
-        }
-      )
-    /* The acknowledgement of a request of ours. */
-    | `String("control_response") => ()
-    | _ => event(a, ev)
-    }
-  | exception _ =>
-    if (String.trim(line) != "") {
-      Bus.emit(Agent_raw(Event.clip(line)));
-    }
+    )
+  | Began(ev, _)
+  | Ended(ev)
+  | Told(ev) => event(a, ev)
+  | Raw(text) => Bus.emit(Agent_raw(Event.clip(text)))
+  | Nothing => ()
   };
 
 /* ---------- Claude Code ---------- */
@@ -724,21 +625,9 @@ let prompt = (a, ~about=?, text) => {
         };
         send(
           a,
-          `Assoc([
-            ("type", `String("user")),
-            (
-              "message",
-              `Assoc([
-                ("role", `String("user")),
-                (
-                  "content",
-                  `String(
-                    text ++ Option.fold(~none="", ~some=about_text, about),
-                  ),
-                ),
-              ]),
-            ),
-          ]),
+          Protocol.prompt(
+            text ++ Option.fold(~none="", ~some=about_text, about),
+          ),
         );
         state(a, Running);
       },
@@ -752,61 +641,12 @@ let answer = (a, ~id, answer) =>
     | None => ()
     | Some(input) =>
       Hashtbl.remove(a.pending, id);
-      let allow = (~rules=[], input) =>
-        `Assoc(
-          [("behavior", `String("allow")), ("updatedInput", input)]
-          @ (
-            rules == []
-              ? []
-              : [
-                (
-                  "updatedPermissions",
-                  `List([
-                    `Assoc([
-                      ("type", `String("addRules")),
-                      ("rules", `List(List.map(Permissions.rule, rules))),
-                      ("behavior", `String("allow")),
-                      /* For the running process; the next one is started
-                         with the remembered patterns. */
-                      ("destination", `String("session")),
-                    ]),
-                  ]),
-                ),
-              ]
-          ),
-        );
-      let response =
-        switch (answer) {
-        | Once => allow(input)
-        | Always(patterns) =>
-          Permissions.remember(a.project, patterns);
-          allow(~rules=patterns, input);
-        | Deny =>
-          `Assoc([
-            ("behavior", `String("deny")),
-            (
-              "message",
-              `String(
-                "The user declined this in Portolan's chat. Do not retry it; carry on another way or ask what they would prefer.",
-              ),
-            ),
-          ])
-        | Answers(answers) =>
-          let answers =
-            `Assoc(
-              List.map(((q, label)) => (q, `String(label)), answers),
-            );
-          allow(
-            switch (input) {
-            | `Assoc(fields) =>
-              `Assoc(
-                List.remove_assoc("answers", fields)
-                @ [("answers", answers)],
-              )
-            | other => other
-            },
-          );
-        };
+      switch (answer) {
+      | Always(patterns) => Permissions.remember(a.project, patterns)
+      | Once
+      | Deny
+      | Answers(_) => ()
+      };
       Bus.emit(
         Answer({
           id,
@@ -814,7 +654,7 @@ let answer = (a, ~id, answer) =>
         }),
       );
       switch (a.kind) {
-      | Claude => send(a, control_response(~id, response))
+      | Claude => send(a, Protocol.answer(~id, ~input, answer))
       | Script(_) =>
         Hashtbl.replace(a.answered, id, answer);
         Condition.broadcast(a.wake);
@@ -836,14 +676,7 @@ let stop = a =>
       Condition.broadcast(a.wake);
     | (Claude, Some(pid)) when a.state != Idle =>
       /* Ends the turn and keeps the process and its conversation. */
-      send(
-        a,
-        `Assoc([
-          ("type", `String("control_request")),
-          ("request_id", `String(Printf.sprintf("stop-%d", a.turns))),
-          ("request", `Assoc([("subtype", `String("interrupt"))])),
-        ]),
-      );
+      send(a, Protocol.interrupt(~id=Printf.sprintf("stop-%d", a.turns)));
       let turn = a.turns;
       let insist = () => {
         Thread.delay(grace);

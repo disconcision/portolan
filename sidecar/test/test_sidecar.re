@@ -9,6 +9,7 @@ let () =
       ("Delta", Test_delta.tests),
       ("Graphs", Test_graphs.tests),
       ("Permissions", Test_permissions.tests),
+      ("Protocol", Test_protocol.tests),
       ("Syntax", Test_syntax.tests),
       ("Watcher", Test_watcher.tests),
     ],
