@@ -62,6 +62,27 @@
 </section>
 
 <section>
+  <div class="col">
+    <h2>The doubled graph record</h2>
+    <p>A second helper then fixed the last shape of entry 1. The canvas no longer reads JSON itself: the shared graph record is decoded in one place and the canvas builds its own records from the typed value. Node keys and definition names, which were bare strings, now have names of their own. The canvas's reader got its first tests, 23 cases. The reader's output was compared before and after on 127 graphs and is identical.</p>
+  </div>
+  <div class="pair">
+    <figure>
+      <img src="img/01-canvasgraph.jpg" alt="The CanvasGraph module before: a large blob of small JSON-reading helpers in the middle." loading="lazy">
+      <figcaption><strong>CanvasGraph, before.</strong> The blob in the middle is a dozen JSON-reading helpers, the same ones <code>Graph</code> has.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/06-canvasgraph-after.jpg" alt="The CanvasGraph module after: no blob; arrows run from faint Graph types on the left to the canvas's own records on the right, some with rows of test pips." loading="lazy">
+      <figcaption><strong>CanvasGraph, after.</strong> The blob is gone. Conversion arrows run from the shared record's types (faint, on the left) to the canvas's own, and carry test pips.</figcaption>
+    </figure>
+  </div>
+  <div class="col">
+    <p>On the map of modules (entry 7) there is now an arrow from the canvas to <code>Graph</code>, where there was none.</p>
+    <p>For the guide: "parse at the edge" and "one definition of each model" were the whole recipe. "Abstract by default" would have hurt for keys, which the extractor makes by printing types and Hazel's copied code needs as strings, so they are named and left open.</p>
+  </div>
+</section>
+
+<section>
   <div class="col"><h2>What the guide got right and wrong</h2></div>
   <div class="scroll">
   <table>
@@ -80,7 +101,7 @@
     <dt>What it means</dt>
     <dd><p>The picture and the code quality move together where the guide is about types and state, which is most of it. They come apart where a module is a process-wide service: the bus is fine as it is, and still looks like scattered values.</p></dd>
     <dt>Next</dt>
-    <dd><p>The guide has been changed to say what this found. The doubled graph record (the last shape in entry 1) is being fixed the same way; its result will be added here.</p></dd>
+    <dd><p>The guide has been changed to say what this found. Entry 10 asks whether the canvas can find these shapes itself.</p></dd>
   </dl>
 </section>
 </main>
