@@ -15,15 +15,19 @@
 
    The modules, each with its interface:
      Files     reading and writing files, folders git ignores
+     Run       a shell command with a timeout
+     Project   the watched project: paths, state folder, opam switch
      Event     what the sidecar reports, and its JSON
      Bus       events as they happen, the trace file, waiting readers
      Delta     the change from one JSON object to another
      Graphs    graph events: whole graphs and changes between them
-     Run       a shell command with a timeout
-     Project   the watched project: paths, state folder, opam switch
      Watcher   file changes -> build -> graph -> tests
      Permissions  what the user chose to always allow the agent
-     Agent     Claude Code or a scripted stand-in, and what it last did
+     Protocol  Claude Code's stream: its lines read, ours written
+     Turn      where the agent's turn stands: state, requests, last change
+     Claude    Claude Code as a process in the project
+     Script    the scripted stand-in
+     Agent     whichever of the two the user talks to
      Conversation  starting a new one, keeping the old trace
      Syntax    OCaml <-> Reason conversion of a slice of a file
      Http      the page, the event stream, the routes
