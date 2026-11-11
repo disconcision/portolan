@@ -89,6 +89,25 @@ let locations = out => {
   List.rev(acc^);
 };
 
+/* The cases Alcotest lists as failed, "[FAIL]  suite  0  name.", each
+   as ("alcotest:" ++ suite, its place in the suite): how the extractor
+   is told of them. Alcotest prints a location for the first failure only. */
+let alcotest_failures = out => {
+  let line =
+    Str.regexp("\\[FAIL\\] +\\([^ ]+\\( [^ ]+\\)*\\) +\\([0-9]+\\)   ");
+  let rec go = (i, acc) =>
+    switch (Str.search_forward(line, out, i)) {
+    | exception Not_found => List.rev(acc)
+    | _ =>
+      let failed = (
+        "alcotest:" ++ Str.matched_group(1, out),
+        int_of_string(Str.matched_group(3, out)),
+      );
+      go(Str.match_end(), List.mem(failed, acc) ? acc : [failed, ...acc]);
+    };
+  go(0, []);
+};
+
 /* The locations that are in the project's own sources, relative to its
    root; those in build folders or outside the project are dropped. */
 let in_project = (project, locs) =>
@@ -246,7 +265,9 @@ let cycle = w =>
           ),
         );
       /* Dune names its own files too (the test rule in a `dune` file). */
-      let failing = List.filter(((f, _)) => is_code(f), locations(tout));
+      let failing =
+        List.filter(((f, _)) => is_code(f), locations(tout))
+        @ alcotest_failures(tout);
       w.last_failing = Some(failing);
       Bus.emit([
         ("type", `String("tests")),

@@ -1,9 +1,8 @@
 /* Checks the graphs extracted from the example projects.
 
-   The examples' annotations must already be there (extract/test/run.sh
-   builds them, then runs this). The tests of a broken build copy an
-   example to a temporary directory and run dune there, so dune must be
-   on the path. */
+   Each example's annotations are built here the first time it is used,
+   and the tests of a broken build copy an example to a temporary
+   directory and build it there, so dune must be on the path. */
 
 module G = Portolan_graph.Graph;
 module Extract = Portolan_extract.Extract;
@@ -12,21 +11,18 @@ module Locate = Portolan_extract.Locate;
 let build_dir = "_build_portolan";
 
 /* The repository root: $PORTOLAN_ROOT, or the nearest directory above
-   the working directory that holds the built examples. Under [dune test]
-   the working directory is _build/default/extract/test. */
+   the working directory that holds the examples. Under [dune test] the
+   working directory is _build/default/extract/test. */
 let repo_root: string = (
   {
-    let built = dir =>
-      Sys.file_exists(
-        List.fold_left(
-          Filename.concat,
-          dir,
-          ["examples", "vector", build_dir],
-        ),
+    let is_root = dir =>
+      List.for_all(
+        path => Sys.file_exists(List.fold_left(Filename.concat, dir, path)),
+        [["examples", "vector", "dune-project"], ["portolan"]],
       );
 
     let rec up = dir =>
-      if (built(dir)) {
+      if (is_root(dir)) {
         Some(dir);
       } else {
         let parent = Filename.dirname(dir);
@@ -39,7 +35,7 @@ let repo_root: string = (
 
     let from_env =
       switch (Sys.getenv_opt("PORTOLAN_ROOT")) {
-      | Some(dir) when built(dir) => Some(dir)
+      | Some(dir) when is_root(dir) => Some(dir)
       | _ => None
       };
 
@@ -48,15 +44,35 @@ let repo_root: string = (
     | (None, Some(dir)) => dir
     | (None, None) =>
       prerr_endline(
-        "test_extract: the examples are not built. Run extract/test/run.sh.",
+        "test_extract: the examples were not found. Set PORTOLAN_ROOT to the repository.",
       );
       exit(1);
     };
   }: string
 );
 
-let example = name =>
-  List.fold_left(Filename.concat, repo_root, ["examples", name]);
+/* An example project, its annotations built (once per run). */
+let example = {
+  let built = Hashtbl.create(4);
+  name => {
+    let dir = List.fold_left(Filename.concat, repo_root, ["examples", name]);
+    if (!Hashtbl.mem(built, name)) {
+      Hashtbl.replace(built, name, ());
+      let code =
+        Sys.command(
+          Printf.sprintf(
+            "cd %s && dune build --root . --build-dir %s @check > /dev/null 2>&1",
+            Filename.quote(dir),
+            build_dir,
+          ),
+        );
+      if (code != 0) {
+        Printf.eprintf("test_extract: examples/%s does not build\n%!", name);
+      };
+    };
+    dir;
+  };
+};
 
 let extract = (~failing=?, name): G.t =>
   switch (
@@ -96,6 +112,15 @@ let kind =
     (==),
   );
 let strings = Alcotest.(list(string));
+let has_edge = (g: G.t, name) =>
+  List.exists((e: G.edge) => e.e_name == name, g.edges);
+let has_node = (g: G.t, key) =>
+  List.exists((n: G.node) => n.key == key, g.nodes);
+let in_file = (file, g: G.t): list(string) =>
+  List.filter_map(
+    (e: G.edge) => e.e_at.file == file ? Some(e.e_name) : None,
+    g.edges,
+  );
 let test_names = (e: G.edge) => List.map((t: G.test) => t.t_name, e.tests);
 
 /* ---------- examples/vector ---------- */
@@ -224,8 +249,13 @@ let vector_edges = () => {
   Alcotest.check(
     strings,
     "bounding_box dst parts",
-    ["Scene.point"],
+    ["Scene.point", "Scene.point"],
     dst.parts,
+  );
+  Alcotest.(check(option(string)))(
+    "bounding_box dst is a tuple",
+    Some("()"),
+    dst.former,
   );
   Alcotest.check(
     strings,
@@ -314,7 +344,7 @@ let deterministic = () =>
         G.to_string(extract(name)),
         G.to_string(extract(name)),
       ),
-    ["vector", "shapes", "plane"],
+    ["vector", "shapes", "plane", "checks"],
   );
 
 /* ---------- examples/shapes ---------- */
@@ -461,17 +491,25 @@ let shapes_arguments = () => {
     G.Derived,
     node(g, outline.src).kind,
   );
+  let formed = key => (node(g, key).former, node(g, key).parts);
+  let former = Alcotest.(pair(option(string), strings));
   Alcotest.check(
-    strings,
-    "t list mentions t",
-    ["Figure.t"],
-    node(g, outline.src).parts,
+    former,
+    "t list is a list of t",
+    (Some("[]"), ["Figure.t"]),
+    formed(outline.src),
   );
   Alcotest.check(
-    strings,
-    "option of a pair mentions vec",
-    ["Geo.vec"],
-    node(g, outline.dst).parts,
+    former,
+    "an option of a pair is an option of one node",
+    (Some("?"), ["Geo.vec * Geo.vec"]),
+    formed(outline.dst),
+  );
+  Alcotest.check(
+    former,
+    "the pair is a tuple of two vecs",
+    (Some("()"), ["Geo.vec", "Geo.vec"]),
+    formed("Geo.vec * Geo.vec"),
   );
   Alcotest.(check(string))(
     "value",
@@ -501,6 +539,188 @@ let shapes_test_functions = () => {
   );
 };
 
+/* ---------- examples/checks ---------- */
+
+let tests_of = (g: G.t): list(G.test) =>
+  List.concat_map((e: G.edge) => e.tests, g.edges) @ g.loose_tests;
+
+let test = (g: G.t, name): G.test =>
+  switch (List.find_opt((t: G.test) => t.t_name == name, tests_of(g))) {
+  | Some(t) => t
+  | None => Alcotest.failf("no test %s", name)
+  };
+
+let has_test = (g: G.t, edge_name, name) =>
+  List.mem(name, test_names(edge(g, edge_name)));
+
+/* Alcotest cases are found, and attached to what they exercise. */
+let checks_cases = () => {
+  let g = extract("checks");
+  let on = (what, edge_name, name) =>
+    Alcotest.(check(bool))(what, true, has_test(g, edge_name, name));
+  on(
+    "the body is a function of the test file",
+    "Tally.count",
+    "tally: counts",
+  );
+  on("through a wrapper of test_case", "Tally.top", "tally: top");
+  on("through a helper of the test file", "Tally.add", "tally: adds");
+  on("the body is written in place", "Tally.total", "tally: total");
+  on("outside a suite: no suite in its name", "Window.inside", "inside");
+  on("through a value of the test file", "Tally.add", "tally: counts");
+  Alcotest.check(
+    strings,
+    "one that reaches nothing outside its file stays in it",
+    ["Test_tally.twice"],
+    test(g, "tally: doubles").t_refs,
+  );
+  Alcotest.check(
+    strings,
+    "inline tests are still there",
+    ["<<(total empty) = 0>>", "tally: total"],
+    test_names(edge(g, "Tally.total")),
+  );
+  Alcotest.(check(int))("none is loose", 0, List.length(g.loose_tests));
+  /* a function that is a case's body is that test, not an edge */
+  Alcotest.check(
+    strings,
+    "the edges of the test file",
+    ["Test_tally.seen", "Test_tally.twice", "Test_tally.quick"],
+    in_file("test/test_tally.ml", g),
+  );
+  let counts = test(g, "tally: counts");
+  Alcotest.(check(string))(
+    "a case is where its function is",
+    "Test_tally/counts",
+    counts.t_at.path,
+  );
+  Alcotest.(check(pair(int, int)))(
+    "its lines",
+    (10, 10),
+    (counts.t_at.line, counts.t_at.end_line),
+  );
+  let total = test(g, "tally: total");
+  Alcotest.(check(string))(
+    "or where it is written",
+    "Test_tally/tally: total",
+    total.t_at.path,
+  );
+  Alcotest.(check(pair(int, int)))(
+    "its lines",
+    (41, 42),
+    (total.t_at.line, total.t_at.end_line),
+  );
+  Alcotest.(check(bool))(
+    "unknown without a run",
+    true,
+    List.for_all((t: G.test) => t.t_status == G.Unknown, tests_of(g)),
+  );
+};
+
+let status =
+  Alcotest.testable(
+    (ppf, s) => Format.pp_print_string(ppf, G.status_to_string(s)),
+    (==),
+  );
+
+let checks_failing = () => {
+  let after = failing => {
+    let g = extract(~failing, "checks");
+    name => test(g, name).t_status;
+  };
+  /* [FAIL] tally 1 adds. */
+  let of_ = after([("alcotest:tally", 1)]);
+  Alcotest.check(
+    status,
+    "the second case of tally",
+    G.Fail,
+    of_("tally: adds"),
+  );
+  Alcotest.check(status, "the first passes", G.Pass, of_("tally: counts"));
+  Alcotest.check(
+    status,
+    "an inline test passes",
+    G.Pass,
+    of_("<<(total empty) = 0>>"),
+  );
+  Alcotest.check(
+    status,
+    "a case outside a suite passes",
+    G.Pass,
+    of_("inside"),
+  );
+  /* File "test/test_tally.ml", line 16: a location inside a case */
+  let of_ = after([("test/test_tally.ml", 16)]);
+  Alcotest.check(
+    status,
+    "a location in its function",
+    G.Fail,
+    of_("tally: top"),
+  );
+  Alcotest.check(status, "the others pass", G.Pass, of_("tally: adds"));
+  let of_ = after([("test/test_tally.ml", 42)]);
+  Alcotest.check(
+    status,
+    "a location in its text",
+    G.Fail,
+    of_("tally: total"),
+  );
+  /* [FAIL] window 0 inside: which case that is, is not written down */
+  let of_ = after([("alcotest:window", 0)]);
+  Alcotest.check(
+    status,
+    "it may be the one outside a suite",
+    G.Unknown,
+    of_("inside"),
+  );
+  Alcotest.check(
+    status,
+    "it is none of tally's",
+    G.Pass,
+    of_("tally: counts"),
+  );
+};
+
+/* What a ppx writes has no place of its own: it is where its type is. */
+let checks_generated = () => {
+  let g = extract("checks");
+  let lines = name => {
+    let at = edge(g, name).e_at;
+    (at.line, at.end_line);
+  };
+  Alcotest.(check(pair(int, int)))(
+    "equal_entry is at type entry",
+    (6, 6),
+    lines("Tally.equal_entry"),
+  );
+  Alcotest.(check(pair(int, int)))(
+    "equal is at type t",
+    (8, 8),
+    lines("Tally.equal"),
+  );
+};
+
+/* Unnamed types are formed from their parts, one level at a time. */
+let checks_formers = () => {
+  let g = extract("checks");
+  let check = (key, former, parts) => {
+    let n = node(g, key);
+    Alcotest.(check(option(string)))(key ++ " former", former, n.former);
+    Alcotest.check(strings, key ++ " parts", parts, n.parts);
+  };
+  check("Tally.out", Some("="), ["Buffer.t"]);
+  check("Tally.entry -> bool", Some("->"), ["Tally.entry", "bool"]);
+  check("(Tally.t, string) result", None, ["Tally.t", "string"]);
+  check("Tally.entry option", Some("?"), ["Tally.entry"]);
+  check("string list", Some("[]"), ["string"]);
+  Alcotest.check(
+    kind,
+    "a function type is derived",
+    G.Derived,
+    node(g, "Tally.entry -> bool").kind,
+  );
+};
+
 let errors = () =>
   switch (
     Portolan_extract.Extract.extract(
@@ -517,7 +737,7 @@ let errors = () =>
 
 /* ---------- the record: JSON, formers, values ---------- */
 
-let examples = ["vector", "shapes", "plane"];
+let examples = ["vector", "shapes", "plane", "checks"];
 
 /* Every key is used once; nothing points at a node or a name that is
    not there. */
@@ -723,7 +943,7 @@ let formers = () => {
   check(vector, "Scene.shape", None, []);
   let shapes = extract("shapes");
   check(shapes, "Geo.vec", Some("{}"), ["int", "int"]);
-  check(shapes, "Geo.length", None, []); /* [= int], hidden */
+  check(shapes, "Geo.length", Some("="), ["int"]); /* hidden, but so it is inside */
   check(shapes, "Geo.Angle.t", None, []);
   let plane = extract("plane");
   check(plane, "Point.t", Some("{}"), ["int", "int"]);
@@ -807,6 +1027,25 @@ let sources = [
   ("vector", [("lib/scene.ml", ["Scene"])]),
   ("shapes", [("lib/figure.ml", ["Figure"]), ("lib/geo.ml", ["Geo"])]),
   ("plane", [("lib/path.re", ["Path"]), ("lib/point.re", ["Point"])]),
+  (
+    "checks",
+    [
+      ("lib/tally.ml", ["Tally"]),
+      ("lib/window.re", ["Window"]),
+      ("test/test_tally.ml", ["Test_tally"]),
+    ],
+  ),
+];
+
+/* What a scan of the text cannot find by name: what a ppx wrote, tests
+   without a description, Alcotest cases written in place. */
+let not_in_the_text = [
+  "Tally/equal_entry",
+  "Tally/equal",
+  "Tally/<<(total empty) = 0>>",
+  "Tally/<<(count \"a\" (add \"a\" empty)) = 1>>",
+  "Test_tally/tally: total",
+  "Test_tally/inside",
 ];
 
 let read_file = (path: string): string =>
@@ -825,10 +1064,11 @@ let handles = (g: G.t): list((list(Locate.kind), G.handle)) =>
       List.concat_map((e: G.edge) => e.tests, g.edges) @ g.loose_tests,
     );
 
-let check_located = (name: string, file: string, located: Locate.t) => {
+let check_located =
+    (~except=[], name: string, file: string, located: Locate.t) => {
   let found =
     List.filter(
-      ((_, h: G.handle)) => h.file == file,
+      ((_, h: G.handle)) => h.file == file && !List.mem(h.path, except),
       handles(extract(name)),
     );
   Alcotest.(check(bool))(file ++ " has definitions", true, found != []);
@@ -868,8 +1108,27 @@ let locate_scan = () => {
     let text = read_file(Filename.concat(example(name), file));
     let located = Locate.scan(~prefix, text);
     Alcotest.(check(bool))("a scan is approximate", false, located.exact);
-    check_located(name, file, located);
+    check_located(~except=not_in_the_text, name, file, located);
   });
+  /* tests without a description, by their place */
+  let tally =
+    Locate.scan(
+      ~prefix=["Tally"],
+      read_file(Filename.concat(example("checks"), "lib/tally.ml")),
+    );
+  List.iter(
+    ((path, span)) =>
+      Alcotest.(check(option(pair(int, int))))(
+        path,
+        span,
+        Locate.find(tally, Locate.Test, path),
+      ),
+    [
+      ("Tally/#1", Some((31, 31))),
+      ("Tally/#2", Some((52, 52))),
+      ("Tally/#3", None),
+    ],
+  );
   /* what the examples do not have */
   let located =
     Locate.scan(
@@ -964,6 +1223,19 @@ let copy = (name: string, ~of_: string): string => {
     file => cp(Filename.concat("lib", file)),
     Sys.readdir(Filename.concat(from, "lib")),
   );
+  if (Sys.file_exists(Filename.concat(from, "test"))) {
+    Sys.mkdir(Filename.concat(dir, "test"), 0o755);
+    Array.iter(
+      file =>
+        if (!
+              Sys.is_directory(
+                List.fold_left(Filename.concat, from, ["test", file]),
+              )) {
+          cp(Filename.concat("test", file));
+        },
+      Sys.readdir(Filename.concat(from, "test")),
+    );
+  };
   switch (build(dir)) {
   | (0, _) => dir
   | (_, log) => Alcotest.failf("%s: the copy does not build:\n%s", name, log)
@@ -1163,16 +1435,6 @@ let same_graph = (what: string, expected: G.t, actual: G.t) => {
     };
   go(1, [], lines(expected), lines(actual));
 };
-
-let has_edge = (g: G.t, name) =>
-  List.exists((e: G.edge) => e.e_name == name, g.edges);
-let has_node = (g: G.t, key) =>
-  List.exists((n: G.node) => n.key == key, g.nodes);
-let in_file = (file, g: G.t): list(string) =>
-  List.filter_map(
-    (e: G.edge) => e.e_at.file == file ? Some(e.e_name) : None,
-    g.edges,
-  );
 
 /* Figure depends on Geo. A type error in Figure, while Geo gains a
    function: Geo is read, Figure is carried. */
@@ -1624,6 +1886,62 @@ let carried_reason_unparsed = () => {
 
 /* portolan-extract --previous FILE --broken file:line prints what the
    library returns. */
+/* A type error in Tally: it and the test file that uses it are carried.
+   Both parse, so everything is found again by name: what a ppx wrote in
+   its output, the Alcotest cases in the text of the test file. */
+let carried_checks = () => {
+  let dir = copy("checks", ~of_="checks");
+  let clean = extract_dir(dir);
+  edit(dir, "lib/tally.ml", text =>
+    "(* two lines\n   above *)\n"
+    ++ replace(~sub="~default:0", ~by="~default:\"none\"", text)
+  );
+  edit(dir, "test/test_tally.ml", text => "(* one line above *)\n" ++ text);
+  let broken = broken_build(dir);
+  check_route("Tally parses", ~exact=true, dir, "lib/tally.ml", ["Tally"]);
+  let g = extract_dir(~previous=saved(clean), ~broken, dir);
+  check_well_formed("carried", g);
+  same_graph(
+    "everything is where it is now",
+    clean
+    |> expect(~file="lib/tally.ml", ~by=2, ~errors=["Tally.count"])
+    |> expect(~file="test/test_tally.ml", ~by=1, ~errors=["Tally.count"]),
+    g,
+  );
+};
+
+/* Tally does not parse: its text is scanned. What the scan cannot find
+   by name is found by where it was: what a ppx wrote follows its type,
+   a test without a description is the n-th of its module. The module
+   with a signature before its body is found too. */
+let carried_checks_unparsed = () => {
+  let dir = copy("checks-unparsed", ~of_="checks");
+  let clean = extract_dir(dir);
+  edit(dir, "lib/tally.ml", text =>
+    "(* three\n   lines\n   above *)\n"
+    ++ replace(
+         ~sub="| None -> (name, 1) :: tally",
+         ~by="| None -> (name, 1 :: tally",
+         text,
+       )
+  );
+  ignore(broken_build(dir));
+  check_route(
+    "Tally does not parse",
+    ~exact=false,
+    dir,
+    "lib/tally.ml",
+    ["Tally"],
+  );
+  let g = extract_dir(~previous=saved(clean), dir);
+  check_well_formed("carried", g);
+  same_graph(
+    "everything is where it is now",
+    expect(~file="lib/tally.ml", ~by=3, ~errors=[], clean),
+    g,
+  );
+};
+
 let carried_cli = () => {
   let (dir, clean, broken) = Lazy.force(dependency_broken);
   let tool = {
@@ -1701,6 +2019,15 @@ let () = {
         ],
       ),
       (
+        "checks",
+        [
+          case("Alcotest cases", checks_cases),
+          case("failing cases", checks_failing),
+          case("what a ppx wrote", checks_generated),
+          case("unnamed types", checks_formers),
+        ],
+      ),
+      (
         "general",
         [case("deterministic", deterministic), case("errors", errors)],
       ),
@@ -1732,6 +2059,8 @@ let () = {
           case("every module broken, inline tests", carried_all),
           case("Reason, from dune's parse tree", carried_reason),
           case("Reason, from the text", carried_reason_unparsed),
+          case("a ppx and Alcotest, from parse trees", carried_checks),
+          case("a ppx and Alcotest, from the text", carried_checks_unparsed),
           case("the command-line tool", carried_cli),
         ],
       ),

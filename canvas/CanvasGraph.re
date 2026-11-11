@@ -80,6 +80,8 @@ type edge = {
   /* names of OTHER top-level bindings this definition references
      (call/constant dependencies; the hover fan) */
   e_deps: list(string),
+  /* PORTOLAN: visible outside its module (not drawn yet) */
+  e_exported: bool,
 };
 
 type value = {
@@ -90,7 +92,11 @@ type value = {
   v_key: string, /* node key of the value's type */
   v_ty: string,
   v_err: bool,
-  v_def: string /* the definition, as source text ("" when not carried) */
+  v_def: string, /* the definition, as source text ("" when not carried) */
+  /* PORTOLAN: what the record says of a value beyond Hazel's (not drawn yet) */
+  v_doc: option(string),
+  v_deps: list(string),
+  v_exported: bool,
 };
 
 /* PORTOLAN: where a definition lives (Graph.handle) */
@@ -204,17 +210,224 @@ let former_key = (path: list(string)): string =>
 
 /* ---------- PORTOLAN: reading Graph JSON ---------- */
 
+/* PORTOLAN: short labels for long printed types (Hazel cuts a label at 20
+   characters; OCaml's inferred types need more care than that). */
+module Abbreviate = {
+  let limit = 32;
+  let dots = {js|…|js};
+
+  let is_id = c =>
+    switch (c) {
+    | 'a' .. 'z'
+    | 'A' .. 'Z'
+    | '0' .. '9'
+    | '_'
+    | '\''
+    | '.' => true
+    | _ => false
+    };
+
+  /* [f] on every maximal run of identifier characters */
+  let map_idents = (f: string => string, s: string): string => {
+    let b = Buffer.create(String.length(s));
+    let n = String.length(s);
+    let rec go = (i, start) =>
+      if (i >= n) {
+        if (start < i) {
+          Buffer.add_string(b, f(String.sub(s, start, i - start)));
+        };
+      } else if (is_id(s.[i])) {
+        go(i + 1, start);
+      } else {
+        if (start < i) {
+          Buffer.add_string(b, f(String.sub(s, start, i - start)));
+        };
+        Buffer.add_char(b, s.[i]);
+        go(i + 1, i + 1);
+      };
+    go(0, 0);
+    Buffer.contents(b);
+  };
+
+  /* "Virtual_dom.Vdom.Effect.t" -> "Effect.t" */
+  let short_path = (id: string): string =>
+    switch (List.rev(String.split_on_char('.', id))) {
+    | [last, before, _, ..._] => before ++ "." ++ last
+    | _ => id
+    };
+
+  let closes = c => c == ')' || c == ']' || c == '}';
+  let opens = c => c == '(' || c == '[' || c == '{';
+
+  /* the index of the bracket closing the one at [i] */
+  let closing = (s: string, i: int): option(int) => {
+    let n = String.length(s);
+    let rec go = (j, depth) =>
+      if (j >= n) {
+        None;
+      } else if (opens(s.[j])) {
+        go(j + 1, depth + 1);
+      } else if (closes(s.[j])) {
+        depth == 1 ? Some(j) : go(j + 1, depth - 1);
+      } else {
+        go(j + 1, depth);
+      };
+    go(i, 0);
+  };
+
+  /* A polymorphic variant keeps its first two tags and drops what they
+     carry: "[> `Assoc of (string * ...) list | `Null | `Int of int ]"
+     -> "[> `Assoc | `Null | …]". Either syntax. */
+  let variants = (s: string): string => {
+    let n = String.length(s);
+    let b = Buffer.create(n);
+    /* the tags directly inside the bracket at [i], if it is a variant */
+    let tags = (i: int, close: int): option((string, list(string))) => {
+      let rec skip = j =>
+        j < close && (s.[j] == ' ' || s.[j] == '|') ? skip(j + 1) : j;
+      let j = i + 1;
+      let (bound, j) =
+        j < close && (s.[j] == '>' || s.[j] == '<')
+          ? (String.make(1, s.[j]) ++ " ", j + 1) : ("", j);
+      if (skip(j) < close && s.[skip(j)] == '`') {
+        let rec go = (j, depth, acc) =>
+          if (j >= close) {
+            List.rev(acc);
+          } else if (opens(s.[j])) {
+            go(j + 1, depth + 1, acc);
+          } else if (closes(s.[j])) {
+            go(j + 1, depth - 1, acc);
+          } else if (s.[j] == '`' && depth == 0) {
+            let rec stop = k => k < close && is_id(s.[k]) ? stop(k + 1) : k;
+            let k = stop(j + 1);
+            go(k, depth, [String.sub(s, j, k - j), ...acc]);
+          } else {
+            go(j + 1, depth, acc);
+          };
+        Some((bound, go(j, 0, [])));
+      } else {
+        None;
+      };
+    };
+    let rec go = i =>
+      if (i < n) {
+        switch (s.[i] == '[' ? closing(s, i) : None) {
+        | Some(close) =>
+          switch (tags(i, close)) {
+          | Some((bound, tags)) =>
+            let shown =
+              switch (tags) {
+              | [a, b, _, ..._] => [a, b, dots]
+              | l => l
+              };
+            Buffer.add_string(
+              b,
+              "[" ++ bound ++ String.concat(" | ", shown) ++ "]",
+            );
+            go(close + 1);
+          | None =>
+            Buffer.add_char(b, s.[i]);
+            go(i + 1);
+          }
+        | None =>
+          Buffer.add_char(b, s.[i]);
+          go(i + 1);
+        };
+      };
+    go(0);
+    Buffer.contents(b);
+  };
+
+  /* characters, not bytes: "…" is three bytes */
+  let length = (s: string): int => {
+    let n = ref(0);
+    String.iter(c => Char.code(c) land 0xC0 != 0x80 ? incr(n) : (), s);
+    n^;
+  };
+
+  /* "CanvasGraph.tynode" -> "tynode"; "Effect.t" stays: [t] alone
+     names nothing */
+  let bare = (id: string): string =>
+    switch (List.rev(String.split_on_char('.', id))) {
+    | [last, _, ..._] when String.length(last) > 1 => last
+    | _ => id
+    };
+
+  /* what is inside the brackets nested deeper than [keep] becomes "…",
+     unless it is short anyway */
+  let collapse = (~keep: int, s: string): string => {
+    let b = Buffer.create(String.length(s));
+    let rec go = (i, stop, depth) =>
+      if (i < stop) {
+        switch (opens(s.[i]) ? closing(s, i) : None) {
+        | Some(close) when close < stop =>
+          Buffer.add_char(b, s.[i]);
+          if (depth >= keep
+              && length(String.sub(s, i + 1, close - i - 1)) > 6) {
+            Buffer.add_string(b, dots);
+          } else {
+            go(i + 1, close, depth + 1);
+          };
+          Buffer.add_char(b, s.[close]);
+          go(close + 1, stop, depth);
+        | _ =>
+          Buffer.add_char(b, s.[i]);
+          go(i + 1, stop, depth);
+        };
+      };
+    go(0, String.length(s), 0);
+    Buffer.contents(b);
+  };
+
+  let cut = (s: string): string =>
+    if (length(s) <= limit) {
+      s;
+    } else {
+      /* back to the start of a character */
+      let rec back = i =>
+        i > 0 && Char.code(s.[i]) land 0xC0 == 0x80 ? back(i - 1) : i;
+      String.sub(s, 0, back(limit - 1)) ++ dots;
+    };
+
+  /* The first of these that fits: the type as printed; with variants
+     reduced to their tags; with module paths cut to their last module,
+     then dropped; with the inner brackets closed up, then the outer
+     ones; cut off. */
+  let ty = (s: string): string => {
+    let fits = s => length(s) <= limit;
+    let steps = [
+      variants,
+      map_idents(short_path),
+      map_idents(bare),
+      collapse(~keep=1),
+      collapse(~keep=0),
+      cut,
+    ];
+    List.fold_left((s, step) => fits(s) ? s : step(s), s, steps);
+  };
+};
+
 /* The canvas wants a few things Portolan's record does not say outright.
    Each is read from the JSON when the producer supplies it (optional
    fields `deps`, `hidden_deps`, `sat`, `former` on a node) and derived
    here, the way Hazel's extraction does it, when it does not:
 
-   - satellites: a builtin node that is a function's only argument, its
-     result, or a component of a product is split into one small terminal
-     per use-site, docked to the node at the other end;
+   - satellites: a builtin node (or a type variable) that is a function's
+     only argument, its result, or a component is split into one small
+     terminal per use-site, docked to the node at the other end;
    - `deps` of a named type: the other named types its body mentions;
    - `former`: "()" for a type with component parts, "+" for a sum;
-   - a module's former node ("{}@M"): the host its members cluster on. */
+   - a module's former node ("{}@M"): the host its members cluster on.
+
+   And a few things are drawn differently from how the record says them:
+
+   - an unnamed tuple, list or option (a Derived node with that former)
+     that functions use or types are made of is a former dot, as Hazel
+     draws a tuple written inline: its glyph, fed by its components;
+   - any other unnamed type keeps its text, abbreviated (see Abbreviate);
+     the whole of it is in the node's tooltip;
+   - a type from outside (Ghost) shows no components of its own;
+   - a node that nothing in the picture uses is left out. */
 module Read = {
   module J = Yojson.Safe.Util;
   type json = Yojson.Safe.t;
@@ -234,10 +447,10 @@ module Read = {
     | `String(s) => Some(s)
     | _ => None
     };
-  let bool = (k, j): bool =>
+  let bool = (~default=false, k, j): bool =>
     switch (mem(k, j)) {
     | `Bool(b) => b
-    | _ => false
+    | _ => default
     };
   let int = (k, j): int =>
     switch (mem(k, j)) {
@@ -435,6 +648,7 @@ module Read = {
             e_whole_ids: [],
             e_out_id: None,
             e_deps: strs("deps", e),
+            e_exported: bool(~default=true, "exported", e),
           };
         },
         list("edges", j),
@@ -453,22 +667,131 @@ module Read = {
             v_ty: str("ty", v),
             v_err: bool("err", v),
             v_def: str("def", v),
+            v_doc: str_opt("doc", v),
+            v_deps: strs("deps", v),
+            v_exported: bool(~default=true, "exported", v),
           };
         },
         list("values", j),
       );
     let loose_tests = tests_of(list("loose_tests", j));
 
-    /* ---- derive what the producer left out ---- */
+    /* ---- what the picture is made of ---- */
+    let raw_nodes =
+      List.map(
+        ((n: tynode, deps_given, former_given)) =>
+          switch (n.kind) {
+          /* a type from outside: what it is made of is not this picture's */
+          | Ghost => (
+              {
+                ...n,
+                parts: [],
+                former: None,
+              },
+              deps_given,
+              true,
+            )
+          /* a record's fields are in its body; `ctrs` would read as a sum */
+          | Alias when n.former == Some("{}") => (
+              {
+                ...n,
+                ctrs: [],
+              },
+              deps_given,
+              former_given,
+            )
+          | _ => (n, deps_given, former_given)
+          },
+        raw_nodes,
+      );
     let nodes0 = List.map(((n, _, _)) => n, raw_nodes);
-    let find0 = (k: string): option(tynode) =>
-      List.find_opt((n: tynode) => n.key == k, nodes0);
+    let by_key: Hashtbl.t(string, tynode) = Hashtbl.create(64);
+    List.iter(
+      (n: tynode) =>
+        if (!Hashtbl.mem(by_key, n.key)) {
+          Hashtbl.replace(by_key, n.key, n);
+        },
+      nodes0,
+    );
+    let find0 = (k: string): option(tynode) => Hashtbl.find_opt(by_key, k);
+    /* who uses a node: the functions it is an end of (their module
+       paths), the nodes it is a part of, the values of its type */
+    let fn_ends: Hashtbl.t(string, list(string)) = Hashtbl.create(64)
+    and hosts: Hashtbl.t(string, tynode) = Hashtbl.create(64)
+    and holds: Hashtbl.t(string, list(value)) = Hashtbl.create(16);
+    let first = (t, k, x) =>
+      if (!Hashtbl.mem(t, k)) {
+        Hashtbl.replace(t, k, x);
+      };
+    List.iter((e: edge) => first(fn_ends, e.e_src, e.m_path), edges);
+    List.iter((e: edge) => first(fn_ends, e.dst, e.m_path), edges);
+    List.iter(
+      (n: tynode) => List.iter(p => first(hosts, p, n), n.parts),
+      nodes0,
+    );
+    List.iter(
+      (v: value) =>
+        Hashtbl.replace(
+          holds,
+          v.v_key,
+          Option.value(Hashtbl.find_opt(holds, v.v_key), ~default=[]) @ [v],
+        ),
+      values,
+    );
+    let glyph_of = (n: tynode): option(string) =>
+      switch (n.kind, n.former) {
+      | (Derived, Some(("()" | "[]" | "?") as glyph)) when n.parts != [] =>
+        Some(glyph)
+      | _ => None
+      };
+    /* An unnamed tuple, list or option is a former dot where something
+       is made of it or a function uses it: a function's end, or a part
+       of a declared type, of an argument tuple or of another dot. One
+       that only holds values, or is a part of a type shown as text,
+       keeps its text. */
+    let dots: Hashtbl.t(string, string) = Hashtbl.create(64);
+    let rec dot = (k: string) =>
+      switch (find0(k)) {
+      | Some(n) when !Hashtbl.mem(dots, k) =>
+        switch (glyph_of(n)) {
+        | Some(glyph) =>
+          Hashtbl.replace(dots, k, glyph);
+          List.iter(dot, n.parts);
+        | None => ()
+        }
+      | _ => ()
+      };
+    List.iter(
+      (e: edge) => {
+        dot(e.e_src);
+        dot(e.dst);
+      },
+      edges,
+    );
+    List.iter(
+      (n: tynode) =>
+        if (n.kind == Alias || n.kind == Product) {
+          List.iter(dot, n.parts);
+        },
+      nodes0,
+    );
+    /* A tuple or a dot is in the module of the first function it is an
+       end of. One that is only a part of types stays outside: a module's
+       former has room for few members around it. */
+    let home = (k: string): list(string) =>
+      Option.value(Hashtbl.find_opt(fn_ends, k), ~default=[]);
+    let is_variable = (n: tynode): bool =>
+      n.kind == Derived
+      && String.length(n.label) >= 2
+      && n.label.[0] == '\''
+      && !String.contains(n.label, ' ');
     let producer_sats = List.exists((n: tynode) => n.sat != None, nodes0);
+    /* split into one terminal per use-site: a builtin, a type variable */
     let plain_builtin = (k: string): bool =>
       !producer_sats
       && (
         switch (find0(k)) {
-        | Some(n) => n.kind == Builtin && n.sat == None
+        | Some(n) => (n.kind == Builtin || is_variable(n)) && n.sat == None
         | None => false
         }
       );
@@ -478,15 +801,16 @@ module Read = {
       | None => display_label(k)
       };
     let sats: ref(list(tynode)) = ref([]);
+    let sat_keys = Hashtbl.create(64);
     let ensure_sat =
         (~m_path=[], ~anchor_key: string, ~output: bool, ~dup: string, k)
         : string => {
       let label = label_of(k);
       let key = label ++ "@" ++ dup;
-      if (!List.exists((n: tynode) => n.key == key, sats^)) {
+      if (!Hashtbl.mem(sat_keys, key)) {
+        Hashtbl.replace(sat_keys, key, ());
         sats :=
-          sats^
-          @ [
+          [
             mk_node(
               ~kind=Builtin,
               ~m_path,
@@ -494,33 +818,69 @@ module Read = {
               ~label,
               key,
             ),
+            ...sats^,
           ];
       };
       key;
     };
-    /* components: a builtin part becomes a terminal of its product or
-       of the named type it is a component of */
+    let value_names = (vs: list(value)): string =>
+      String.concat(", ", List.map((v: value) => v.v_label, vs));
+    let shown_whole = (n: tynode, label: string): option(string) =>
+      n.n_doc == None && label != n.label ? Some(n.label) : n.n_doc;
     let nodes1 =
       List.map(
         ((n: tynode, deps_given, former_given)) => {
-          let m_path =
-            switch (n.kind) {
-            | Product =>
-              /* the first function that takes this tuple */
-              switch (
-                List.find_opt((e: edge) => e.e_src == n.key, edges)
-              ) {
-              | Some(e) => e.m_path
-              | None => []
+          /* how this node is drawn */
+          let n =
+            switch (n.kind, Hashtbl.find_opt(dots, n.key)) {
+            | (Derived, Some(glyph)) => {
+                ...n,
+                kind: Product,
+                label: glyph,
+                former: None,
+                m_path: home(n.key),
+                n_doc: shown_whole(n, glyph),
               }
-            | _ => []
+            | (Derived, None) =>
+              let label =
+                switch (
+                  Hashtbl.mem(fn_ends, n.key) || Hashtbl.mem(hosts, n.key),
+                  Hashtbl.find_opt(holds, n.key),
+                ) {
+                /* there for its values alone: say which */
+                | (false, Some(vs)) =>
+                  Abbreviate.ty(value_names(vs) ++ ": " ++ n.label)
+                | _ => Abbreviate.ty(n.label)
+                };
+              {
+                /* its text names its components: none are drawn */
+
+                ...n,
+                label,
+                parts: [],
+                n_doc: shown_whole(n, label),
+              };
+            | (Product, _) when !is_former_key(n.key) => {
+                ...n,
+                m_path: home(n.key),
+              }
+            | (Ghost, _) =>
+              let label = Abbreviate.ty(n.label);
+              {
+                ...n,
+                label,
+                n_doc: shown_whole(n, label),
+              };
+            | _ => n
             };
+          /* components: a builtin part becomes a terminal of its product
+             or of the named type it is a component of */
           let parts =
             List.mapi(
               (i, p) =>
                 plain_builtin(p)
                   ? ensure_sat(
-                      ~m_path,
+                      ~m_path=n.m_path,
                       ~anchor_key=n.key,
                       ~output=false,
                       ~dup=n.key ++ "c" ++ string_of_int(i),
@@ -528,10 +888,20 @@ module Read = {
                     )
                   : p,
               n.parts,
-            );
+            )
+            /* one line per part: a record with five [string list] fields
+               would otherwise count as five lines for the layout to
+               keep other nodes off */
+            |> List.fold_left(
+                 (acc, p) => List.mem(p, acc) ? acc : acc @ [p],
+                 [],
+               );
           let former =
             former_given
-              ? n.former
+              ? switch (n.former) {
+                | Some("->") => Some({js|→|js})
+                | f => f
+                }
               : (
                 switch (n.kind) {
                 | Alias
@@ -568,13 +938,17 @@ module Read = {
                   let named = (id: string): option(string) =>
                     List.find_map(
                       ((m: tynode, _, _)) =>
-                        m.kind == Alias
-                        && m.key != n.key
+                        m.key != n.key
                         && (
-                          m.key == id
-                          || m.key == qname(n.m_path, id)
-                          || m.label == id
-                          && m.m_path == n.m_path
+                          m.kind == Alias
+                          && (
+                            m.key == id
+                            || m.key == qname(n.m_path, id)
+                            || m.label == id
+                            && m.m_path == n.m_path
+                          )
+                          || m.kind == Ghost
+                          && m.key == id
                         )
                           ? Some(m.key) : None,
                       raw_nodes,
@@ -588,7 +962,7 @@ module Read = {
                     List.filter(
                       p =>
                         switch (find0(p)) {
-                        | Some(m) => m.kind != Builtin && m.key != n.key
+                        | Some(m) => !plain_builtin(p) && m.key != n.key
                         | None => false
                         },
                       n.parts,
@@ -643,14 +1017,60 @@ module Read = {
         },
         edges,
       );
-    /* a shared builtin nobody points at any more is gone */
-    let used = (k: string): bool =>
-      List.exists((e: edge) => e.e_src == k || e.dst == k, edges)
-      || List.exists((v: value) => v.v_key == k, values)
-      || List.exists((n: tynode) => List.mem(k, n.parts), nodes1);
-    let nodes2 =
-      List.filter((n: tynode) => !plain_builtin(n.key) || used(n.key), nodes1)
-      @ sats^;
+    /* a builtin or an outside type that only holds values: say which */
+    let nodes1 =
+      List.map(
+        (n: tynode) =>
+          switch (n.kind, Hashtbl.find_opt(holds, n.key)) {
+          | (Builtin | Ghost, Some(vs))
+              when
+                !
+                  List.exists(
+                    (e: edge) => e.e_src == n.key || e.dst == n.key,
+                    edges,
+                  )
+                && !
+                     List.exists(
+                       (m: tynode) => List.mem(n.key, m.parts),
+                       nodes1,
+                     ) => {
+              ...n,
+              label: Abbreviate.ty(value_names(vs) ++ ": " ++ n.label),
+            }
+          | _ => n
+          },
+        nodes1,
+      );
+    /* what nothing uses is left out: a shared builtin every use of
+       which became a terminal, the insides of a type from outside */
+    let all = nodes1 @ List.rev(sats^);
+    let kept = Hashtbl.create(64);
+    let rec keep = (k: string) =>
+      if (!Hashtbl.mem(kept, k)) {
+        Hashtbl.replace(kept, k, ());
+        switch (List.find_opt((n: tynode) => n.key == k, all)) {
+        | Some(n) =>
+          List.iter(keep, n.parts);
+          List.iter(keep, n.deps);
+        | None => ()
+        };
+      };
+    List.iter(
+      (n: tynode) =>
+        if (n.kind == Alias || is_former_key(n.key)) {
+          keep(n.key);
+        },
+      all,
+    );
+    List.iter(
+      (e: edge) => {
+        keep(e.e_src);
+        keep(e.dst);
+      },
+      edges,
+    );
+    List.iter((v: value) => keep(v.v_key), values);
+    let nodes2 = List.filter((n: tynode) => Hashtbl.mem(kept, n.key), all);
     /* module formers: one per module path in use */
     let paths =
       List.concat_map((n: tynode) => prefixes(n.m_path), nodes2)

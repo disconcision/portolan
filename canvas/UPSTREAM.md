@@ -144,13 +144,35 @@ Portolan's graph record does not carry four things the layout and score read.
 fields `deps`, `hidden_deps`, `sat: {anchor, output}`, `former`) and otherwise
 derives them the way Hazel's extraction does:
 
-- **satellites:** a builtin that is a function's only argument, its result, or a
-  component of a product is split into one terminal per use-site (`int@area`);
+- **satellites:** a builtin (or a type variable) that is a function's only
+  argument, its result, or a component is split into one terminal per use-site
+  (`int@area`);
 - **`deps`** of a named type: the named types its printed body mentions;
 - **`former`:** `"()"` for a type with parts, `"[]"` for `x list`, `"+"` for a sum;
 - **module formers** (`{}@M`): one node per module path in use, the host its
   members cluster on;
 - a product's label becomes `()`.
+
+It also decides how the record's unnamed types are drawn, since OCaml has many
+more of them than Hazel:
+
+- **former dots:** an unnamed tuple, list or option (a `derived` node whose
+  `former` is `()`, `[]` or `?`) that a function uses or another type is made
+  of is drawn as Hazel draws a tuple written inline: a `Product` dot with its
+  glyph, fed by formation lines from its parts. Its text is in the tooltip;
+- **text nodes:** every other unnamed type (a function type, a type applied to
+  arguments, an inferred variant) keeps its text, shortened by `Abbreviate`
+  (variants to their first tags, module paths to their last module, inner
+  brackets closed up, 32 characters at most). The whole type is in the tooltip,
+  through `n_doc`. The layout draws no formation lines into a `Derived` node,
+  so a text node shows no parts;
+- **value captions:** a node that is only there because values have that type
+  is labelled with their names (`events: Dynarray.t(string)`);
+- **outside types** (`ghost`) show no parts of their own, and a node nothing in
+  the picture uses is dropped: the page's one-module view sends other modules'
+  records along with their fields;
+- a record's field names are not passed as `ctrs`, so its tooltip reads
+  `vec = { x : int; y : int }`, not `vec = x + y`.
 
 ## Verified, and not
 
