@@ -41,7 +41,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 /* The whole app in miniature, after web/style.css. Every colour is a variable set by the scheme. */
 .app { height: 640px; display: grid; grid-template-rows: 28px minmax(0, 1fr) 26px; background: var(--ui-bkg); color: var(--text-default);
   font: 14px/1.3 "Helvetica Neue", Helvetica, Arial, sans-serif; text-align: left; }
-.app .top { display: flex; align-items: stretch; border-bottom: 0.6px solid var(--border-default); }
+.app .top { display: flex; align-items: stretch; border-bottom: 0.6px solid var(--border-default); background: var(--top-bkg); }
 .app .logo { border-right: 0.6px solid var(--border-default); }
 .app .logo { width: 28px; display: flex; align-items: center; justify-content: center; color: var(--text-strong); }
 .app .brand { background: var(--brand); color: var(--brand-ink); display: flex; align-items: center; padding: 0 12px 0 11px; border-right: 0.6px solid var(--border-default); }
@@ -49,17 +49,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .app .crumb b { color: var(--text-default); font-weight: 400; }
 .app .mid { display: grid; grid-template-columns: minmax(0, 1fr) 27%; min-height: 0; }
 .app .pane { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; background: var(--board); }
-.app .head { display: flex; align-items: center; gap: 4px 8px; padding: 5px 11px; font: 400 11px "Source Code Pro", monospace; background: var(--ui-bkg); border-bottom: 0.6px solid var(--border-default); }
+.app .head { display: flex; align-items: center; gap: 4px 8px; padding: 5px 11px; font: 400 11px "Source Code Pro", monospace; background: var(--head-bkg); border-bottom: 0.6px solid var(--border-default); }
 .app .head .t { font: 700 14px "Helvetica Neue", Helvetica, Arial, sans-serif; text-transform: uppercase; color: var(--text-strong); margin-right: 5px; }
 .app .tb { border: 0.6px solid var(--border-default); border-radius: 4px; padding: 1px 7px; }
 .app .tb.on { background: var(--surface-highlight); color: var(--text-strong); }
 #live { position: relative; min-height: 0; overflow: hidden; }
 #live-canvas { position: absolute; inset: 0; pointer-events: none; } /* a still specimen: scrolling the page must not pan it */
-.app .info { border-top: 0.5px solid var(--border-default); background: var(--df-bg); padding: 6px 11px 8px; font: 400 11.5px/1.45 "Source Code Pro", monospace; }
+.app .info { border-top: 0.5px solid var(--border-default); background: var(--info-bkg); padding: 6px 11px 8px; font: 400 11.5px/1.45 "Source Code Pro", monospace; }
 .app .info .p { color: var(--text-strong); font-weight: 600; } .app .info .ty { color: var(--token-typ); }
 .app .info pre { margin: 4px 0 0; font: inherit; color: var(--text-default); white-space: pre; overflow: hidden; }
 .app .info .kw { font-weight: 600; } .app .info .tc { color: var(--token-typ); } .app .info .fn { color: var(--token-pat); }
-.app .side { border-left: 0.5px solid var(--border-default); display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
+.app .side { border-left: 0.5px solid var(--border-default); background: var(--side-bkg); display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
 .app .feed { overflow: hidden; padding: 6px 11px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; line-height: 1.38; }
 .app .who { font-size: 10.5px; opacity: 0.7; } .app .who.you { text-align: right; padding-right: 6px; }
 .app .say.you { padding: 6px 8px; border-radius: 7px; border: 0.6px solid var(--border-default); background: var(--df-bg); }
@@ -69,7 +69,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .app .ask { padding: 8px 11px 10px; position: relative; border-top: 0.6px solid var(--border-default); }
 .app .ask div { min-height: 44px; padding: 6px 8px; border-radius: 7px; border: 0.6px solid var(--border-strong); background: var(--df-bg); color: var(--text-muted); font-size: 12px; }
 .app .ask span { position: absolute; right: 18px; bottom: 16px; width: 20px; height: 20px; border-radius: 5px; background: var(--surface-highlight); color: var(--text-strong); display: flex; align-items: center; justify-content: center; font-size: 12px; }
-.app .bot { display: flex; align-items: stretch; border-top: 0.5px solid var(--border-default); font: 400 11px "Source Code Pro", monospace; }
+.app .bot { display: flex; align-items: stretch; border-top: 0.5px solid var(--border-default); background: var(--bot-bkg); font: 400 11px "Source Code Pro", monospace; }
 .app .bot .lead { background: var(--surface-tab); color: var(--text-muted); display: flex; align-items: center; padding: 0 10px; border-right: 0.6px solid var(--border-default); font-weight: 600; }
 .app .bot span { display: flex; align-items: center; padding: 0 10px; }
 .app .bot .badc { color: var(--err); }
@@ -93,6 +93,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .row input[type="text"] { width: 100%; font: 400 0.8rem/1 var(--mono); padding: 4px 6px; border: 1px solid var(--rule); border-radius: 5px; background: var(--bg); color: var(--ink); }
 .row label, .row input[type="color"] { cursor: grab; touch-action: none; }
 .row.drop { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.row.sel { background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); border-radius: 5px; }
+#picked { color: var(--ink); font-weight: 600; }
+#stage { --mark: #E0218A; }
 body.dragging { user-select: none; -webkit-user-select: none; cursor: grabbing; }
 body.dragging .row label, body.dragging .row input { cursor: grabbing; }
 .ghost { position: fixed; left: 0; top: 0; width: 30px; height: 22px; border-radius: 5px; border: 1.5px solid var(--ink); pointer-events: none; z-index: 50; }
@@ -133,7 +136,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
 <header>
   <span class="eyebrow"><a href="https://andrewblinn.com/portolan/">Portolan notebook</a> · study · 10 November 2026</span>
   <h1>Colour schemes</h1>
-  <p class="lede">Sixteen candidates, six of them Graphite with an accent colour. Each shows the whole app, with the real canvas drawing the same graph. Pick one to see it large and change any colour: drag one colour onto another to swap them, turn all the accents at once, and undo. Your changes, notes and stars are saved, and Claude can read them.</p>
+  <p class="lede">Sixteen candidates, six of them Graphite with an accent colour. Each shows the whole app, with the real canvas drawing the same graph. Pick one to see it large and change any colour: click a part of the picture to find its colour, drag one colour onto another to swap them, turn all the accents at once, and undo. Your changes, notes and stars are saved, and Claude can read them.</p>
   <div class="bar">
     <div class="seg" role="group" aria-label="Graph">
       <button id="spec-vector" aria-pressed="true">Vector run, mid-way</button>
@@ -184,12 +187,11 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
       <button id="star" aria-pressed="false" title="Mark as a favourite" aria-label="Favourite">★</button>
     </div>
     <p id="blurb"></p>
-    <p class="hint">Drag one colour onto another to swap them; hold Alt to copy it over. Rest on a row to see where its colour is used. <kbd>⌘Z</kbd> undoes.</p>
+    <p class="hint">Click a part of the picture to find its colour, or a row here to see what it paints; click the same spot again for the next colour under it. Drag one colour onto another to swap them (Alt copies). <kbd>⌘Z</kbd> undoes. <span id="picked"></span></p>
     <div id="rows"></div>
     <div class="tune">
       <label>Hue of the accents <input type="range" id="hue" min="-180" max="180" value="0"><output id="hue-out">0°</output></label>
       <label>Their saturation <input type="range" id="sat" min="-100" max="100" value="0"><output id="sat-out">0%</output></label>
-      <label class="check"><input type="checkbox" id="where" checked> Show where a colour is used</label>
     </div>
     <div class="foot-row">
       <div class="group">
@@ -223,12 +225,15 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
   const $ = id => document.getElementById(id);
   const ROLES = [
     ['Page', [['ui', 'Background'], ['surface', 'Surfaces'], ['text', 'Text'], ['muted', 'Quiet text'], ['strong', 'Headings'], ['line', 'Lines'], ['highlight', 'Highlight'], ['brand', 'Brand tab']]],
+    ['Parts of the page', [['topbar', 'Top bar'], ['tab', 'Tabs'], ['brandInk', 'Brand tab text'], ['header', 'Canvas header'], ['code', 'Code panel'], ['chat', 'Chat pane'], ['status', 'Bottom bar']]],
     ['Canvas', [['board', 'Board'], ['dots', 'Dot grid'], ['type', 'Types'], ['arrow', 'Arrows'], ['label', 'Function names'], ['guide', 'Guide lines']]],
     ['Modules', [['hull1', 'Region 1'], ['hull2', 'Region 2'], ['hull3', 'Region 3'], ['hull4', 'Region 4'], ['hullLabel', 'Region names']]],
     ['Tests and selection', [['pass', 'Passing'], ['fail', 'Failing'], ['indet', 'Unsettled'], ['select', 'Selection']]],
     ['Agent', [['agent', 'Trine'], ['agentInk', 'Trine outline'], ['bubble', 'Bubbles'], ['bubbleInk', 'Bubble ink']]],
   ];
   const S = (id, name, blurb, c) => ({ id, name, blurb, c });
+  // The parts of the page follow the page's main colours until they are given their own.
+  const derive = c => ({ topbar: c.ui, tab: mix(c.ui, c.text, 0.09), brandInk: on(c.brand, [c.strong, c.ui, c.surface]), header: c.ui, code: c.surface, chat: c.ui, status: c.ui, ...c });
   const GRAPHITE = { ui: '#181818', surface: '#202020', text: '#D2D2D2', muted: '#8A8A8A', strong: '#F0F0F0', line: '#3F3F3F', highlight: '#3A3A3A', brand: '#3A3A3A', board: '#121212', dots: '#303030', type: '#EDEDED', arrow: '#CFCFCF', label: '#EDEDED', guide: '#8A8A8A', hull1: '#5A5A5A', hull2: '#777777', hull3: '#454545', hull4: '#8C8C8C', hullLabel: '#A0A0A0', pass: '#EDEDED', fail: '#FF5A4A', indet: '#7A7A7A', select: '#FFFFFF', agent: '#181818', agentInk: '#EDEDED', bubble: '#262626', bubbleInk: '#EDEDED' };
   const SCHEMES = [
     S('hazel', 'Hazel', 'What the build uses in light mode: Hazel\'s cream paper, purple types, slate arrows, blue names, and yellow where Hazel has green.',
@@ -271,13 +276,14 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
   // The ink that reads best on a fill, out of the scheme's own colours.
   const on = (bg, inks) => inks.reduce((a, b) => (Math.abs(lum(b) - lum(bg)) > Math.abs(lum(a) - lum(bg)) ? b : a));
   function vars(c) {
+    c = derive(c);
     const soft = mix(c.ui, c.line, 0.5), strongLine = mix(c.line, c.text, 0.4);
     return {
       // the page
-      '--ui-bkg': c.ui, '--df-bg': c.surface, '--surface-tab': mix(c.ui, c.text, 0.09), '--surface-highlight': c.highlight, '--surface-highlight-soft': mix(c.ui, c.highlight, 0.5),
+      '--ui-bkg': c.ui, '--df-bg': c.surface, '--surface-tab': c.tab, '--top-bkg': c.topbar, '--head-bkg': c.header, '--info-bkg': c.code, '--side-bkg': c.chat, '--bot-bkg': c.status, '--surface-highlight': c.highlight, '--surface-highlight-soft': mix(c.ui, c.highlight, 0.5),
       '--border-default': c.line, '--border-soft': soft, '--border-strong': strongLine,
       '--text-default': c.text, '--text-muted': c.muted, '--text-strong': c.strong, '--token-typ': c.type, '--token-pat': c.label,
-      '--brand': c.brand, '--brand-ink': on(c.brand, [c.strong, c.ui, c.surface]), '--ok': c.pass, '--err': c.fail, '--agent': c.agent, '--board': c.board, '--dots': c.dots,
+      '--brand': c.brand, '--brand-ink': c.brandInk, '--ok': c.pass, '--err': c.fail, '--agent': c.agent, '--board': c.board, '--dots': c.dots,
       // the canvas (its stylesheet's own variables)
       '--pc-ui-bkg': c.ui, '--pc-surface-shard': c.dots, '--pc-tan-1': c.dots,
       '--pc-df-bg': c.surface, '--pc-paper-2': c.surface, '--pc-cell-active': c.surface,
@@ -306,8 +312,9 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
   const all = () => [...SCHEMES, ...Object.keys(saved).filter(id => saved[id].from).sort().map(id => ({ id, name: saved[id].name || 'Untitled', blurb: 'Your own, started from ' + (base(saved[id].from) || {}).name + '.', c: (base(saved[id].from) || SCHEMES[0]).c, custom: true }))];
   function base(id) { return SCHEMES.find(s => s.id === id); }
   const scheme = id => all().find(s => s.id === id) || SCHEMES[0];
-  const colours = id => ({ ...scheme(id).c, ...((saved[id] || {}).colors || {}) });
-  const changed = id => Object.keys((saved[id] || {}).colors || {}).filter(k => saved[id].colors[k].toLowerCase() !== scheme(id).c[k].toLowerCase());
+  const colours = id => derive({ ...scheme(id).c, ...((saved[id] || {}).colors || {}) });
+  const own = (id, role) => derive(scheme(id).c)[role]; // the scheme's colour for a role, before any change
+  const changed = id => Object.keys((saved[id] || {}).colors || {}).filter(k => saved[id].colors[k].toLowerCase() !== (scheme(id).c[k] || '').toLowerCase());
 
   // ---- saving: one write at a time per scheme, a pause after the last change ----
   const timers = {}, writing = {}, dirty = {};
@@ -346,7 +353,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
     const cs = { ...((saved[selected] || {}).colors || {}) };
     for (const role in patch) {
       const hex = patch[role];
-      if (hex.toLowerCase() === scheme(selected).c[role].toLowerCase() && !scheme(selected).custom) delete cs[role]; else cs[role] = hex.toUpperCase();
+      if (hex.toLowerCase() === own(selected, role).toLowerCase() && !scheme(selected).custom) delete cs[role]; else cs[role] = hex.toUpperCase();
     }
     edit(selected, { colors: cs });
     paintSelected();
@@ -370,11 +377,11 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
     if (document.activeElement !== $('note')) $('note').value = sv.note || '';
     $('del').hidden = !s.custom;
     $('rows').innerHTML = ROLES.map(([g, rs]) => '<div class="group"><h3>' + g + '</h3>' + rs.map(([id, label]) =>
-      '<div class="row" data-role="' + id + '"><input type="color" id="c-' + id + '" aria-label="' + label + ' colour"><label for="c-' + id + '">' + label + '</label><input type="text" id="t-' + id + '" aria-label="' + label + ' hex" spellcheck="false" maxlength="7"><button class="undo" title="Back to the scheme\'s colour" aria-label="Reset ' + label + '">↺</button></div>').join('') + '</div>').join('');
+      '<div class="row" data-role="' + id + '"><input type="color" id="c-' + id + '" aria-label="' + label + ' colour"><label>' + label + '</label><input type="text" id="t-' + id + '" aria-label="' + label + ' hex" spellcheck="false" maxlength="7"><button class="undo" title="Back to the scheme\'s colour" aria-label="Reset ' + label + '">↺</button></div>').join('') + '</div>').join('');
     ROLES.forEach(([, rs]) => rs.forEach(([id]) => syncRow(id)));
   }
   $('rows').addEventListener('input', ev => { const r = ev.target.closest('.row'); if (!r) return; const v = ev.target.value.trim(); setColour(r.dataset.role, v[0] === '#' ? v : '#' + v); });
-  $('rows').addEventListener('click', ev => { const r = ev.target.closest('.row'); if (r && ev.target.classList.contains('undo')) setColour(r.dataset.role, scheme(selected).c[r.dataset.role]); });
+  $('rows').addEventListener('click', ev => { const r = ev.target.closest('.row'); if (r && ev.target.classList.contains('undo')) setColour(r.dataset.role, own(selected, r.dataset.role)); });
   $('note').addEventListener('input', () => edit(selected, { note: $('note').value }));
   $('name').addEventListener('input', () => { if (scheme(selected).custom) { edit(selected, { name: $('name').value }); drawFoot(selected); } });
   $('star').onclick = () => { edit(selected, { star: !(saved[selected] || {}).star }); drawEditor(); drawFoot(selected); };
@@ -435,7 +442,6 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
       drag.ghost.style.background = colours(selected)[drag.role];
       document.body.appendChild(drag.ghost);
       document.body.classList.add('dragging');
-      stopFlash();
     }
     drag.ghost.style.transform = 'translate(' + (ev.clientX + 12) + 'px,' + (ev.clientY + 10) + 'px)';
     const row = (document.elementFromPoint(ev.clientX, ev.clientY) || document.body).closest('.row');
@@ -461,26 +467,65 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
   document.addEventListener('pointercancel', drop);
   document.addEventListener('click', ev => { if (Date.now() < quiet) { ev.preventDefault(); ev.stopPropagation(); } }, true);
 
-  // Rest on a row and its colour blinks in the picture, so you can see what it paints.
-  let dwell = 0, blink = 0;
-  function stopFlash() { clearTimeout(dwell); if (blink) { clearInterval(blink); blink = 0; paintSelected(); } }
-  function flash(role) {
-    const c = colours(selected), alt = lum(c[role]) > 0.45 ? '#D4006A' : '#FFE14A';
-    let n = 0;
-    clearInterval(blink);
-    blink = setInterval(() => {
-      paint(stage, n % 2 ? c : { ...c, [role]: alt });
-      if (role === 'dots' || role === 'board') repaint();
-      if (++n >= 6) { clearInterval(blink); blink = 0; paintSelected(); }
-    }, 170);
+  // ---- one selection, in the picture and in the list: what a colour paints is outlined, not flashed ----
+  // [selector under #stage, the colour it shows, how to outline it], the most particular first.
+  const WHERE = [
+    ['.app .brand', 'brand', 'box'], ['.app .brand', 'brandInk', 'box'],
+    ['.app .logo svg', 'strong', 'glow'], ['.app .logo', 'topbar', 'box'],
+    ['.app .crumb b', 'text', 'glow'], ['.app .crumb', 'tab', 'box'], ['.app .crumb', 'muted', 'box'], ['.app .top', 'topbar', 'box'],
+    ['.app .head .t', 'strong', 'glow'], ['.app .tb.on', 'highlight', 'box'], ['.app .tb', 'line', 'box'], ['.app .head', 'header', 'box'],
+    ['.app .info .ty, .app .info .tc', 'type', 'glow'], ['.app .info .fn', 'label', 'glow'], ['.app .info .p', 'strong', 'glow'], ['.app .info pre', 'text', 'box'], ['.app .info', 'code', 'box'],
+    ['.app .tool.bad i', 'fail', 'glow'], ['.app .tool.run i', 'agent', 'glow'], ['.app .tool i', 'pass', 'glow'],
+    ['.app .say.you', 'surface', 'box'], ['.app .ask div', 'surface', 'box'], ['.app .ask span', 'highlight', 'box'],
+    ['.app .who, .app .say, .app .think, .app .tool', 'text', 'box'], ['.app .side', 'chat', 'box'], ['.app .side', 'line', 'box'],
+    ['.app .bot .lead', 'tab', 'box'], ['.app .bot .badc', 'fail', 'glow'], ['.app .bot .tail', 'highlight', 'box'], ['.app .bot span', 'text', 'box'], ['.app .bot', 'status', 'box'],
+    ['.test-pip.pip-pass', 'pass', 'glow'], ['.test-pip.pip-fail', 'fail', 'glow'], ['.test-pip.pip-indet', 'indet', 'glow'],
+    ['.canvas-edge-label', 'label', 'glow'], ['.canvas-edge-label', 'surface', 'glow'], ['.canvas-edge-label', 'guide', 'glow'],
+    ['.canvas-avatar-bubble .bubble-text, .canvas-avatar-bubble .say-text', 'bubbleInk', 'glow'], ['.canvas-avatar-bubble', 'bubble', 'glow'],
+    ['.canvas-avatar', 'agent', 'glow'], ['.canvas-avatar', 'agentInk', 'glow'],
+    ['.canvas-node-label', 'type', 'glow'], ['.canvas-node', 'type', 'glow'], ['.canvas-node[aria-pressed="true"], .canvas-edge-label[aria-pressed="true"]', 'select', 'glow'],
+    ['path.canvas-line, .canvas-orbit', 'arrow', 'glow'], ['path.canvas-formation, path.canvas-dep, line.canvas-leader', 'guide', 'glow'],
+    ['svg.canvas-hulls', 'hull1', 'glow'], ['svg.canvas-hulls', 'hull2', 'glow'], ['svg.canvas-hulls', 'hull3', 'glow'], ['svg.canvas-hulls', 'hull4', 'glow'], ['svg.canvas-hulls', 'hullLabel', 'glow'],
+    ['#live', 'board', 'box'], ['#live', 'dots', 'box'],
+  ];
+  const HOW = {
+    box: 'outline: 2px dashed var(--mark); outline-offset: -3px;',
+    glow: 'filter: drop-shadow(0 0 1.5px var(--mark)) drop-shadow(0 0 1.5px var(--mark)) drop-shadow(0 0 1px var(--mark));',
+  };
+  document.head.appendChild(Object.assign(document.createElement('style'), {
+    textContent: WHERE.map(([sel, role, how]) => sel.split(',').map(x => '#stage[data-mark="' + role + '"] ' + x.trim()).join(', ') + ' { ' + HOW[how] + ' }').join('\n'),
+  }));
+  const labelOf = role => { for (const [, rs] of ROLES) for (const [id, label] of rs) if (id === role) return label; return role; };
+  let picked = null, lastSpot = null, turn = 0;
+  function pick(role) {
+    picked = role;
+    if (role) stage.dataset.mark = role; else delete stage.dataset.mark;
+    document.querySelectorAll('.row.sel').forEach(r => r.classList.remove('sel'));
+    const row = role && document.querySelector('.row[data-role="' + role + '"]');
+    if (row) { row.classList.add('sel'); row.scrollIntoView({ block: 'nearest' }); }
+    $('picked').textContent = role ? 'Selected: ' + labelOf(role) + '.' : '';
   }
-  $('rows').addEventListener('mouseover', ev => {
+  // The colours under a spot of the picture, nearest thing first.
+  function rolesAt(target) {
+    const found = [];
+    for (let el = target; el && el !== stage.parentElement; el = el.parentElement)
+      for (const [sel, role] of WHERE) if (el.matches && el.matches(sel) && !found.includes(role)) found.push(role);
+    return found;
+  }
+  $('stage').addEventListener('click', ev => {
+    const roles = rolesAt(ev.target);
+    if (!roles.length) return pick(null);
+    turn = lastSpot === ev.target ? (turn + 1) % roles.length : 0;
+    lastSpot = ev.target;
+    pick(roles[turn]);
+  }, true);
+  $('rows').addEventListener('click', ev => {
     const r = ev.target.closest('.row');
-    if (!r || drag || !$('where').checked || r.contains(ev.relatedTarget)) return;
-    clearTimeout(dwell);
-    dwell = setTimeout(() => flash(r.dataset.role), 450);
+    if (!r || ev.target.matches('input[type="text"], .undo') || Date.now() < quiet) return;
+    lastSpot = null;
+    pick(picked === r.dataset.role && !ev.target.matches('input') ? null : r.dataset.role);
   });
-  $('rows').addEventListener('mouseout', ev => { const r = ev.target.closest('.row'); if (r && !r.contains(ev.relatedTarget)) clearTimeout(dwell); });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') pick(null); });
 
   // The accents (every colour with some saturation) turned together, or made stronger or weaker.
   const hsl = h => { const [r, g, b] = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
@@ -555,7 +600,6 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
     });
   }
   function select(id) {
-    stopFlash();
     selected = id;
     document.querySelectorAll('.card').forEach(c => c.setAttribute('aria-pressed', c.dataset.id === id));
     paintSelected();
