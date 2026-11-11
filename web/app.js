@@ -141,6 +141,27 @@
   }
   $('module').onchange = () => choose($('module').value);
 
+  // ---- the code bases this page can switch to: live projects a hub is serving, snapshots, recorded runs ----
+  let projects = [], snapshot = false; // a snapshot is a code base as it stood: no run, no chat
+  const isHere = p => { const u = new URL(p.url, location.href); return u.origin === location.origin && u.pathname === location.pathname && (u.searchParams.get('trace') || '') === (traceUrl || ''); };
+  function drawProjects() {
+    if (!projects.length) return;
+    const sel = $('projects'), cur = projects.find(isHere);
+    const option = (v, t) => Object.assign(document.createElement('option'), { value: v, textContent: t });
+    const kids = cur ? [] : [option('', project || '…')];
+    [...new Set(projects.map(p => p.group || ''))].forEach(g => {
+      const group = Object.assign(document.createElement('optgroup'), { label: g });
+      group.append(...projects.filter(p => (p.group || '') === g).map(p => option(p.url, p.name + (p.note ? '  ·  ' + p.note : ''))));
+      kids.push(group);
+    });
+    sel.replaceChildren(...kids);
+    sel.value = cur ? cur.url : '';
+    sel.hidden = false;
+    $('project').hidden = true;
+  }
+  $('projects').onchange = () => { if ($('projects').value) location.href = new URL($('projects').value, location.href).href; };
+  fetch('projects.json').then(r => (r.ok ? r.json() : [])).then(list => { projects = Array.isArray(list) ? list : []; drawProjects(); }).catch(() => {});
+
   // ---- find a definition by name, anywhere in the project ----
   const find = $('find'), hits = $('hits');
   let found = [], at = 0;
@@ -651,7 +672,7 @@
 
   let buildOut = '', drawn = false; // drawn: the canvas has shown a graph, so a rebuilt feed need not redraw it
   const handlers = {
-    hello(e) { project = e.project; $('project').textContent = e.project; $('mode').textContent = e.agent && e.agent.startsWith('script') ? '· scripted agent' : ''; },
+    hello(e) { project = e.project; $('project').textContent = e.project; drawProjects(); snapshot = e.mode === 'snapshot'; root.toggleAttribute('data-snapshot', snapshot); if (snapshot) redraw(); $('mode').textContent = e.agent && e.agent.startsWith('script') ? '· scripted agent' : ''; },
     // The stream starts over, at first and after a new conversation or a reconnection: the feed is rebuilt from it.
     reset() { feed.replaceChildren(); seen = new Set(); tools = {}; asks = {}; liveEl = liveTool = null; lastWho = ''; live = false; },
     async caught_up() { if (latest) await learnTypes(latest); live = true; present(null, !drawn); drawn = true; },
@@ -719,6 +740,7 @@
     // A recorded run, played in the page with its own timing. No sidecar involved.
     $('ask').hidden = true;
     $('mode').textContent = '· recorded run, ' + speed + '×';
+    const label = t => { $('mode').textContent = snapshot ? '· snapshot' : t; };
     fetch(traceUrl).then(r => r.text()).then(async text => {
       const evs = text.split('\n').filter(l => l.trim()).map(l => { try { return JSON.parse(l); } catch (x) { return null; } }).filter(Boolean);
       evs.filter(e => e.type === 'files').forEach(dispatch);
@@ -733,7 +755,7 @@
         while (i < run.length && due[i] <= now) dispatch(run[i++]);
         if (i < run.length) await new Promise(r => setTimeout(r, Math.min(250, Math.max(15, due[i] - now))));
       }
-      $('mode').textContent = '· recorded run, finished';
+      label('· recorded run, finished');
     }).catch(() => { $('mode').textContent = '· could not load the recording'; });
   } else {
     const es = new EventSource('events');

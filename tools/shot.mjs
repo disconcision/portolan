@@ -48,7 +48,7 @@ try {
   // Pick a module by name in the top bar, then frame the whole graph.
   await page.evaluate(() => {
     window.pick = async name => {
-      const sel = document.querySelector('#module, select');
+      const sel = document.querySelector('#module') || document.querySelector('select');
       const o = [...sel.options].find(o => o.value === name || o.textContent.startsWith(name + ' '));
       if (!o) return 'no module ' + name;
       sel.value = o.value;

@@ -335,6 +335,19 @@ let route = (oc, ~home, source, {meth, path, query, body}) =>
   | ("POST", "/stop", Live(_, agent)) =>
     Agent.stop(agent);
     ok(oc);
+  /* The other code bases this page can switch to: the list a running
+     `portolan hub` wrote, or else the recorded runs that ship with the page. */
+  | ("GET", "/projects.json", _) =>
+    let hub = home / "local" / "hub" / "projects.json";
+    serve_file(
+      oc,
+      Sys.file_exists(hub) ? hub : home / "web" / "projects.json",
+    );
+  | ("GET", p, _) when String.starts_with(~prefix="/runs/", p) =>
+    serve_file(
+      oc,
+      home / "site" / "runs" / String.sub(p, 6, String.length(p) - 6),
+    )
   | ("GET", p, _) when String.starts_with(~prefix="/canvas/", p) =>
     serve_file(
       oc,

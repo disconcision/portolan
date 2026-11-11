@@ -64,8 +64,8 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
   border-radius: 0 0 16px 0; white-space: nowrap; min-width: 0; border-right: 0.6px solid var(--border-default); }
 #editor-mode #project { color: var(--text-default); overflow: hidden; text-overflow: ellipsis; }
 #module-wrap { display: flex; align-items: center; gap: 8px; }
-#module { font: inherit; color: var(--text-default); background: transparent; border: 0; padding: 0 2px; max-width: 16em; cursor: pointer; }
-#module:focus-visible { outline: 0.6px solid var(--border-strong); outline-offset: 2px; }
+#module, #projects { font: inherit; color: var(--text-default); background: transparent; border: 0; padding: 0 2px; max-width: 16em; cursor: pointer; }
+#module:focus-visible, #projects:focus-visible { outline: 0.6px solid var(--border-strong); outline-offset: 2px; }
 #find-wrap { position: relative; display: flex; align-items: center; }
 #find { font: 400 12px var(--code-font); color: var(--text-default); background: transparent; border: 0.6px solid var(--border-soft); border-radius: 4px; padding: 2px 8px; width: 13em; }
 #find::placeholder { color: var(--text-muted); }
@@ -159,6 +159,7 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
 :root[data-theme="dark"] .hz-typ { font-style: italic; }
 
 /* ---- chat, after Hazel's agent sidebar ---- */
+:root[data-snapshot] #main { grid-template-columns: minmax(0, 1fr); } :root[data-snapshot] #sidebar, :root[data-snapshot] #divider { display: none; }
 #sidebar { background: var(--ui-bkg); display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
 @media (max-width: 900px) { #sidebar { border-left: 0; border-top: 0.5px solid var(--border-default); } }
 #feed { overflow-y: auto; overflow-x: hidden; padding: 0.5em 1em 1em; display: flex; flex-direction: column; gap: 1em; }

@@ -25,6 +25,8 @@ Then open http://127.0.0.1:8791/ and type a prompt (the ones used so far are in 
 ./portolan help                              # every flag
 ```
 
+To look at several code bases in one sitting, run `./portolan hub`. It serves this repository and every project under `examples/`, each on its own port from 8791, and the project name in the page's top bar becomes a menu: the projects running, snapshots of code bases as they stood (no sidecar needed), and recorded runs. `./portolan hub dir1 dir2` serves those folders instead. `./portolan snapshot <dir> <out.jsonl>` makes a snapshot of a built project; the ones on the menu are in `site/runs/` and listed in `web/projects.json`.
+
 What to expect:
 
 - **The project's own state.** Portolan keeps a `.portolan/` folder (the trace, earlier conversations, the last graph, what you chose to always allow) and a `_build_portolan/` build folder in the project. Both ignore themselves; the project's `.gitignore` is not touched.

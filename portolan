@@ -10,6 +10,11 @@ usage:
   ./portolan new <name> [flags]      start a fresh project under local/runs/<name> and serve it
   ./portolan serve <dir> [flags]     serve an existing dune project
   ./portolan replay <trace.jsonl> [--port N] [--speed X]   play back a recorded trace
+  ./portolan hub [dir...] [--port N]  serve several projects at once (default: this folder and
+                                     examples/*), on ports from N; the page's project menu
+                                     switches between them, the snapshots and the recorded runs
+  ./portolan snapshot <dir> <out.jsonl>  a built project as a one-event trace the page can show
+                                     with no sidecar
   ./portolan compact <trace.jsonl> <out.jsonl>   rewrite an older trace, which holds every graph
                                      whole, with graph changes: much smaller, plays the same
   ./portolan build-canvas            rebuild canvas/dist after changing canvas/
@@ -39,7 +44,7 @@ EOF
 }
 
 case "${1:-}" in
-  new|serve|replay|compact|build-canvas) ;;
+  new|serve|replay|compact|build-canvas|hub|snapshot) ;;
   help|--help|-h) usage; exit 0 ;;
   *) usage >&2; exit 2 ;;
 esac
@@ -56,6 +61,48 @@ fi
 
 (cd "$HERE" && dune build ./sidecar ./extract 2>&1) || { echo "build failed" >&2; exit 1; }
 BIN="$HERE/_build/default/sidecar/main.exe"
+if [ "$1" = snapshot ]; then
+  shift; exec python3 "$HERE/tools/snapshot.py" "$@"
+fi
+
+if [ "$1" = hub ]; then
+  # One sidecar per code base on consecutive ports, and a list of them the page's project menu reads.
+  shift
+  port=8791; dirs=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --port) port="$2"; shift 2 ;;
+      *) dirs+=("$1"); shift ;;
+    esac
+  done
+  if [ ${#dirs[@]} -eq 0 ]; then
+    dirs=("$HERE")
+    for d in "$HERE"/examples/*/; do [ -f "$d/dune-project" ] && dirs+=("${d%/}"); done
+  fi
+  mkdir -p "$HERE/local/hub"
+  list="$HERE/local/hub/projects.json"
+  pids=""; live=""
+  trap 'kill $pids 2>/dev/null; rm -f "$list"' EXIT
+  trap 'exit 0' INT TERM
+  for d in "${dirs[@]}"; do
+    name="$(basename "$(cd "$d" && pwd)")"
+    "$BIN" serve "$d" --port "$port" --home "$HERE" > "$HERE/local/hub/$name.log" 2>&1 &
+    pids="$pids $!"
+    live="$live$name=http://127.0.0.1:$port/
+"
+    echo "  $name: http://127.0.0.1:$port/"
+    port=$((port + 1))
+  done
+  LIVE="$live" python3 - "$HERE/web/projects.json" "$list" <<'PY'
+import json, os, sys
+live = [dict(name=n, note="live", group="running here", url=u) for n, u in (l.split("=", 1) for l in os.environ["LIVE"].splitlines() if l)]
+json.dump(live + json.load(open(sys.argv[1])), open(sys.argv[2], "w"), indent=1)
+PY
+  echo "Stop with Ctrl-C. Logs are in local/hub/."
+  wait
+  exit
+fi
+
 case "$1" in
   new) name="${2:?name}"; shift 2; exec "$BIN" serve "$HERE/local/runs/$name" --home "$HERE" "$@" ;;
   serve|replay|compact) exec "$BIN" "$@" --home "$HERE" ;;

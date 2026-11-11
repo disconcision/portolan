@@ -1,0 +1,9 @@
+[
+  {"name": "portolan", "note": "its own code", "group": "snapshots", "url": "?trace=../runs/portolan-self.jsonl"},
+  {"name": "dungeon", "note": "seven modules with interfaces", "group": "snapshots", "url": "?trace=../runs/dungeon.jsonl"},
+  {"name": "vector", "group": "snapshots", "url": "?trace=../runs/vector.jsonl"},
+  {"name": "plane", "group": "snapshots", "url": "?trace=../runs/plane.jsonl"},
+  {"name": "shapes", "group": "snapshots", "url": "?trace=../runs/shapes.jsonl"},
+  {"name": "dungeon", "note": "being built, 13 minutes at 4×", "group": "recorded runs", "url": "?trace=../runs/dungeon-1.jsonl&speed=4"},
+  {"name": "vector", "note": "being built, 3 minutes at 2×", "group": "recorded runs", "url": "?trace=../runs/vector-1.jsonl&speed=2"}
+]
