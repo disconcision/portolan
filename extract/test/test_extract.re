@@ -1,9 +1,8 @@
 /* Checks the graphs extracted from the example projects.
 
-   The examples' annotations must already be there (extract/test/run.sh
-   builds them, then runs this). The tests of a broken build copy an
-   example to a temporary directory and run dune there, so dune must be
-   on the path. */
+   Each example's annotations are built here the first time it is used,
+   and the tests of a broken build copy an example to a temporary
+   directory and build it there, so dune must be on the path. */
 
 module G = Portolan_graph.Graph;
 module Extract = Portolan_extract.Extract;
@@ -12,21 +11,18 @@ module Locate = Portolan_extract.Locate;
 let build_dir = "_build_portolan";
 
 /* The repository root: $PORTOLAN_ROOT, or the nearest directory above
-   the working directory that holds the built examples. Under [dune test]
-   the working directory is _build/default/extract/test. */
+   the working directory that holds the examples. Under [dune test] the
+   working directory is _build/default/extract/test. */
 let repo_root: string = (
   {
-    let built = dir =>
-      Sys.file_exists(
-        List.fold_left(
-          Filename.concat,
-          dir,
-          ["examples", "vector", build_dir],
-        ),
+    let is_root = dir =>
+      List.for_all(
+        path => Sys.file_exists(List.fold_left(Filename.concat, dir, path)),
+        [["examples", "vector", "dune-project"], ["portolan"]],
       );
 
     let rec up = dir =>
-      if (built(dir)) {
+      if (is_root(dir)) {
         Some(dir);
       } else {
         let parent = Filename.dirname(dir);
@@ -39,7 +35,7 @@ let repo_root: string = (
 
     let from_env =
       switch (Sys.getenv_opt("PORTOLAN_ROOT")) {
-      | Some(dir) when built(dir) => Some(dir)
+      | Some(dir) when is_root(dir) => Some(dir)
       | _ => None
       };
 
@@ -48,15 +44,35 @@ let repo_root: string = (
     | (None, Some(dir)) => dir
     | (None, None) =>
       prerr_endline(
-        "test_extract: the examples are not built. Run extract/test/run.sh.",
+        "test_extract: the examples were not found. Set PORTOLAN_ROOT to the repository.",
       );
       exit(1);
     };
   }: string
 );
 
-let example = name =>
-  List.fold_left(Filename.concat, repo_root, ["examples", name]);
+/* An example project, its annotations built (once per run). */
+let example = {
+  let built = Hashtbl.create(4);
+  name => {
+    let dir = List.fold_left(Filename.concat, repo_root, ["examples", name]);
+    if (!Hashtbl.mem(built, name)) {
+      Hashtbl.replace(built, name, ());
+      let code =
+        Sys.command(
+          Printf.sprintf(
+            "cd %s && dune build --root . --build-dir %s @check > /dev/null 2>&1",
+            Filename.quote(dir),
+            build_dir,
+          ),
+        );
+      if (code != 0) {
+        Printf.eprintf("test_extract: examples/%s does not build\n%!", name);
+      };
+    };
+    dir;
+  };
+};
 
 let extract = (~failing=?, name): G.t =>
   switch (

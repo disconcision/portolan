@@ -1,8 +1,12 @@
 ; Checks the graphs extracted from the projects under examples/, and what
-; the extractor does when a build breaks. It reads the examples'
-; annotations from the source tree: run ./run.sh, which builds them first.
+; the extractor does when a build breaks. It builds the examples'
+; annotations in the source tree itself (./run.sh does the same, and
+; picks the opam switch).
 (test
  (name test_extract)
- ; The last test runs the command-line tool.
- (deps ../portolan-extract)
+ ; The last test runs the command-line tool. The examples are read where
+ ; they are in the source tree; naming them reruns the tests when they change.
+ (deps
+  ../portolan-extract
+  (source_tree ../../examples))
  (libraries portolan_extract portolan_graph alcotest yojson))
