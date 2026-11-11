@@ -253,6 +253,13 @@
     $('info-type').textContent = '';
     PortolanCode.clear();
   }
+  // After a change, the definition on show is read again if its file changed or it moved.
+  function repick(changed) {
+    if (!picked || !shown || !picked.at) return;
+    const id = picked.item.name || picked.item.key;
+    const item = picked.kind === 'edge' ? shown.edges.find(e => e.name === id) : shown.nodes.find(n => n.key === id) || (shown.values || []).find(v => v.name === id);
+    if (item && item.at && (!changed || changed === item.at.file || JSON.stringify(item.at) !== JSON.stringify(picked.at))) showSource(item, picked.kind, item.at);
+  }
   async function showSource(item, kind, at) {
     picked = { item, kind, at };
     $('info-path').textContent = at ? at.path : item.label || item.name || '';
@@ -446,6 +453,7 @@
       const file = e.cause && e.cause.file, m = file ? moduleOfFile(latest, file) : '';
       if (live && moduleName && m && m !== moduleName && $('follow').classList.contains('tool-active')) choose(m, e.cause);
       else present(e.cause, false);
+      repick(file);
     },
     error(e) { add('tool bad', e.where + ': ' + e.message); },
     files(e) { files = e.files; },
