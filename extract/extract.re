@@ -1651,29 +1651,27 @@ let assemble = (ctx: ctx): G.t => {
       ctx.tests,
     );
   /* In the order they are in their file: a case found where it is run
-     may have been placed at its function, further up. */
+     may have been placed at its function, further up. The tests of a
+     file follow one another. */
   let tests = {
-    let rec runs = (acc, l: list(G.test)) =>
+    let rec by_file = (l: list(G.test)) =>
       switch (l) {
-      | [] => List.rev(acc)
+      | [] => []
       | [t, ..._] =>
-        let (same, rest) = {
-          let rec split = (same, l: list(G.test)) =>
-            switch (l) {
-            | [o, ...rest] when o.t_at.file == t.t_at.file =>
-              split([o, ...same], rest)
-            | _ => (List.rev(same), l)
-            };
-          split([], l);
-        };
-        runs([same, ...acc], rest);
+        let here = (o: G.test) => o.t_at.file == t.t_at.file;
+        let rec split = (same, l) =>
+          switch (l) {
+          | [o, ...rest] when here(o) => split([o, ...same], rest)
+          | _ => (List.rev(same), l)
+          };
+        let (same, rest) = split([], l);
+        List.stable_sort(
+          (a: G.test, b: G.test) => compare(a.t_at.line, b.t_at.line),
+          same,
+        )
+        @ by_file(rest);
       };
-    runs([], tests)
-    |> List.concat_map(
-         List.stable_sort((a: G.test, b: G.test) =>
-           compare(a.t_at.line, b.t_at.line)
-         ),
-       );
+    by_file(tests);
   };
 
   /* For each name: how many other definitions and tests mention it, and
