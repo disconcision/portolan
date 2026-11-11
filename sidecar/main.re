@@ -16,10 +16,14 @@
    The modules, each with its interface:
      Files     reading and writing files, folders git ignores
      Bus       events, the trace file, waiting readers
+     Delta     the change from one JSON object to another
+     Graphs    graph events: whole graphs and changes between them
      Run       a shell command with a timeout
      Project   the watched project: paths, state folder, opam switch
      Watcher   file changes -> build -> graph -> tests
+     Permissions  what the user chose to always allow the agent
      Agent     Claude Code or a scripted stand-in, and what it last did
+     Conversation  starting a new one, keeping the old trace
      Syntax    OCaml <-> Reason conversion of a slice of a file
      Http      the page, the event stream, the routes
    This file reads the arguments and starts them.
@@ -32,6 +36,8 @@ let (/) = Filename.concat;
 let usage = "usage:
   portolan serve <project-dir> [flags]   watch a dune project and serve its page
   portolan replay <trace.jsonl> [--port N] [--speed X]   play back a recorded trace
+  portolan compact <trace.jsonl> <out.jsonl>   rewrite an older trace, which holds every graph
+                                whole, with graph changes: much smaller, plays the same
   portolan help
 
 flags for serve:
@@ -50,6 +56,9 @@ flags for serve:
 The project's compiler must be OCaml 5.2.x for now: the extractor reads compiled annotations.
 Without asking, the agent may edit files, run any dune command, and run ls, cat, head, tail,
 wc, grep, rg, find, mkdir, git status, git diff, git log, opam list and ocamlfind list.
+For anything else it waits, and the chat shows the request to allow once, always (remembered
+in the project's .portolan/allow) or deny. In the chat, `stop` ends the agent's turn and `new`
+starts a new conversation, keeping the trace so far in .portolan/conversations/.
 The trace of a project is .portolan/trace.jsonl in its folder; it carries on across restarts.";
 
 type options = {
@@ -221,6 +230,17 @@ let replay = (o, ~home, file) => {
   );
 };
 
+let compact = (file, out) => {
+  let lines =
+    try(Files.lines(Files.read(absolute(file)))) {
+    | Sys_error(message) => fail(message)
+    };
+  Files.write(
+    absolute(out),
+    String.concat("\n", Graphs.compact(lines)) ++ "\n",
+  );
+};
+
 let () = {
   Sys.set_signal(Sys.sigpipe, Sys.Signal_ignore);
   let o = {
@@ -243,6 +263,7 @@ let () = {
   switch (positional) {
   | ["serve", dir] => serve(o, ~home, dir)
   | ["replay", file] => replay(o, ~home, file)
+  | ["compact", file, out] => compact(file, out)
   | ["help" | "--help" | "-h", ..._] => print_endline(usage)
   | _ =>
     prerr_endline(usage);

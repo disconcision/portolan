@@ -144,7 +144,7 @@
     $('canvas').innerHTML = '';
     view = views[name];
     view.mount($('canvas'));
-    view.onSelect(showSource);
+    view.onSelect((item, kind, at) => { showSource(item, kind, at); attach(item, at); });
     view.reset();
     if (shown && live) view.show(shown);
     $('which').textContent = name === 'hazel' ? 'plain view' : 'canvas';
@@ -348,20 +348,140 @@
     if (rich) { d.innerHTML = markdown(text, true); frames(d); } else d.textContent = text;
     return append(d);
   }
+  // ---- an edit by the agent, as a diff ----
+  // The lines of `was` and `now` in order, each marked ' ' (in both), '-' or '+'. Lines the two share at
+  // the ends are matched first; the middle by longest common subsequence, unless it is too big to be worth it.
+  function lineDiff(was, now) {
+    const a = was.replace(/\n$/, '').split('\n'), b = now.replace(/\n$/, '').split('\n'), out = [];
+    let head = 0, tail = 0;
+    while (head < a.length && head < b.length && a[head] === b[head]) head++;
+    while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail++;
+    const x = a.slice(head, a.length - tail), y = b.slice(head, b.length - tail);
+    a.slice(0, head).forEach(l => out.push([' ', l]));
+    if (x.length * y.length > 250000) { x.forEach(l => out.push(['-', l])); y.forEach(l => out.push(['+', l])); }
+    else {
+      const n = x.length, m = y.length, t = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+      for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) t[i][j] = x[i] === y[j] ? t[i + 1][j + 1] + 1 : Math.max(t[i + 1][j], t[i][j + 1]);
+      let i = 0, j = 0;
+      while (i < n || j < m) {
+        if (i < n && j < m && x[i] === y[j]) { out.push([' ', x[i]]); i++; j++; }
+        else if (i < n && (j === m || t[i + 1][j] >= t[i][j + 1])) out.push(['-', x[i++]]);
+        else out.push(['+', y[j++]]);
+      }
+    }
+    a.slice(a.length - tail).forEach(l => out.push([' ', l]));
+    return out;
+  }
+  // What an Edit, MultiEdit or Write call changes, as marked lines; a gap between two edits is ['…', ''].
+  function changes(name, input) {
+    if (name === 'Write') return input.content == null ? [] : String(input.content).replace(/\n$/, '').split('\n').map(l => ['+', l]);
+    const edits = name === 'MultiEdit' ? input.edits || [] : [input];
+    return edits.flatMap((e, i) => (i ? [['…', '']] : []).concat(lineDiff(String(e.old_string || ''), String(e.new_string || ''))));
+  }
+  const LONG = 14, MOST = 400; // a diff longer than LONG lines starts folded; no more than MOST are drawn
+  function diffBlock(lines) {
+    const count = k => lines.filter(l => l[0] === k).length, d = document.createElement('details'), sum = document.createElement('summary'), pre = document.createElement('pre');
+    d.className = 'diff';
+    d.open = lines.length <= LONG;
+    sum.innerHTML = '<span class="add"></span> <span class="del"></span>';
+    sum.children[0].textContent = '+' + count('+');
+    sum.children[1].textContent = count('-') ? '−' + count('-') : '';
+    lines.slice(0, MOST).forEach(([k, text]) => {
+      const row = document.createElement('span');
+      row.className = k === '+' ? 'add' : k === '-' ? 'del' : k === '…' ? 'gap' : 'same';
+      row.textContent = (k === '…' ? '⋯' : k + ' ' + text) + '\n';
+      pre.appendChild(row);
+    });
+    if (lines.length > MOST) pre.appendChild(document.createTextNode('… ' + (lines.length - MOST) + ' more lines'));
+    d.append(sum, pre);
+    return d;
+  }
   function toolRow(name, input) {
-    let what = name, more = '';
-    if (name === 'Write') what = 'Write ' + rel(input.file_path) + (input.content != null ? ' (' + String(input.content).split('\n').length + ' lines)' : '');
-    else if (name === 'Edit' || name === 'MultiEdit') { what = 'Edit ' + rel(input.file_path); more = String(input.new_string || '').split('\n').slice(0, 6).join('\n'); }
+    let what = name;
+    const edit = name === 'Edit' || name === 'MultiEdit' || name === 'Write';
+    if (edit) what = (name === 'Write' ? 'Write ' : 'Edit ') + rel(input.file_path);
     else if (name === 'Bash') what = '$ ' + String(input.command || '');
     else if (name === 'Read') what = 'Read ' + rel(input.file_path);
+    else if (name === 'AskUserQuestion') what = 'A question for you';
     else if (input && (input.pattern || input.path)) what = name + ' ' + (input.pattern || rel(input.path));
     const d = document.createElement('div');
     d.className = 'tool';
     d.innerHTML = '<span class="dot">●</span><span class="what"></span><span class="more"></span>';
     d.children[1].textContent = what;
     d.children[1].title = what;
-    d.children[2].textContent = more;
+    const lines = edit ? changes(name, input) : [];
+    if (lines.length) d.appendChild(diffBlock(lines));
     return append(d);
+  }
+
+  // ---- the agent asks: leave to use a tool, or a question of its own ----
+  const post = (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const el = (tag, cls, text) => { const x = document.createElement(tag); if (cls) x.className = cls; if (text != null) x.textContent = text; return x; };
+  let asks = {}; // id -> the card of a request still waiting
+  function askCard(e) {
+    const card = el('div', 'ask'), input = e.input || {}, answerable = !traceUrl;
+    const act = el('div', 'ask-act');
+    if (e.tool === 'AskUserQuestion') {
+      const qs = input.questions || [], chosen = qs.map(() => new Set());
+      const sendAnswers = () => post('answer', { id: e.id, decision: 'answered', answers: Object.fromEntries(qs.map((q, i) => [q.question, [...chosen[i]].join(', ')])) });
+      const direct = qs.length === 1 && !qs[0].multiSelect; // one question, one choice: a click answers it
+      const go = el('button', 'primary', 'send');
+      go.type = 'button'; go.disabled = true; go.onclick = sendAnswers;
+      qs.forEach((q, i) => {
+        if (q.header) card.appendChild(el('div', 'ask-head', q.header));
+        card.appendChild(el('div', 'ask-text', q.question));
+        const row = el('div', 'ask-options');
+        (q.options || []).forEach(o => {
+          const b = el('button', 'option');
+          b.type = 'button'; b.disabled = !answerable;
+          b.append(el('span', 'label', o.label), el('span', 'hint', o.description || ''));
+          b.onclick = () => {
+            if (!q.multiSelect) { chosen[i].clear(); row.querySelectorAll('.option').forEach(x => x.classList.remove('on')); }
+            chosen[i].has(o.label) && q.multiSelect ? chosen[i].delete(o.label) : chosen[i].add(o.label);
+            b.classList.toggle('on', chosen[i].has(o.label));
+            go.disabled = chosen.some(c => !c.size);
+            if (direct) sendAnswers();
+          };
+          row.appendChild(b);
+        });
+        card.appendChild(row);
+      });
+      if (!direct && answerable) act.appendChild(go);
+    } else {
+      const bash = e.tool === 'Bash';
+      card.appendChild(el('div', 'ask-head', bash ? 'Claude wants to run' : 'Claude wants to use ' + e.tool));
+      card.appendChild(el('pre', 'ask-what', bash ? String(input.command || '') : input.file_path ? rel(input.file_path) : JSON.stringify(input, null, 1)));
+      if (input.description) card.appendChild(el('div', 'ask-text', input.description));
+      if (answerable) {
+        const always = el('div', 'ask-always'), fields = (e.patterns || []).map(p => { const f = el('input'); f.value = p; f.spellcheck = false; f.setAttribute('aria-label', 'Pattern to always allow'); return f; });
+        always.append(el('span', '', 'always allow remembers'), ...fields);
+        const button = (text, cls, body) => { const b = el('button', cls, text); b.type = 'button'; b.onclick = () => post('answer', { id: e.id, ...body() }); return b; };
+        act.append(button('Allow once', 'primary', () => ({ decision: 'once' })),
+          button('Always allow', '', () => ({ decision: 'always', patterns: fields.map(f => f.value.trim()).filter(Boolean) })),
+          button('Deny', 'deny', () => ({ decision: 'deny' })));
+        card.append(act, always);
+      }
+    }
+    if (!act.parentNode) card.appendChild(act);
+    if (!answerable && !act.children.length) act.textContent = 'waiting for an answer';
+    asks[e.id] = card;
+    append(card);
+    if (live) card.scrollIntoView({ block: 'nearest' });
+  }
+  // The request has its answer, or will never get one: the card says which and stops taking clicks.
+  function settle(id, decision, e) {
+    const card = asks[id];
+    if (!card) return;
+    delete asks[id];
+    card.classList.add('settled', decision);
+    card.querySelectorAll('.ask-always').forEach(x => x.remove());
+    card.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    const said = decision === 'once' ? 'allowed once' : decision === 'always' ? 'always allowed: ' + ((e && e.patterns) || []).join('  ') : decision === 'deny' ? 'denied'
+      : decision === 'answered' ? 'answered: ' + Object.values((e && e.answers) || {}).join('; ') : 'not answered: the turn ended first';
+    const act = card.querySelector('.ask-act'), picked = decision === 'answered' ? Object.values(e.answers || {}).flatMap(a => String(a).split(', ')) : [];
+    card.querySelectorAll('.option').forEach(b => b.classList.toggle('on', picked.includes(b.firstChild.textContent)));
+    if (decision === 'answered') act.remove(); else act.replaceChildren();
+    card.appendChild(el('div', 'ask-said', said));
   }
   function dropLive() { if (liveEl) { liveEl.remove(); liveEl = null; } if (liveTool) { liveTool.remove(); liveTool = null; } }
 
@@ -408,6 +528,7 @@
       });
     } else if (ev.type === 'result') {
       dropLive();
+      Object.values(tools).forEach(row => { if (!row.classList.contains('ok') && !row.classList.contains('bad')) row.classList.add('cut'); }); // a stopped turn leaves calls unfinished
       add('turn', ev.is_error ? 'stopped' : 'turn done');
       lastWho = '';
     }
@@ -424,16 +545,39 @@
     if (output) f.appendChild(document.createTextNode(output.split('\n').slice(0, 14).join('\n')));
   }
 
-  let buildOut = '';
+  // A graph event carries the whole graph or the change from the one before it (sidecar/delta.rei):
+  // fields set or dropped, and each changed list as runs [i, n] of the old list and added items.
+  function patched(old, d) {
+    const g = { ...old, ...(d.set || {}) };
+    (d.drop || []).forEach(k => delete g[k]);
+    Object.entries(d.lists || {}).forEach(([k, ops]) => { g[k] = ops.flatMap(op => (Array.isArray(op) ? old[k].slice(op[0], op[0] + op[1]) : op.add)); });
+    return g;
+  }
+
+  let buildOut = '', drawn = false; // drawn: the canvas has shown a graph, so a rebuilt feed need not redraw it
   const handlers = {
     hello(e) { project = e.project; $('project').textContent = e.project; $('mode').textContent = e.agent && e.agent.startsWith('script') ? '· scripted agent' : ''; },
-    async caught_up() { if (latest) await learnTypes(latest); live = true; present(null, true); },
-    session(e) { if (e.restart && feed.children.length) { add('turn', 'earlier session above'); lastWho = ''; } },
+    // The stream starts over, at first and after a new conversation or a reconnection: the feed is rebuilt from it.
+    reset() { feed.replaceChildren(); seen = new Set(); tools = {}; asks = {}; liveEl = liveTool = null; lastWho = ''; live = false; },
+    async caught_up() { if (latest) await learnTypes(latest); live = true; present(null, !drawn); drawn = true; },
+    session(e) {
+      Object.keys(asks).forEach(id => settle(id, 'cancelled')); // whoever asked is gone
+      if (e.restart && feed.children.length) { add('turn', 'earlier session above'); lastWho = ''; }
+    },
+    conversation(e) { add('turn plain', 'New conversation. The earlier one is kept in .portolan/' + e.earlier); lastWho = ''; },
+    ask(e) { lastWho = 'Claude'; askCard(e); },
+    answer(e) { settle(e.id, e.decision, e); },
     replay_end() { $('mode').textContent = '· replay finished'; },
-    prompt(e) { add('msg you', e.text, 'You'); },
+    prompt(e) {
+      const d = add('msg you', e.text, 'You'), a = e.about;
+      if (a) d.appendChild(el('span', 'about', 'about ' + a.name + (a.file ? ' · ' + a.file + ':' + a.line + (a.end_line > a.line ? '–' + a.end_line : '') : '')));
+    },
     agent(e) { agent(e.ev); },
     agent_raw(e) { add('tool bad', e.line); },
-    agent_state(e) { cell('agent', 'agent: ' + e.state, e.state === 'running' ? 'live' : ''); if (PC && live) PC.setBusy(e.state === 'running'); },
+    agent_state(e) {
+      cell('agent', 'agent: ' + (e.state === 'waiting' ? 'waiting for your answer' : e.state), e.state === 'running' || e.state === 'waiting' ? 'live' : '');
+      if (PC && live) PC.setBusy(e.state === 'running');
+    },
     build(e) {
       cell('build', e.ok ? 'build ok · ' + e.ms + ' ms' : 'build failing', e.ok ? '' : 'bad');
       buildOut = e.ok ? '' : e.output;
@@ -442,7 +586,8 @@
     },
     tests(e) { cell('tests', e.failing.length ? e.failing.length + ' test' + (e.failing.length > 1 ? 's' : '') + ' failing' : e.ok ? 'tests pass' : 'tests did not run', e.failing.length || !e.ok ? 'bad' : ''); },
     async graph(e) {
-      latest = e.graph;
+      if (!e.graph && !(e.delta && latest)) return;
+      latest = e.graph || patched(latest, e.delta);
       drawPicker();
       drawSyntax();
       marked = !!e.partial;
@@ -460,7 +605,10 @@
   };
   // One event at a time, in order: a graph waits for its types before it is drawn.
   let turn = Promise.resolve();
-  const dispatch = e => { turn = turn.then(() => (handlers[e.type] || (() => {}))(e)).catch(err => console.error(err)); };
+  // A feed that was at its end stays there, whatever the event added or grew.
+  const dispatch = e => {
+    turn = turn.then(async () => { const stick = pinned(); await (handlers[e.type] || (() => {}))(e); if (stick) feed.scrollTop = feed.scrollHeight; }).catch(err => console.error(err));
+  };
 
   if (traceUrl) {
     // A recorded run, played in the page with its own timing. No sidecar involved.
@@ -489,13 +637,34 @@
   }
 
   // ---- prompt box ----
+  // The definition selected on the canvas rides along with the next message, unless taken off.
+  let about = null;
+  function attach(item, at) {
+    const name = item && (item.name || item.key || item.label);
+    about = name ? { name, ...(at && at.file ? { file: at.file, line: at.line, end_line: at.end_line } : {}) } : null;
+    $('about').hidden = !about;
+    $('about-name').textContent = about ? about.name : '';
+    $('about').title = about && about.file ? about.file + ', lines ' + about.line + ' to ' + about.end_line : '';
+  }
+  $('about-drop').onclick = () => attach(null);
   async function send() {
     const text = $('prompt').value.trim();
     if (!text) return;
     $('prompt').value = '';
-    await fetch('prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+    const body = about ? { text, about } : { text };
+    attach(null);
+    await post('prompt', body);
   }
   $('ask').addEventListener('submit', ev => { ev.preventDefault(); send(); });
   $('prompt').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); send(); } });
-  $('stop').onclick = () => fetch('stop', { method: 'POST' });
+  $('stop').onclick = () => post('stop');
+  // A new conversation takes a second click, so a slip does not end the one under way.
+  let arming = 0;
+  const disarm = () => { clearTimeout(arming); arming = 0; $('new').textContent = 'new'; $('new').classList.remove('armed'); };
+  $('new').onclick = () => {
+    if (arming) { disarm(); post('new'); return; }
+    $('new').textContent = 'start a new conversation?';
+    $('new').classList.add('armed');
+    arming = setTimeout(disarm, 4000);
+  };
 })();

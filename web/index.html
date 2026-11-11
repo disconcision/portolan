@@ -68,8 +68,13 @@
     <aside id="sidebar">
       <div id="feed" aria-live="polite"></div>
       <form id="ask">
+        <div id="ask-bar">
+          <span id="about" hidden>about <code id="about-name"></code><button type="button" id="about-drop" title="Send the message without the selection" aria-label="Remove the selection from the message">×</button></span>
+          <span class="spacer"></span>
+          <button type="button" id="new" title="Start a new conversation. This one is kept in the project's .portolan/conversations folder.">new</button>
+          <button type="button" id="stop" title="Stop the agent's turn">stop</button>
+        </div>
         <textarea id="prompt" rows="3" placeholder="Message the agent. Enter sends, Shift+Enter makes a new line."></textarea>
-        <button type="button" id="stop" title="Stop the agent">stop</button>
         <button type="submit" id="send" title="Send" aria-label="Send">↑</button>
       </form>
     </aside>

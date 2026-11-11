@@ -5,9 +5,10 @@
                             files under `web/`
      GET  /canvas/FILE      the canvas bundle, from `canvas/dist/`
      GET  /events           server-sent events: each `data:` line is one
-                            bus event, plus `caught_up` once the backlog
-                            has been sent (and `replay_end` in a replay);
-                            of the backlog's graphs only the newest is sent
+                            bus event. First `reset`, the trace so far
+                            (its graph events as one whole graph) and
+                            `caught_up`; the same again if the trace is
+                            started over. A replay ends with `replay_end`
      GET  /trace            every event so far, one JSON object per line
      GET  /source?file=REL  a project file, as text
      GET  /refmt?file=REL&line=N&end_line=M&to=re|ml
@@ -18,8 +19,15 @@
      POST /types            `{"types": [TEXT, …]}`: printed OCaml types;
                             answers `{"types": […]}`, each in Reason
                             syntax, or null where it could not be read
-     POST /prompt           `{"text": …}`: a prompt for the agent
-     POST /stop             stop the agent */
+     POST /prompt           `{"text": …}`: a prompt for the agent; with
+                            `"about": {name, file, line, end_line}`, the
+                            definition it is about
+     POST /answer           `{"id": …, "decision": "once" | "always" |
+                            "deny" | "answered"}`: the user's answer to
+                            an `ask` event; "always" takes `patterns`,
+                            "answered" takes `answers` (question: label)
+     POST /stop             stop the agent's turn
+     POST /new              start a new conversation (see [Conversation]) */
 
 /** What the server shows. */
 type source =

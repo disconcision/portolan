@@ -197,10 +197,7 @@ let emit_graph = (w, ~why, ~broken=?, ()) =>
     if (json != w.last_graph) {
       w.last_graph = json;
       Files.write(Project.root(w.project) / last_graph_file, json);
-      Bus.emit(
-        [("type", `String("graph")), ("graph", graph), ("cause", why)]
-        @ (broken == None ? [] : [("partial", `Bool(true))]),
-      );
+      Graphs.emit(~cause=why, ~partial=broken != None, graph);
     };
   /* A failed build with no graph to show for it: the page keeps the last
      picture. A good build with nothing compiled yet has nothing to say. */
@@ -282,9 +279,9 @@ let cycle = w =>
 /* Where the last session left off, read from the bus's backlog. */
 let resume = w => {
   open Yojson.Safe.Util;
-  switch (Bus.last("graph")) {
-  | Some(ev) =>
-    w.last_graph = Yojson.Safe.to_string(member("graph", ev));
+  switch (Graphs.resume(Bus.all())) {
+  | Some(graph) =>
+    w.last_graph = Yojson.Safe.to_string(graph);
     Files.write(Project.root(w.project) / last_graph_file, w.last_graph);
   | None =>
     /* No graph on the page: a file left from another trace is not its past. */

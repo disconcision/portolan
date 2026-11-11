@@ -172,31 +172,22 @@ let sse = (oc, s) => {
   output_string(oc, "\n\n");
 };
 
-/* Live: everything so far at once, then a marker, then events as they come. */
-/* A viewer joining late needs only the newest graph: the earlier ones
-   were steps towards it, and each is the whole project. */
-let newest_graph_only = batch =>
-  snd(
-    List.fold_right(
-      (line, (seen, kept)) =>
-        Bus.type_of(line) == Some("graph")
-          ? (true, seen ? kept : [line, ...kept]) : (seen, [line, ...kept]),
-      batch,
-      (false, []),
-    ),
-  );
-
+/* Live: the trace so far at once, then a marker, then events as they
+   come. A viewer joining late needs only the latest graph, so the
+   backlog's graph events are sent as one. If the trace is started over,
+   the same again from its start. */
 let events_live = oc => {
   sse_headers(oc);
-  let cursor = ref(0)
-  and first = ref(true);
+  let cursor = ref(Bus.origin);
   while (true) {
-    let batch = Bus.wait_from(cursor^);
-    List.iter(sse(oc), first^ ? newest_graph_only(batch) : batch);
-    cursor := cursor^ + List.length(batch);
-    if (first^) {
+    let (batch, next, from_start) = Bus.wait(cursor^);
+    cursor := next;
+    if (from_start) {
+      sse(oc, "{\"type\":\"reset\"}");
+      List.iter(sse(oc), Graphs.collapse(batch));
       sse(oc, "{\"type\":\"caught_up\"}");
-      first := false;
+    } else {
+      List.iter(sse(oc), batch);
     };
     flush(oc);
   };
@@ -260,6 +251,60 @@ let refmt = (oc, project, query) => {
   };
 };
 
+/* The definition a prompt is about, from the page's JSON. */
+let about = json =>
+  switch (json) {
+  | `Assoc(fields) =>
+    switch (List.assoc_opt("name", fields)) {
+    | Some(`String(name)) =>
+      Some({
+        Agent.name,
+        where:
+          switch (
+            List.assoc_opt("file", fields),
+            List.assoc_opt("line", fields),
+            List.assoc_opt("end_line", fields),
+          ) {
+          | (Some(`String(file)), Some(`Int(first)), Some(`Int(last))) =>
+            Some((file, first, last))
+          | _ => None
+          },
+      })
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* The user's answer to a request of the agent's, from the page's JSON. */
+let answer = json => {
+  open Yojson.Safe.Util;
+  let strings = name =>
+    switch (json |> member(name)) {
+    | `List(items) => List.filter_map(to_string_option, items)
+    | _ => []
+    };
+  let answer =
+    switch (json |> member("decision")) {
+    | `String("once") => Some(Agent.Once)
+    | `String("always") => Some(Agent.Always(strings("patterns")))
+    | `String("deny") => Some(Agent.Deny)
+    | `String("answered") =>
+      Some(
+        Agent.Answers(
+          json
+          |> member("answers")
+          |> to_assoc
+          |> List.map(((q, label)) => (q, to_string(label))),
+        ),
+      )
+    | _ => None
+    };
+  switch (json |> member("id"), answer) {
+  | (`String(id), Some(answer)) => Some((id, answer))
+  | _ => None
+  };
+};
+
 let route = (oc, ~home, source, {meth, path, query, body}) =>
   switch (meth, path, source) {
   | ("GET", "/events", Live(_)) => events_live(oc)
@@ -289,17 +334,28 @@ let route = (oc, ~home, source, {meth, path, query, body}) =>
   | ("GET", "/source" | "/refmt", Replay(_)) => not_found(oc)
   | ("GET", "/refmt", Live(project, _)) => refmt(oc, project, query)
   | ("POST", "/prompt", Live(_, agent)) =>
-    let text =
-      try(
-        Yojson.Safe.Util.(
-          Yojson.Safe.from_string(body) |> member("text") |> to_string
+    let (text, about) =
+      switch (Yojson.Safe.from_string(body)) {
+      | json => (
+          Yojson.Safe.Util.(json |> member("text") |> to_string),
+          about(Yojson.Safe.Util.member("about", json)),
         )
-      ) {
-      | _ => body
+      | exception _ => (body, None)
       };
     if (String.trim(text) != "") {
-      Agent.prompt(agent, text);
+      Agent.prompt(agent, ~about?, text);
     };
+    ok(oc);
+  | ("POST", "/answer", Live(_, agent)) =>
+    switch (answer(Yojson.Safe.from_string(body))) {
+    | Some((id, answer)) =>
+      Agent.answer(agent, ~id, answer);
+      ok(oc);
+    | None
+    | exception _ => respond(oc, ~status="400 Bad Request", "no")
+    }
+  | ("POST", "/new", Live(project, agent)) =>
+    Conversation.start_new(project, agent);
     ok(oc);
   | ("POST", "/types", Live(_)) =>
     let texts =
@@ -342,7 +398,11 @@ let handle = (~home, source, fd) => {
   let ic = Unix.in_channel_of_descr(fd)
   and oc = Unix.out_channel_of_descr(fd);
   try(route(oc, ~home, source, read_request(ic))) {
-  | _ => ()
+  | _ =>
+    /* Usually the viewer has gone; if not, say that it went wrong. */
+    try(respond(oc, ~status="500 Internal Server Error", "error")) {
+    | _ => ()
+    }
   };
   try(flush(oc)) {
   | _ => ()
