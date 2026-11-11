@@ -4,8 +4,8 @@ type t = {
   project: Project.t,
   extractor: string,
   cause: unit => Event.cause,
-  /* The graph last sent, as compact JSON; "" before the first. */
-  mutable last_graph: string,
+  /* The graph last sent, as compact JSON. */
+  mutable last_graph: option(string),
   /* The failing tests of the last test run; None before the first. */
   mutable last_failing: option(list((string, int))),
 };
@@ -194,8 +194,8 @@ let emit_graph = (w, ~why, ~broken=?, ()) =>
   switch (extract(w, ~broken)) {
   | Ok(graph) =>
     let json = Yojson.Safe.to_string(graph);
-    if (json != w.last_graph) {
-      w.last_graph = json;
+    if (Some(json) != w.last_graph) {
+      w.last_graph = Some(json);
       Files.write(Project.root(w.project) / last_graph_file, json);
       Graphs.emit(~cause=why, ~partial=broken != None, graph);
     };
@@ -268,8 +268,9 @@ let cycle = w =>
 let resume = w => {
   switch (Graphs.resume(Bus.all())) {
   | Some(graph) =>
-    w.last_graph = Yojson.Safe.to_string(graph);
-    Files.write(Project.root(w.project) / last_graph_file, w.last_graph);
+    let json = Yojson.Safe.to_string(graph);
+    w.last_graph = Some(json);
+    Files.write(Project.root(w.project) / last_graph_file, json);
   | None =>
     /* No graph on the page: a file left from another trace is not its past. */
     try(Sys.remove(Project.root(w.project) / last_graph_file)) {
@@ -305,7 +306,7 @@ let start = (~extractor, ~cause, project) => {
     project,
     extractor,
     cause,
-    last_graph: "",
+    last_graph: None,
     last_failing: None,
   };
   resume(w);
