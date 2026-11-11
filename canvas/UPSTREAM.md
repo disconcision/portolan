@@ -54,6 +54,9 @@ sh canvas/tools/diff_upstream.sh /path/to/hazel-worktree     # upstream/ must be
 | `layouts()`, `edgeStyles()` | The layouts and edge styles on offer, each `[{id, label}, ...]`; the first is the default. |
 | `layout()`, `edges()` | The ids in use. |
 | `setLayout(id)`, `setEdges(id)` | Choose one. The graph on the board is laid out again, glides to its new places and is framed. Returns false for an id not on offer. Positions set by dragging are dropped. |
+| `contours()`, `pulls()` | The two region settings on offer (see Regions), each `[{id, label}, ...]`; the first is the default. |
+| `contour()`, `pull()` | The ids in use. |
+| `setContour(id)`, `setPull(id)` | Choose one. A contour redraws the regions where they are; a pull lays the board out again, as `setLayout` does. Returns false for an id not on offer. |
 | `layoutStats()` | `{calls, ms, hits, phases}`: layouts computed, their total time, memo hits, time by phase. For `tools/layout-cost.mjs`. |
 
 Upstream's console testers (`__canvasBurst`, `__canvasStage`, `__cameraState`,
@@ -86,8 +89,8 @@ in `test/` build and run them natively.
 | `edited/CanvasRipple.re` | `src/web/app/canvas/` | edited (the dot lattice, about 15 lines) | A quieter lattice: a smaller dot, drawn fainter; below 1:1 every dot fades further and every other one drops out (the level-of-detail band moves from 14–28 px of screen pitch toward 28–56). At 1:1 and closer it is still the lattice node centres snap to. The dot's size is baked into a sprite, so this could not be a stylesheet change. |
 | `upstream/CanvasJelly.re` | `src/web/app/canvas/` | verbatim | |
 | `upstream/CanvasLog.re` | `src/web/app/canvas/` | verbatim | |
-| `edited/CanvasView.re` | `src/web/app/canvas/` | edited (the hull palette, 8 lines) | The six hull colours read `var(--pc-hull-N, <upstream colour>)` so a host can theme them. Worth taking upstream. |
-| `edited/CanvasLayout.re` | `src/web/app/canvas/` | edited (hooks for `CanvasOptions`; `layout_impl` cut in two; the memo; table-based copies of two passes) | See Layouts and edge styles, and Layout cost. Every edit is marked `PORTOLAN`; upstream lines are not re-indented, and the two passes that were replaced are still there, unused, above their replacements. |
+| `edited/CanvasView.re` | `src/web/app/canvas/` | edited (the hull palette, 8 lines; the contour, about 90) | The six hull colours read `var(--pc-hull-N, <upstream colour>)` so a host can theme them. Worth taking upstream. A region's bands along arrows give way to links between members, and its filter to a second one, when `CanvasContour` says so: see Regions. |
+| `edited/CanvasLayout.re` | `src/web/app/canvas/` | edited (hooks for `CanvasOptions` and `CanvasPull`; `layout_impl` cut in two; the memo; table-based copies of two passes) | See Layouts and edge styles, Regions, and Layout cost. Every edit is marked `PORTOLAN`; upstream lines are not re-indented, and the two passes that were replaced are still there, unused, above their replacements. |
 | `edited/CanvasBuffer.re` | `src/web/app/canvas/` | edited (about 25 lines) | The beat's payload is a graph snapshot instead of Hazel's editor model: `type model = CanvasGraph.t`; `same_program` is graph equality; no "statics pending" state. Dwell rules, queue, hold, staging: untouched. |
 | `shim/Util.re` | (`util` library) | shim | Re-exports `JsUtil`, `WebUtil`, `OptUtil`, `PerfTimer`, `GraphLayout`, `AgentPulse`, `Key` under `Util.`, as the copies spell them. |
 | `shim/JsUtil.re` | `src/util/JsUtil.re` | shim | 4 of its functions, upstream's bodies (`cached_client_height` without the cache). |
@@ -98,6 +101,8 @@ in `test/` build and run them natively.
 | `CanvasGraph.re` | `src/web/app/canvas/CanvasGraph.re` | rewritten | Upstream's record types with the same field names (so the copies read them unchanged), ids as strings, terms as source text, plus `handles`. Extraction (lines 160–1606 upstream) is gone; `of_graph` makes the picture from Portolan's graph record (`Portolan_graph.Graph.t`) instead. |
 | `CanvasDirector.re` | `src/web/app/canvas/CanvasSidebar.re` | lifted + new | See below. |
 | `CanvasOptions.re`, `.rei` | — | new | The layouts and edge styles on offer, and the ones written for Portolan. |
+| `CanvasContour.re`, `.rei` | — | new | What a module's region is drawn around. See Regions. |
+| `CanvasPull.re`, `.rei` | — | new | The pass that draws a module's members toward each other. See Regions. |
 | `portolan_canvas_js.re` | — | new | The global API. |
 | `canvas.css` | `src/web/www/style/canvas.css`, `animations.css` | generated | By `tools/make_css.py`: variables renamed `--pc-*`, every literal colour turned into a palette variable, Hazel's values as zero-specificity defaults, `tools/portolan.css` appended. |
 
@@ -172,6 +177,52 @@ only. A switch of layout or edge style is one slow glide. `ledger` and
 `clusters` re-derive every place from the graph, in source order, so a new
 definition moves its neighbours down a row; `compact` repacks when a piece
 grows. None of them has been watched through a long agent run.
+
+## Regions
+
+Two more settings, an experiment (logbook entry 15), beside the layout and
+the edge style: `setContour`, `setPull`, a select each in the page, `?contour=`
+and `?pull=` in the address. The defaults are Hazel's behaviour, untouched.
+
+A module's region is a set of shapes that an SVG filter merges into one blob.
+Hazel draws a circle at each member and a band along each of the module's
+arrows, so a region is as long as its arrows.
+
+| Contour | What a region is drawn around |
+|---|---|
+| `arrows` | Hazel's: members, and a band along every arrow of the module. |
+| `members` | A circle at each member and no bands. What keeps a spread-out module one shape is a shortest tree of thin links between circles that do not already touch. A function's label is circled only when the function lies wholly inside the module or wholly outside it; one with one end inside is an arrow leaving the region. A built-in type that only this module's functions share is circled as a member. |
+| `smooth` | The same shapes drawn 30 units larger, through a filter that blurs by as much and keeps what is nearly solid: hollows between near members fill, and a lone member keeps its circle. |
+
+| Pull | What it does |
+|---|---|
+| `none` | Nothing: the layout's places. |
+| `mild`, `strong` | After whichever layout placed the nodes, and before anything is routed: rounds in which each member moves 3% of the way to its module's centre (14 rounds, or 40), modules side by side move apart until their packed sizes fit, and then 60 rounds that move nodes clear of each other, give each arrow room for its label, and move a node out of a module that has closed around it. A terminal docked to another module's type is let go and goes home with its module. Nodes of no module are only moved out of the way. Arrows and labels are routed afterwards, for the places the nodes ended at. A graph with no modules is left as it is. |
+
+`CanvasContour` and `CanvasPull` are geometry over the graph, with nothing of
+the browser in them, so they live in the `portolan_canvas_graph` library and
+have native tests (`test/test_regions.re`). `CanvasView` asks `CanvasContour`
+which shapes to draw, in the three functions every other part of the canvas
+gets hull geometry from (`hull_circles_at`, `hull_sausages_at`,
+`hull_targets`), so a drag, a glide and the jelly springs follow whichever
+contour is chosen. `CanvasLayout` calls `CanvasPull.apply` just before manual
+offsets are applied; the layout memo is keyed on the pull.
+
+Looked at in headless Chrome on four scenes (the dungeon example whole and
+its `Creatures` module, Portolan's `Graph` and `CanvasGraph`), all nine
+combinations in the layered layout and three in ledger with metro edges; the
+pictures and what they showed are in logbook entry 15. With the defaults the
+board draws as it did before (compared picture against picture). The two
+selects were driven in the page.
+
+Not done: the pull is not stable under edits (a new member moves the centre
+and everything is solved again), so it breaks "stability of place"; it has
+not been watched through a paced run or dragged by hand; on the whole of
+Portolan (about 1850 nodes) it has not been timed (the dungeon's 143 nodes
+take a few milliseconds). A change of pull leaves `ORPHAN: unscheduled` lines
+in the journal for label leaders that appear, as a change of layout does.
+`smooth` blurs twice as wide as the other contours and has not been timed on
+a large board either.
 
 ## Layout cost
 

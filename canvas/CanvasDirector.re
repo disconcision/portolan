@@ -2695,6 +2695,27 @@ let set_edges = (k: string): bool => {
   ok;
 };
 
+/* PORTOLAN: what a module's region is drawn around (CanvasContour): the
+   board is drawn again, and nothing moves. And the pull of a module's
+   members toward each other (CanvasPull): a new arrangement, as a change
+   of layout is. */
+let set_contour = (k: string): bool => {
+  let ok = CanvasContour.set(k);
+  if (ok) {
+    CanvasLog.log("contour: " ++ k);
+    request_render();
+  };
+  ok;
+};
+let set_pull = (k: string): bool => {
+  let ok = CanvasPull.set(k);
+  if (ok) {
+    CanvasLog.log("pull: " ++ k);
+    relayout();
+  };
+  ok;
+};
+
 let set_follow = (b: bool): unit => {
   follow := b;
   request_render();
