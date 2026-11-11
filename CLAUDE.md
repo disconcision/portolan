@@ -32,6 +32,7 @@ The file has no `<html>`, `<head>` or `<body>` tags on purpose, so the same file
 
 ## Code
 
+- **`STYLE.md`** is the guide to how code is shaped here (types, modules, tests). It is light on purpose; read it before adding a module.
 - **ReasonML syntax** for all of Portolan's own code (`.re`, `.rei`), formatted with `refmt`.
 - **One module per job, each with an interface.** Every module outside an executable's `main.re` has a `.rei` that documents what each value does. Keep types abstract where the callers do not need the shape.
 - **The graph record is the boundary.** `graph/graph.re` is the only thing the extractor writes and the canvas reads.
