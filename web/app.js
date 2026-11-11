@@ -40,9 +40,14 @@
     const cut = x => ({ ...x, m_path: (x.m_path || []).slice(1) });
     return { ...g, nodes: g.nodes.map(cut), edges: g.edges.map(cut), values: (g.values || []).map(cut) };
   }
+  // Only what interfaces export: a module as its users see it (an experiment, logbook entry 8).
+  let surface = kept('surface') === '1';
+  const opaque = n => (n.kind === 'alias' && n.abstract ? { ...n, parts: [], ctors: [], ty: null, former: null } : n); // an abstract type shows no inside
+  const outside = g => ({ ...g, nodes: g.nodes.filter(n => n.kind !== 'alias' || n.exported !== false).map(opaque), edges: g.edges.filter(e => e.exported !== false), values: (g.values || []).filter(v => v.exported !== false) });
   function moduleView(g, mod) {
-    if (!mod) return flatten(g);
     if (mod === PortolanMap.MAP) return PortolanMap.graph(g);
+    if (surface) g = outside(g);
+    if (!mod) return flatten(g);
     const inMod = x => top(x) === mod, cut = x => ({ ...x, m_path: (x.m_path || []).slice(1) });
     const edges = g.edges.filter(inMod), values = (g.values || []).filter(inMod);
     const byKey = new Map(g.nodes.map(n => [n.key, n])), want = new Set();
@@ -151,6 +156,8 @@
   toggle('pace', on => PC.setPace(on));
   toggle('follow', on => PC.setFollow(on));
   $('fit').onclick = () => PC && PC.fit();
+  $('surface').classList.toggle('tool-active', surface);
+  $('surface').onclick = () => { surface = !surface; keep('surface', surface ? '1' : '0'); $('surface').classList.toggle('tool-active', surface); present(null, true); };
   const redraw = () => window.dispatchEvent(new Event('resize')); // the canvas sizes and paints its dot grid by script
 
   // ---- light / dark, and the corner variation ----

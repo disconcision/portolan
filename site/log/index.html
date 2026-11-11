@@ -50,9 +50,9 @@ const LOG = [
   { n: 7, date: '2026-11-11', state: 'idea',
     title: 'Is a map of modules a better front door than a menu?',
     result: 'Modules as nodes, "uses" as arrows, above the one-module view. Entry 2 says the menu will not do at Hazel\'s size.' },
-  { n: 8, date: '2026-11-11', state: 'idea',
-    title: 'What does collapsing a module to its interface look like?',
-    result: 'A module drawn as only what its interface exports, and opened in place.' },
+  { n: 8, date: '2026-11-11', state: 'done', href: '08-a-module-as-its-interface.html',
+    title: 'What does a module look like as only its interface?',
+    result: 'Much smaller and readable at a glance: Agent goes from 18 definitions to the 8 it exports. A first cut, as one switch for the whole view.' },
 ];
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const STATE = { done: ['done', ''], running: ['running', ' wait'], idea: ['idea', ' wait'] };

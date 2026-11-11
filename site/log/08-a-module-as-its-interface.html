@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A Module as Its Interface</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+<link rel="stylesheet" href="log.css">
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · <a href="./">logbook</a> · 08 · 11 November 2026</span>
+  <h1>What does a module look like as only its interface?</h1>
+  <p class="result">Much smaller and readable at a glance: <code>Agent</code> goes from 18 definitions to the 8 it exports, and its hidden record becomes one plain node. This is a first cut, as a switch for the whole view.</p>
+</header>
+
+<section>
+  <dl class="parts">
+    <dt>Why</dt>
+    <dd><p>Andrew wants collapsing a module to its interface to work well visually. The extractor already records which definitions an interface exports and which types it keeps abstract, and nothing used that yet.</p></dd>
+    <dt>What I did</dt>
+    <dd><p>Added an <span class="mono">interface</span> switch to the canvas header. When it is on, the page drops every definition an interface does not export before drawing, and draws an abstract type with no parts. Tried it on Portolan's own <code>Agent</code> and <code>Watcher</code>.</p></dd>
+  </dl>
+</section>
+
+<section>
+  <div class="col"><h2>What happened</h2></div>
+  <div class="pair">
+    <figure>
+      <img src="img/01-agent.jpg" alt="The Agent module in full: a record with a ring of parts and a dozen arrows." loading="lazy">
+      <figcaption><strong>Everything.</strong> 18 definitions, with the record <code>t</code> and all its fields.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/08-agent-interface.jpg" alt="The Agent module as its interface: five arrows and one plain node for the abstract type." loading="lazy">
+      <figcaption><strong>Interface only.</strong> <code>make</code> builds a <code>t</code> from a kind, a project and some settings; <code>prompt</code>, <code>stop</code> and <code>take_cause</code> use it; <code>kind_of_string</code> stands apart.</figcaption>
+    </figure>
+  </div>
+  <div class="col">
+    <p>The second picture is the one a caller needs, and it can be read without zooming. <code>Watcher</code> exports a single function, so it shrinks to one arrow.</p>
+    <p>A module with no interface file exports everything, so the switch changes nothing for it. That is itself visible: the modules that stay large are the ones with no interface.</p>
+  </div>
+</section>
+
+<section>
+  <dl class="parts">
+    <dt>What it means</dt>
+    <dd><p>The data for collapsing is already there and the result is worth having. One switch for the whole view is too blunt, though: the useful thing is to open one module while its neighbours stay collapsed.</p></dd>
+    <dt>Not done</dt>
+    <dd><p>Collapsing one module at a time in the whole-project view. Showing an abstract type differently from an ordinary one. Any animation between the two states: today the view is redrawn.</p></dd>
+    <dt>Next</dt>
+    <dd><p>Put it together with the map of modules (entry 7): each module on the map drawn as its interface, opened in place.</p></dd>
+  </dl>
+</section>
+</main>
+</body>
+</html>
