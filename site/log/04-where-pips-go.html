@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where Pips Go</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+<link rel="stylesheet" href="log.css">
+<style>figure img.small { width: auto; max-width: 100%; height: 26px; image-rendering: auto; align-self: flex-start; }</style>
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · <a href="./">logbook</a> · 04 · 11 November 2026</span>
+  <h1>Where should a test's pip go when the tests are not written inline?</h1>
+  <p class="result">On every function of the project the test reaches. It is honest and it works, but for Portolan's own tests it puts 31 pips on one arrow, which says the tests all enter by one door.</p>
+</header>
+
+<section>
+  <dl class="parts">
+    <dt>Why</dt>
+    <dd><p>Andrew saw no tests at all on Portolan's own code. Its tests are separate Alcotest cases in a test folder, and the extractor only knew tests written inline beside the function. In Hazel a test sits in the program next to what it tests, so the question of where its pip goes never came up.</p></dd>
+    <dt>What was done</dt>
+    <dd>
+      <p>A helper agent taught the extractor to find Alcotest cases, including ones made through a wrapper function, and to follow each case through the helpers in its own file to the project functions it ends up calling. The pip goes on each of those. The watcher reads which cases failed from the test run's output.</p>
+      <p>It then broke two tests on purpose in a served copy to see the pips change. I checked the merged result on Portolan itself.</p>
+    </dd>
+  </dl>
+</section>
+
+<section>
+  <div class="col"><h2>What happened</h2></div>
+  <figure>
+    <img class="small" src="img/04-pips.png" alt="The arrow label 'extract' followed by a long row of small green dots, two of them red." loading="lazy">
+    <figcaption><code>Extract.extract</code> with the two broken tests in red. 32 tests were found; 31 of them reach this one function.</figcaption>
+  </figure>
+  <div class="col">
+    <p>The tests are found and their status is right. But almost every test builds a graph from an example project and then looks at the result, so they all pass through <code>extract</code> and the row of pips says little about which behaviour each one checks.</p>
+    <p>Other rules were considered: only functions the test names directly (the pips land on the test file's own helpers, which are not interesting), one pip per suite, or a count once there are more than a few.</p>
+  </div>
+  <div class="col"><h3>The same round also fixed what the picture got wrong</h3></div>
+  <div class="pair">
+    <figure>
+      <img src="img/04-graph-before.jpg" alt="The Graph module before: type labels hundreds of characters long running across the whole board." loading="lazy">
+      <figcaption><strong>Before.</strong> <code>Graph</code>: inferred JSON types printed in full, up to 91 characters, across everything.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/04-graph-after.jpg" alt="The Graph module after: short labels, one node named json that the reading functions meet at, and rows of green pips on four functions." loading="lazy">
+      <figcaption><strong>After.</strong> No label over 32 characters, one <code>json</code> node that the readers meet at, lists and options as small dots fed by their parts, and pips.</figcaption>
+    </figure>
+  </div>
+  <div class="col">
+    <p>The loose types at the bottom of a module, which Andrew thought looked like artifacts, were three things. Some were artifacts: fields of other modules' records leaking in. Those are gone. Some were real but unconnected: unnamed lists, options and tuples, which now have lines to what they are made of. The rest are the module's own state, and now carry the value's name, as in <code>events: Dynarray.t(string)</code>.</p>
+  </div>
+</section>
+
+<section>
+  <dl class="parts">
+    <dt>What it means</dt>
+    <dd><p>Pips by reachability show how tests enter the code, which is worth knowing, but not what each one is about. A test that only observes results needs another way to say which definition it speaks for: its name, the functions it asserts on, or a note by the author.</p></dd>
+    <dt>Open</dt>
+    <dd>
+      <p>Whether 31 pips on one arrow is acceptable, or should fold into a count.</p>
+      <p>Unnamed types that are still drawn as text (function types, <code>result(a, b)</code>) get no lines to the types inside them.</p>
+    </dd>
+  </dl>
+</section>
+</main>
+</body>
+</html>
