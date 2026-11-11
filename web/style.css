@@ -132,6 +132,15 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
 .tool .what { color: var(--text-default); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool .more { grid-column: 2; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 8em; overflow: auto; opacity: 0.8; }
 .tool .more:empty { display: none; }
+/* an edit as a diff, folded when long */
+.tool .diff { grid-column: 2; min-width: 0; }
+.tool .diff summary { cursor: pointer; color: var(--text-muted); width: fit-content; }
+.tool .diff pre { margin: 2px 0 0; padding: 4px 0; max-height: 26em; overflow: auto; font: inherit; background: var(--df-bg); border: 0.6px solid var(--border-soft); border-radius: 6px; }
+.tool .diff pre span { display: block; width: fit-content; min-width: 100%; padding: 0 8px; white-space: pre; }
+.tool .diff .add { color: var(--diff-add, oklch(48% 0.13 150)); } .tool .diff .del { color: var(--err); }
+.tool .diff pre .add { background: color-mix(in oklch, var(--ok) 14%, transparent); } .tool .diff pre .del { background: color-mix(in oklch, var(--err) 9%, transparent); }
+.tool .diff .same, .tool .diff .gap { color: var(--text-accent); }
+:root[data-theme="dark"] .tool .diff { --diff-add: #9ED9A6; }
 .turn { font-size: 0.7em; color: var(--text-muted); text-align: center; letter-spacing: 0.06em; text-transform: uppercase; }
 #ask { padding: 0.8em 1em 1em; position: relative; border-top: 0.6px solid var(--border-default); }
 #prompt { width: 100%; resize: none; min-height: 4.2em; max-height: 40vh; padding: 0.6em 2.6em 0.6em 0.8em; border-radius: 8px; border: 0.6px solid var(--border-default);

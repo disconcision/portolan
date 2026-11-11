@@ -341,10 +341,58 @@
     if (rich) { d.innerHTML = markdown(text, true); frames(d); } else d.textContent = text;
     return append(d);
   }
+  // ---- an edit by the agent, as a diff ----
+  // The lines of `was` and `now` in order, each marked ' ' (in both), '-' or '+'. Lines the two share at
+  // the ends are matched first; the middle by longest common subsequence, unless it is too big to be worth it.
+  function lineDiff(was, now) {
+    const a = was.replace(/\n$/, '').split('\n'), b = now.replace(/\n$/, '').split('\n'), out = [];
+    let head = 0, tail = 0;
+    while (head < a.length && head < b.length && a[head] === b[head]) head++;
+    while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail++;
+    const x = a.slice(head, a.length - tail), y = b.slice(head, b.length - tail);
+    a.slice(0, head).forEach(l => out.push([' ', l]));
+    if (x.length * y.length > 250000) { x.forEach(l => out.push(['-', l])); y.forEach(l => out.push(['+', l])); }
+    else {
+      const n = x.length, m = y.length, t = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+      for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) t[i][j] = x[i] === y[j] ? t[i + 1][j + 1] + 1 : Math.max(t[i + 1][j], t[i][j + 1]);
+      let i = 0, j = 0;
+      while (i < n || j < m) {
+        if (i < n && j < m && x[i] === y[j]) { out.push([' ', x[i]]); i++; j++; }
+        else if (i < n && (j === m || t[i + 1][j] >= t[i][j + 1])) out.push(['-', x[i++]]);
+        else out.push(['+', y[j++]]);
+      }
+    }
+    a.slice(a.length - tail).forEach(l => out.push([' ', l]));
+    return out;
+  }
+  // What an Edit, MultiEdit or Write call changes, as marked lines; a gap between two edits is ['…', ''].
+  function changes(name, input) {
+    if (name === 'Write') return input.content == null ? [] : String(input.content).replace(/\n$/, '').split('\n').map(l => ['+', l]);
+    const edits = name === 'MultiEdit' ? input.edits || [] : [input];
+    return edits.flatMap((e, i) => (i ? [['…', '']] : []).concat(lineDiff(String(e.old_string || ''), String(e.new_string || ''))));
+  }
+  const LONG = 14, MOST = 400; // a diff longer than LONG lines starts folded; no more than MOST are drawn
+  function diffBlock(lines) {
+    const count = k => lines.filter(l => l[0] === k).length, d = document.createElement('details'), sum = document.createElement('summary'), pre = document.createElement('pre');
+    d.className = 'diff';
+    d.open = lines.length <= LONG;
+    sum.innerHTML = '<span class="add"></span> <span class="del"></span>';
+    sum.children[0].textContent = '+' + count('+');
+    sum.children[1].textContent = count('-') ? '−' + count('-') : '';
+    lines.slice(0, MOST).forEach(([k, text]) => {
+      const row = document.createElement('span');
+      row.className = k === '+' ? 'add' : k === '-' ? 'del' : k === '…' ? 'gap' : 'same';
+      row.textContent = (k === '…' ? '⋯' : k + ' ' + text) + '\n';
+      pre.appendChild(row);
+    });
+    if (lines.length > MOST) pre.appendChild(document.createTextNode('… ' + (lines.length - MOST) + ' more lines'));
+    d.append(sum, pre);
+    return d;
+  }
   function toolRow(name, input) {
-    let what = name, more = '';
-    if (name === 'Write') what = 'Write ' + rel(input.file_path) + (input.content != null ? ' (' + String(input.content).split('\n').length + ' lines)' : '');
-    else if (name === 'Edit' || name === 'MultiEdit') { what = 'Edit ' + rel(input.file_path); more = String(input.new_string || '').split('\n').slice(0, 6).join('\n'); }
+    let what = name;
+    const edit = name === 'Edit' || name === 'MultiEdit' || name === 'Write';
+    if (edit) what = (name === 'Write' ? 'Write ' : 'Edit ') + rel(input.file_path);
     else if (name === 'Bash') what = '$ ' + String(input.command || '');
     else if (name === 'Read') what = 'Read ' + rel(input.file_path);
     else if (input && (input.pattern || input.path)) what = name + ' ' + (input.pattern || rel(input.path));
@@ -353,7 +401,8 @@
     d.innerHTML = '<span class="dot">●</span><span class="what"></span><span class="more"></span>';
     d.children[1].textContent = what;
     d.children[1].title = what;
-    d.children[2].textContent = more;
+    const lines = edit ? changes(name, input) : [];
+    if (lines.length) d.appendChild(diffBlock(lines));
     return append(d);
   }
   function dropLive() { if (liveEl) { liveEl.remove(); liveEl = null; } if (liveTool) { liveTool.remove(); liveTool = null; } }
