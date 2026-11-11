@@ -49,11 +49,11 @@ Then open http://127.0.0.1:5191/.
 | `graph/` | **The graph record.** The only thing the canvas reads: type nodes, function edges, values, tests. |
 | `extract/` | Reads a dune project's compiled annotations and produces the graph record. |
 | `sidecar/` | Watches a project, builds and tests it, runs the agent and relays its stream, serves the page, records a trace. One small module per job, each with an interface (`.rei`) that says what it does. |
-| `web/` | The page: chat beside the canvas, styled after Hazel. `view.js` is a plain fallback used only if the canvas bundle is missing. |
+| `web/` | The page: chat beside the canvas, styled after Hazel. `view.js` is a plain fallback used only if the canvas bundle is missing. `code.js` is the code panel under the canvas (CodeMirror, read-only, with folding and a file outline); `syntax.js` colours OCaml and Reason by sort, as Hazel does, there and in the chat. `vendor/codemirror.js` is CodeMirror 6 prebuilt, so the page needs no build step. |
 | `canvas/` | Hazel's Constellation canvas, ported. `UPSTREAM.md` lists every file against Hazel's. `dist/` is the built bundle the page loads; `./portolan build-canvas` rebuilds it. |
 | `prompts/` | The Hazel demo prompts in OCaml wording, and the small-steps nudge. |
 | `examples/` | Small dune projects used to test the extractor. |
-| `tools/` | Trace summary and scrub scripts. |
+| `tools/` | Trace summary and scrub scripts; `shot.mjs` takes a headless screenshot of the page. `codemirror/` rebuilds `web/vendor/codemirror.js` (`npm install && npm run build` there). |
 | `site/index.html` | **The notebook front page.** Its `ENTRIES` list is the map: prototypes, living documents, studies. |
 | `site/notes/` | Living documents, kept current. `scope.html` is the scope of the project: purpose, first build, directions. |
 | `site/studies/` | One-off studies, dated in the file name and left as written. |

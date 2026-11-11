@@ -250,24 +250,15 @@
   function unpick() {
     picked = null;
     $('info-path').textContent = 'Pick a function or type on the canvas to see its definition.';
-    $('info-type').textContent = $('info-code').textContent = '';
+    $('info-type').textContent = '';
+    PortolanCode.clear();
   }
   async function showSource(item, kind, at) {
     picked = { item, kind, at };
     $('info-path').textContent = at ? at.path : item.label || item.name || '';
     $('info-type').textContent = kind === 'edge' && item.ty ? ': ' + item.ty : item.ty ? '= ' + item.ty : '';
-    $('info-code').textContent = '';
     drawSyntax();
-    if (!at) return;
-    try {
-      if (files) { $('info-code').textContent = (files[at.file] || '').split('\n').slice(at.line - 1, at.end_line).join('\n'); return; }
-      if (syntaxNow() !== native(at.file)) {
-        const r = await fetch('refmt?file=' + encodeURIComponent(at.file) + '&line=' + at.line + '&end_line=' + at.end_line + '&to=' + syntaxNow());
-        if (r.ok) { $('info-code').textContent = await r.text(); return; }
-      }
-      const text = await (await fetch('source?file=' + encodeURIComponent(at.file))).text();
-      $('info-code').textContent = text.split('\n').slice(at.line - 1, at.end_line).join('\n');
-    } catch (e) { $('info-code').textContent = '(could not read ' + at.file + ')'; }
+    PortolanCode.show({ at, name: item.label || item.name || '', files, syntax: syntaxNow() });
   }
 
   // ---- formatted text: a small Markdown reader for the agent's replies ----
@@ -296,7 +287,7 @@
         i++;
         // A finished `html` block is shown as the page fragment it describes, with its source underneath.
         if (done && closed && fence[1].trim().toLowerCase() === 'html') out.push('<div class="html-block" data-html="' + esc(body.join('\n')) + '"></div>');
-        else out.push('<pre>' + esc(body.join('\n')) + '</pre>');
+        else out.push('<pre>' + PortolanSyntax.html(body.join('\n'), fence[1]) + '</pre>');
         continue;
       }
       const h = l.match(/^(#{1,4})\s+(.*)$/), ul = l.match(/^\s*[-*]\s+(.*)$/), ol = l.match(/^\s*\d+[.)]\s+(.*)$/);
