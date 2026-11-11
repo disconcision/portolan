@@ -217,9 +217,10 @@ selects were driven in the page.
 
 Not done: the pull is not stable under edits (a new member moves the centre
 and everything is solved again), so it breaks "stability of place"; it has
-not been watched through a paced run or dragged by hand; on the whole of
-Portolan (about 1850 nodes) it has not been timed (the dungeon's 143 nodes
-take a few milliseconds). A change of pull leaves `ORPHAN: unscheduled` lines
+not been watched through a paced run or dragged by hand; on the dungeon's 143
+nodes it takes about as long as the layout it follows (some 60 ms against 50,
+on a busy machine), once for every layout the canvas asks for, and on the
+whole of Portolan (about 1850 nodes) it has not been timed. A change of pull leaves `ORPHAN: unscheduled` lines
 in the journal for label leaders that appear, as a change of layout does.
 `smooth` blurs twice as wide as the other contours and has not been timed on
 a large board either.

@@ -407,17 +407,18 @@ let apply =
       reach,
       discs,
     );
-  let cell_of = (i: int): (int, int) => (
-    int_of_float(Float.floor(x(i) /. cell)),
-    int_of_float(Float.floor(y(i) /. cell)),
-  );
+  /* a cell of the board, as one number: tables keyed by a pair are slow
+     in the browser, and this is asked for a few thousand times a round */
+  let slot = (cx: int, cy: int): int => (cx + 2048) * 4096 + (cy + 2048);
+  let column = (i: int): int => int_of_float(Float.floor(x(i) /. cell))
+  and row = (i: int): int => int_of_float(Float.floor(y(i) /. cell));
   /* every other node in the nine cells around node i */
-  let near =
-      (buckets: Hashtbl.t((int, int), list(int)), i: int, f: int => unit) => {
-    let (cx, cy) = cell_of(i);
+  let near = (buckets: Hashtbl.t(int, list(int)), i: int, f: int => unit) => {
+    let cx = column(i)
+    and cy = row(i);
     for (dx in (-1) to 1) {
       for (dy in (-1) to 1) {
-        switch (Hashtbl.find_opt(buckets, (cx + dx, cy + dy))) {
+        switch (Hashtbl.find_opt(buckets, slot(cx + dx, cy + dy))) {
         | Some(js) =>
           List.iter(
             j =>
@@ -434,8 +435,8 @@ let apply =
   let apart = (i: int, j: int, want: float) => {
     let dx = x(i) -. x(j)
     and dy = y(i) -. y(j);
-    let dist = Float.hypot(dx, dy);
-    if (dist < want) {
+    if (dx *. dx +. dy *. dy < want *. want) {
+      let dist = sqrt(dx *. dx +. dy *. dy);
       let (ux, uy) = dist > 0.01 ? (dx /. dist, dy /. dist) : (1., 0.);
       let push = (want -. dist) /. 2.;
       move(discs[i].body, ux *. push, uy *. push);
@@ -479,10 +480,10 @@ let apply =
       },
       siblings,
     );
-  let clear = (~crowded: bool): Hashtbl.t((int, int), list(int)) => {
-    let buckets: Hashtbl.t((int, int), list(int)) = Hashtbl.create(n);
+  let clear = (~crowded: bool): Hashtbl.t(int, list(int)) => {
+    let buckets: Hashtbl.t(int, list(int)) = Hashtbl.create(n);
     for (i in 0 to n - 1) {
-      let c = cell_of(i);
+      let c = slot(column(i), row(i));
       Hashtbl.replace(
         buckets,
         c,
@@ -501,7 +502,7 @@ let apply =
   };
   /* a body with members of a module it is not in on every side moves
      toward the widest opening between them */
-  let expel = (buckets: Hashtbl.t((int, int), list(int))) =>
+  let expel = (buckets: Hashtbl.t(int, list(int))) =>
     for (i in 0 to n - 1) {
       let d = discs[i];
       if (d.lead) {
