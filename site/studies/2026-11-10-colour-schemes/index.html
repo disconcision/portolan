@@ -95,7 +95,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .row.drop { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 .row.sel { background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); border-radius: 5px; }
 #picked { color: var(--ink); font-weight: 600; }
-#stage { --mark: #E0218A; }
 #stage .canvas-edge-label, .thumb .canvas-edge-label { background: var(--chip-bkg); }
 body.dragging { user-select: none; -webkit-user-select: none; cursor: grabbing; }
 body.dragging .row label, body.dragging .row input { cursor: grabbing; }
@@ -188,7 +187,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
       <button id="star" aria-pressed="false" title="Mark as a favourite" aria-label="Favourite">★</button>
     </div>
     <p id="blurb"></p>
-    <p class="hint">Click a part of the picture to find its colour, or a row here to see what it paints; click the same spot again for the next colour under it. The outline shows for a moment, then goes. Drag one colour onto another to swap them (Alt copies). <kbd>⌘Z</kbd> undoes. <span id="picked"></span></p>
+    <p class="hint">Click a part of the picture to select its colour in the list; click the same spot again for the next colour under it. Drag one colour onto another to swap them (Alt copies). <kbd>⌘Z</kbd> undoes. <span id="picked"></span></p>
     <div id="rows"></div>
     <div class="tune">
       <label>Hue of the accents <input type="range" id="hue" min="-180" max="180" value="0"><output id="hue-out">0°</output></label>
@@ -366,7 +365,6 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
       if (hex.toLowerCase() === own(selected, role).toLowerCase() && !scheme(selected).custom) delete cs[role]; else cs[role] = hex.toUpperCase();
     }
     edit(selected, { colors: cs });
-    mark(null);
     paintSelected();
     Object.keys(patch).forEach(syncRow);
     drawFoot(selected);
@@ -493,46 +491,31 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
   document.addEventListener('pointercancel', drop);
   document.addEventListener('click', ev => { if (Date.now() < quiet) { ev.preventDefault(); ev.stopPropagation(); } }, true);
 
-  // ---- one selection, in the picture and in the list: what a colour paints is outlined, not flashed ----
-  // [selector under #stage, the colour it shows, how to outline it], the most particular first.
+  // ---- one selection, in the picture and in the list. Nothing is drawn on the picture: a mark there hides the colour. ----
+  // [selector under #stage, the colour it shows], the most particular first.
   const WHERE = [
-    ['.app .brand', 'brand', 'box'], ['.app .brand', 'brandInk', 'box'],
-    ['.app .logo svg', 'logo', 'glow'], ['.app .logo', 'logoBg', 'box'],
-    ['.app .crumb b', 'tabInk', 'glow'], ['.app .crumb', 'tab', 'box'], ['.app .crumb', 'muted', 'box'], ['.app .top', 'topbar', 'box'],
-    ['.app .head .t', 'title', 'glow'], ['.app .tb.on', 'toolOn', 'box'], ['.app .tb', 'tool', 'box'], ['.app .tb', 'line', 'box'], ['.app .head', 'header', 'box'],
-    ['.app .info .ty, .app .info .tc', 'type', 'glow'], ['.app .info .fn', 'label', 'glow'], ['.app .info .p', 'strong', 'glow'], ['.app .info pre', 'text', 'box'], ['.app .info', 'code', 'box'],
-    ['.app .tool.bad i', 'fail', 'glow'], ['.app .tool.run i', 'agent', 'glow'], ['.app .tool i', 'pass', 'glow'],
-    ['.app .say.you', 'say', 'box'], ['.app .ask div', 'composer', 'box'], ['.app .ask span', 'send', 'box'],
-    ['.app .who, .app .say, .app .think, .app .tool', 'text', 'box'], ['.app .side', 'chat', 'box'], ['.app .side', 'line', 'box'],
-    ['.app .bot .lead', 'run', 'box'], ['.app .bot .badc', 'fail', 'glow'], ['.app .bot .tail', 'agentCell', 'box'], ['.app .bot span', 'text', 'box'], ['.app .bot', 'status', 'box'],
-    ['.test-pip.pip-pass', 'pass', 'glow'], ['.test-pip.pip-fail', 'fail', 'glow'], ['.test-pip.pip-indet', 'indet', 'glow'],
-    ['.canvas-edge-label', 'label', 'glow'], ['.canvas-edge-label', 'chip', 'glow'], ['.canvas-edge-label', 'guide', 'glow'],
-    ['.canvas-avatar-bubble .bubble-text, .canvas-avatar-bubble .say-text', 'bubbleInk', 'glow'], ['.canvas-avatar-bubble', 'bubble', 'glow'],
-    ['.canvas-avatar', 'agent', 'glow'], ['.canvas-avatar', 'agentInk', 'glow'],
-    ['.canvas-node-label', 'type', 'glow'], ['.canvas-node', 'type', 'glow'], ['.canvas-node[aria-pressed="true"], .canvas-edge-label[aria-pressed="true"]', 'select', 'glow'],
-    ['path.canvas-line, .canvas-orbit', 'arrow', 'glow'], ['path.canvas-formation, path.canvas-dep, line.canvas-leader', 'guide', 'glow'],
-    ['svg.canvas-hulls', 'hull1', 'glow'], ['svg.canvas-hulls', 'hull2', 'glow'], ['svg.canvas-hulls', 'hull3', 'glow'], ['svg.canvas-hulls', 'hull4', 'glow'], ['svg.canvas-hulls', 'hullLabel', 'glow'],
-    ['#live', 'board', 'box'], ['#live', 'dots', 'box'],
+    ['.app .brand', 'brand'], ['.app .brand', 'brandInk'],
+    ['.app .logo svg', 'logo'], ['.app .logo', 'logoBg'],
+    ['.app .crumb b', 'tabInk'], ['.app .crumb', 'tab'], ['.app .crumb', 'muted'], ['.app .top', 'topbar'],
+    ['.app .head .t', 'title'], ['.app .tb.on', 'toolOn'], ['.app .tb', 'tool'], ['.app .tb', 'line'], ['.app .head', 'header'],
+    ['.app .info .ty, .app .info .tc', 'type'], ['.app .info .fn', 'label'], ['.app .info .p', 'strong'], ['.app .info pre', 'text'], ['.app .info', 'code'],
+    ['.app .tool.bad i', 'fail'], ['.app .tool.run i', 'agent'], ['.app .tool i', 'pass'],
+    ['.app .say.you', 'say'], ['.app .ask div', 'composer'], ['.app .ask span', 'send'],
+    ['.app .who, .app .say, .app .think, .app .tool', 'text'], ['.app .side', 'chat'], ['.app .side', 'line'],
+    ['.app .bot .lead', 'run'], ['.app .bot .badc', 'fail'], ['.app .bot .tail', 'agentCell'], ['.app .bot span', 'text'], ['.app .bot', 'status'],
+    ['.test-pip.pip-pass', 'pass'], ['.test-pip.pip-fail', 'fail'], ['.test-pip.pip-indet', 'indet'],
+    ['.canvas-edge-label', 'label'], ['.canvas-edge-label', 'chip'], ['.canvas-edge-label', 'guide'],
+    ['.canvas-avatar-bubble .bubble-text, .canvas-avatar-bubble .say-text', 'bubbleInk'], ['.canvas-avatar-bubble', 'bubble'],
+    ['.canvas-avatar', 'agent'], ['.canvas-avatar', 'agentInk'],
+    ['.canvas-node-label', 'type'], ['.canvas-node', 'type'], ['.canvas-node[aria-pressed="true"], .canvas-edge-label[aria-pressed="true"]', 'select', 'glow'],
+    ['path.canvas-line, .canvas-orbit', 'arrow'], ['path.canvas-formation, path.canvas-dep, line.canvas-leader', 'guide'],
+    ['svg.canvas-hulls', 'hull1'], ['svg.canvas-hulls', 'hull2'], ['svg.canvas-hulls', 'hull3'], ['svg.canvas-hulls', 'hull4'], ['svg.canvas-hulls', 'hullLabel'],
+    ['#live', 'board'], ['#live', 'dots'],
   ];
-  const HOW = {
-    box: 'outline: 2px dashed var(--mark); outline-offset: -3px;',
-    glow: 'filter: drop-shadow(0 0 1.5px var(--mark)) drop-shadow(0 0 1.5px var(--mark)) drop-shadow(0 0 1px var(--mark));',
-  };
-  document.head.appendChild(Object.assign(document.createElement('style'), {
-    textContent: WHERE.map(([sel, role, how]) => sel.split(',').map(x => '#stage[data-mark="' + role + '"] ' + x.trim()).join(', ') + ' { ' + HOW[how] + ' }').join('\n'),
-  }));
   const labelOf = role => { for (const [, rs] of ROLES) for (const [id, label] of rs) if (id === role) return label; return role; };
-  let picked = null, lastSpot = null, turn = 0, unmark = 0;
-  // The outline is only to find the thing: it shows for a moment and goes, so it never sits on a colour being judged.
-  const mark = role => {
-    clearTimeout(unmark);
-    if (!role) { delete stage.dataset.mark; return; }
-    stage.dataset.mark = role;
-    unmark = setTimeout(() => { delete stage.dataset.mark; }, 1400);
-  };
+  let picked = null, lastSpot = null, turn = 0;
   function pick(role) {
     picked = role;
-    mark(role);
     document.querySelectorAll('.row.sel').forEach(r => r.classList.remove('sel'));
     const row = role && document.querySelector('.row[data-role="' + role + '"]');
     if (row) { row.classList.add('sel'); row.scrollIntoView({ block: 'nearest' }); }
@@ -556,7 +539,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
     const r = ev.target.closest('.row');
     if (!r || ev.target.matches('input[type="text"], .undo') || Date.now() < quiet) return;
     lastSpot = null;
-    pick(r.dataset.role); // on the row already selected, this shows its outline again
+    pick(r.dataset.role);
   });
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape') pick(null); });
 
