@@ -43,16 +43,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   font: 14px/1.3 "Helvetica Neue", Helvetica, Arial, sans-serif; text-align: left; }
 .app .top { display: flex; align-items: stretch; border-bottom: 0.6px solid var(--border-default); background: var(--top-bkg); }
 .app .logo { border-right: 0.6px solid var(--border-default); }
-.app .logo { width: 28px; display: flex; align-items: center; justify-content: center; color: var(--text-strong); }
+.app .logo { width: 28px; display: flex; align-items: center; justify-content: center; color: var(--logo-ink); background: var(--logo-bkg); }
 .app .brand { background: var(--brand); color: var(--brand-ink); display: flex; align-items: center; padding: 0 12px 0 11px; border-right: 0.6px solid var(--border-default); }
 .app .crumb { background: var(--surface-tab); color: var(--text-muted); display: flex; align-items: center; gap: 7px; padding: 0 13px; border-right: 0.6px solid var(--border-default); }
-.app .crumb b { color: var(--text-default); font-weight: 400; }
+.app .crumb b { color: var(--tab-ink); font-weight: 400; }
 .app .mid { display: grid; grid-template-columns: minmax(0, 1fr) 27%; min-height: 0; }
 .app .pane { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; background: var(--board); }
 .app .head { display: flex; align-items: center; gap: 4px 8px; padding: 5px 11px; font: 400 11px "Source Code Pro", monospace; background: var(--head-bkg); border-bottom: 0.6px solid var(--border-default); }
-.app .head .t { font: 700 14px "Helvetica Neue", Helvetica, Arial, sans-serif; text-transform: uppercase; color: var(--text-strong); margin-right: 5px; }
-.app .tb { border: 0.6px solid var(--border-default); border-radius: 4px; padding: 1px 7px; }
-.app .tb.on { background: var(--surface-highlight); color: var(--text-strong); }
+.app .head .t { font: 700 14px "Helvetica Neue", Helvetica, Arial, sans-serif; text-transform: uppercase; color: var(--title-ink); margin-right: 5px; }
+.app .tb { border: 0.6px solid var(--border-default); border-radius: 4px; padding: 1px 7px; background: var(--tool-bkg); }
+.app .tb.on { background: var(--tool-on); color: var(--text-strong); }
 #live { position: relative; min-height: 0; overflow: hidden; }
 #live-canvas { position: absolute; inset: 0; pointer-events: none; } /* a still specimen: scrolling the page must not pan it */
 .app .info { border-top: 0.5px solid var(--border-default); background: var(--info-bkg); padding: 6px 11px 8px; font: 400 11.5px/1.45 "Source Code Pro", monospace; }
@@ -62,18 +62,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .app .side { border-left: 0.5px solid var(--border-default); background: var(--side-bkg); display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
 .app .feed { overflow: hidden; padding: 6px 11px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; line-height: 1.38; }
 .app .who { font-size: 10.5px; opacity: 0.7; } .app .who.you { text-align: right; padding-right: 6px; }
-.app .say.you { padding: 6px 8px; border-radius: 7px; border: 0.6px solid var(--border-default); background: var(--df-bg); }
+.app .say.you { padding: 6px 8px; border-radius: 7px; border: 0.6px solid var(--border-default); background: var(--say-bkg); }
 .app .think { font-size: 10.5px; font-style: italic; opacity: 0.65; padding-left: 6px; border-left: 2px solid var(--border-soft); }
 .app .tool { font: 400 10.5px/1.4 "Source Code Pro", monospace; display: flex; gap: 6px; margin-top: -4px; white-space: nowrap; overflow: hidden; }
 .app .tool i { font-style: normal; color: var(--ok); } .app .tool.bad i { color: var(--err); } .app .tool.run i { color: var(--agent); }
 .app .ask { padding: 8px 11px 10px; position: relative; border-top: 0.6px solid var(--border-default); }
-.app .ask div { min-height: 44px; padding: 6px 8px; border-radius: 7px; border: 0.6px solid var(--border-strong); background: var(--df-bg); color: var(--text-muted); font-size: 12px; }
-.app .ask span { position: absolute; right: 18px; bottom: 16px; width: 20px; height: 20px; border-radius: 5px; background: var(--surface-highlight); color: var(--text-strong); display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.app .ask div { min-height: 44px; padding: 6px 8px; border-radius: 7px; border: 0.6px solid var(--border-strong); background: var(--composer-bkg); color: var(--text-muted); font-size: 12px; }
+.app .ask span { position: absolute; right: 18px; bottom: 16px; width: 20px; height: 20px; border-radius: 5px; background: var(--send-bkg); color: var(--text-strong); display: flex; align-items: center; justify-content: center; font-size: 12px; }
 .app .bot { display: flex; align-items: stretch; border-top: 0.5px solid var(--border-default); background: var(--bot-bkg); font: 400 11px "Source Code Pro", monospace; }
-.app .bot .lead { background: var(--surface-tab); color: var(--text-muted); display: flex; align-items: center; padding: 0 10px; border-right: 0.6px solid var(--border-default); font-weight: 600; }
+.app .bot .lead { background: var(--run-bkg); color: var(--text-muted); display: flex; align-items: center; padding: 0 10px; border-right: 0.6px solid var(--border-default); font-weight: 600; }
 .app .bot span { display: flex; align-items: center; padding: 0 10px; }
 .app .bot .badc { color: var(--err); }
-.app .bot .tail { margin-left: auto; background: var(--surface-highlight-soft); border-left: 0.6px solid var(--border-default); color: var(--text-strong); }
+.app .bot .tail { margin-left: auto; background: var(--agent-cell); border-left: 0.6px solid var(--border-default); color: var(--text-strong); }
 
 .editor { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 .editor-head { display: flex; align-items: center; gap: 8px; }
@@ -96,6 +96,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .row.sel { background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); border-radius: 5px; }
 #picked { color: var(--ink); font-weight: 600; }
 #stage { --mark: #E0218A; }
+#stage .canvas-edge-label, .thumb .canvas-edge-label { background: var(--chip-bkg); }
 body.dragging { user-select: none; -webkit-user-select: none; cursor: grabbing; }
 body.dragging .row label, body.dragging .row input { cursor: grabbing; }
 .ghost { position: fixed; left: 0; top: 0; width: 30px; height: 22px; border-radius: 5px; border: 1.5px solid var(--ink); pointer-events: none; z-index: 50; }
@@ -224,16 +225,23 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
 (function () {
   const $ = id => document.getElementById(id);
   const ROLES = [
-    ['Page', [['ui', 'Background'], ['surface', 'Surfaces'], ['text', 'Text'], ['muted', 'Quiet text'], ['strong', 'Headings'], ['line', 'Lines'], ['highlight', 'Highlight'], ['brand', 'Brand tab']]],
-    ['Parts of the page', [['topbar', 'Top bar'], ['tab', 'Tabs'], ['brandInk', 'Brand tab text'], ['header', 'Canvas header'], ['code', 'Code panel'], ['chat', 'Chat pane'], ['status', 'Bottom bar']]],
-    ['Canvas', [['board', 'Board'], ['dots', 'Dot grid'], ['type', 'Types'], ['arrow', 'Arrows'], ['label', 'Function names'], ['guide', 'Guide lines']]],
+    ['Page', [['ui', 'Background'], ['surface', 'Surfaces'], ['text', 'Text'], ['muted', 'Quiet text'], ['strong', 'Headings'], ['line', 'Lines'], ['highlight', 'Highlight']]],
+    ['Top bar', [['topbar', 'Bar'], ['logoBg', 'Behind the logo'], ['logo', 'Logo'], ['brand', 'Brand tab'], ['brandInk', 'Brand tab text'], ['tab', 'Tabs'], ['tabInk', 'Tab text']]],
+    ['Canvas header', [['header', 'Header'], ['title', 'Title'], ['tool', 'Buttons'], ['toolOn', 'Buttons, on']]],
+    ['Panels', [['code', 'Code panel'], ['chat', 'Chat pane'], ['say', 'Your message'], ['composer', 'Message box'], ['send', 'Send button']]],
+    ['Bottom bar', [['status', 'Bar'], ['run', 'Run cell'], ['agentCell', 'Agent cell']]],
+    ['Canvas', [['board', 'Board'], ['dots', 'Dot grid'], ['type', 'Types'], ['arrow', 'Arrows'], ['label', 'Function names'], ['chip', 'Name chips'], ['guide', 'Guide lines']]],
     ['Modules', [['hull1', 'Region 1'], ['hull2', 'Region 2'], ['hull3', 'Region 3'], ['hull4', 'Region 4'], ['hullLabel', 'Region names']]],
     ['Tests and selection', [['pass', 'Passing'], ['fail', 'Failing'], ['indet', 'Unsettled'], ['select', 'Selection']]],
     ['Agent', [['agent', 'Trine'], ['agentInk', 'Trine outline'], ['bubble', 'Bubbles'], ['bubbleInk', 'Bubble ink']]],
   ];
   const S = (id, name, blurb, c) => ({ id, name, blurb, c });
   // The parts of the page follow the page's main colours until they are given their own.
-  const derive = c => ({ topbar: c.ui, tab: mix(c.ui, c.text, 0.09), brandInk: on(c.brand, [c.strong, c.ui, c.surface]), header: c.ui, code: c.surface, chat: c.ui, status: c.ui, ...c });
+  const derive = c => {
+    const d = { topbar: c.ui, tab: mix(c.ui, c.text, 0.09), brandInk: on(c.brand, [c.strong, c.ui, c.surface]), header: c.ui, code: c.surface, chat: c.ui, status: c.ui, ...c };
+    return { logoBg: d.topbar, logo: d.strong, tabInk: d.text, title: d.strong, tool: d.header, toolOn: d.highlight, say: d.surface, composer: d.surface, send: d.highlight,
+      run: d.tab, agentCell: mix(d.status, d.highlight, 0.5), chip: d.surface, ...d };
+  };
   const GRAPHITE = { ui: '#181818', surface: '#202020', text: '#D2D2D2', muted: '#8A8A8A', strong: '#F0F0F0', line: '#3F3F3F', highlight: '#3A3A3A', brand: '#3A3A3A', board: '#121212', dots: '#303030', type: '#EDEDED', arrow: '#CFCFCF', label: '#EDEDED', guide: '#8A8A8A', hull1: '#5A5A5A', hull2: '#777777', hull3: '#454545', hull4: '#8C8C8C', hullLabel: '#A0A0A0', pass: '#EDEDED', fail: '#FF5A4A', indet: '#7A7A7A', select: '#FFFFFF', agent: '#181818', agentInk: '#EDEDED', bubble: '#262626', bubbleInk: '#EDEDED' };
   const SCHEMES = [
     S('hazel', 'Hazel', 'What the build uses in light mode: Hazel\'s cream paper, purple types, slate arrows, blue names, and yellow where Hazel has green.',
@@ -280,7 +288,8 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
     const soft = mix(c.ui, c.line, 0.5), strongLine = mix(c.line, c.text, 0.4);
     return {
       // the page
-      '--ui-bkg': c.ui, '--df-bg': c.surface, '--surface-tab': c.tab, '--top-bkg': c.topbar, '--head-bkg': c.header, '--info-bkg': c.code, '--side-bkg': c.chat, '--bot-bkg': c.status, '--surface-highlight': c.highlight, '--surface-highlight-soft': mix(c.ui, c.highlight, 0.5),
+      '--ui-bkg': c.ui, '--df-bg': c.surface, '--surface-tab': c.tab, '--top-bkg': c.topbar, '--head-bkg': c.header, '--info-bkg': c.code, '--side-bkg': c.chat, '--bot-bkg': c.status,
+      '--logo-bkg': c.logoBg, '--logo-ink': c.logo, '--tab-ink': c.tabInk, '--title-ink': c.title, '--tool-bkg': c.tool, '--tool-on': c.toolOn, '--say-bkg': c.say, '--composer-bkg': c.composer, '--send-bkg': c.send, '--run-bkg': c.run, '--agent-cell': c.agentCell, '--chip-bkg': c.chip, '--surface-highlight': c.highlight, '--surface-highlight-soft': mix(c.ui, c.highlight, 0.5),
       '--border-default': c.line, '--border-soft': soft, '--border-strong': strongLine,
       '--text-default': c.text, '--text-muted': c.muted, '--text-strong': c.strong, '--token-typ': c.type, '--token-pat': c.label,
       '--brand': c.brand, '--brand-ink': c.brandInk, '--ok': c.pass, '--err': c.fail, '--agent': c.agent, '--board': c.board, '--dots': c.dots,
@@ -471,16 +480,16 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
   // [selector under #stage, the colour it shows, how to outline it], the most particular first.
   const WHERE = [
     ['.app .brand', 'brand', 'box'], ['.app .brand', 'brandInk', 'box'],
-    ['.app .logo svg', 'strong', 'glow'], ['.app .logo', 'topbar', 'box'],
-    ['.app .crumb b', 'text', 'glow'], ['.app .crumb', 'tab', 'box'], ['.app .crumb', 'muted', 'box'], ['.app .top', 'topbar', 'box'],
-    ['.app .head .t', 'strong', 'glow'], ['.app .tb.on', 'highlight', 'box'], ['.app .tb', 'line', 'box'], ['.app .head', 'header', 'box'],
+    ['.app .logo svg', 'logo', 'glow'], ['.app .logo', 'logoBg', 'box'],
+    ['.app .crumb b', 'tabInk', 'glow'], ['.app .crumb', 'tab', 'box'], ['.app .crumb', 'muted', 'box'], ['.app .top', 'topbar', 'box'],
+    ['.app .head .t', 'title', 'glow'], ['.app .tb.on', 'toolOn', 'box'], ['.app .tb', 'tool', 'box'], ['.app .tb', 'line', 'box'], ['.app .head', 'header', 'box'],
     ['.app .info .ty, .app .info .tc', 'type', 'glow'], ['.app .info .fn', 'label', 'glow'], ['.app .info .p', 'strong', 'glow'], ['.app .info pre', 'text', 'box'], ['.app .info', 'code', 'box'],
     ['.app .tool.bad i', 'fail', 'glow'], ['.app .tool.run i', 'agent', 'glow'], ['.app .tool i', 'pass', 'glow'],
-    ['.app .say.you', 'surface', 'box'], ['.app .ask div', 'surface', 'box'], ['.app .ask span', 'highlight', 'box'],
+    ['.app .say.you', 'say', 'box'], ['.app .ask div', 'composer', 'box'], ['.app .ask span', 'send', 'box'],
     ['.app .who, .app .say, .app .think, .app .tool', 'text', 'box'], ['.app .side', 'chat', 'box'], ['.app .side', 'line', 'box'],
-    ['.app .bot .lead', 'tab', 'box'], ['.app .bot .badc', 'fail', 'glow'], ['.app .bot .tail', 'highlight', 'box'], ['.app .bot span', 'text', 'box'], ['.app .bot', 'status', 'box'],
+    ['.app .bot .lead', 'run', 'box'], ['.app .bot .badc', 'fail', 'glow'], ['.app .bot .tail', 'agentCell', 'box'], ['.app .bot span', 'text', 'box'], ['.app .bot', 'status', 'box'],
     ['.test-pip.pip-pass', 'pass', 'glow'], ['.test-pip.pip-fail', 'fail', 'glow'], ['.test-pip.pip-indet', 'indet', 'glow'],
-    ['.canvas-edge-label', 'label', 'glow'], ['.canvas-edge-label', 'surface', 'glow'], ['.canvas-edge-label', 'guide', 'glow'],
+    ['.canvas-edge-label', 'label', 'glow'], ['.canvas-edge-label', 'chip', 'glow'], ['.canvas-edge-label', 'guide', 'glow'],
     ['.canvas-avatar-bubble .bubble-text, .canvas-avatar-bubble .say-text', 'bubbleInk', 'glow'], ['.canvas-avatar-bubble', 'bubble', 'glow'],
     ['.canvas-avatar', 'agent', 'glow'], ['.canvas-avatar', 'agentInk', 'glow'],
     ['.canvas-node-label', 'type', 'glow'], ['.canvas-node', 'type', 'glow'], ['.canvas-node[aria-pressed="true"], .canvas-edge-label[aria-pressed="true"]', 'select', 'glow'],
