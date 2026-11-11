@@ -1,6 +1,8 @@
 /* The page around the canvas. It imitates Hazel: the same theme values, fonts,
-   top bar with its rounded tabs, bottom bar, and chat styling. Colours are
-   Hazel's for now; they are all variables, so a scheme is a change here. */
+   top bar with its tabs, bottom bar, and chat styling. The chrome is one colour
+   family: Hazel's paper tones and its yellow highlight, no green.
+   Light is Hazel's scheme. Dark (data-theme="dark" on the root) is a monochrome
+   close to the Graphite candidate. data-corners="square" squares the bar tabs. */
 :root {
   --ui-bkg: oklch(97% 0.025 90);
   --df-bg: oklch(99% 0.012 90);
@@ -17,12 +19,32 @@
   --text-accent: oklch(60% 0.07 90);
   --token-pat: oklch(60% 0.2 225);
   --token-typ: oklch(60% 0.2 300);
-  --brand: oklch(70% 0.15 150);
+  --brand: var(--surface-highlight);
+  --brand-ink: var(--text-strong);
+  --board: var(--ui-bkg);
   --ok: oklch(70% 0.15 150);
   --err: oklch(40% 0.3 30);
   --agent: oklch(71% 0.2 95);
   --code-font: "Source Code Pro", monospace;
   --ui-font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+/* Dark: the page's roles, then the canvas stylesheet's own variables. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ui-bkg: #181818; --df-bg: #202020; --surface-raised: #232323; --surface-tab: #292929; --surface-highlight: #3A3A3A; --surface-highlight-soft: #292929;
+  --border-soft: #2C2C2C; --border-default: #3F3F3F; --border-strong: #5A5A5A; --text-default: #D2D2D2; --text-muted: #8A8A8A;
+  --text-strong: #F0F0F0; --text-accent: #AFAFAF; --token-pat: #EDEDED; --token-typ: #EDEDED; --ok: #BDBDBD; --err: #FF5A4A;
+  --agent: #FFFFFF; --board: #121212; --pc-ui-bkg: #181818; --pc-surface-shard: #303030; --pc-tan-1: #303030; --pc-df-bg: #202020;
+  --pc-paper-2: #202020; --pc-cell-active: #202020; --pc-border-default: #3F3F3F; --pc-border-soft: #2C2C2C; --pc-border-strong: #5A5A5A;
+  --pc-grey-2: #3F3F3F; --pc-surface-highlight: #3A3A3A; --pc-surface-highlight-soft: #292929; --pc-text-strong: #F0F0F0; --pc-text-default: #D2D2D2;
+  --pc-token-typ: #EDEDED; --pc-purple-1: #EDEDED; --pc-purple-2: #EDEDED; --pc-token-exp: #CFCFCF; --pc-grey-7: #CFCFCF; --pc-token-pat: #EDEDED;
+  --pc-blue-2: #EDEDED; --pc-border-black: #8A8A8A; --pc-grey-8: #8A8A8A; --pc-CREASE: #5A5A5A; --pc-hull-1: #5A5A5A; --pc-hull-2: #777777;
+  --pc-hull-3: #454545; --pc-hull-4: #8C8C8C; --pc-hull-5: #5A5A5A; --pc-hull-6: #777777; --pc-text-accent: #A0A0A0; --pc-tan-4: #A0A0A0;
+  --pc-ui-header-text: #A0A0A0; --pc-green-5: #EDEDED; --pc-red-4: #FF5A4A; --pc-gold-8: #7A7A7A; --pc-ci-status-error-text: #FF5A4A;
+  --pc-red-7: #FF5A4A; --pc-green-7: #FFFFFF; --pc-green-4: #FFFFFF; --pc-green-2: #484848; --pc-gold-7: #181818; --pc-gold-6: #181818;
+  --pc-gold-3: #1C1C1C; --pc-gold-4: #8A8A8A; --pc-ink-1: #EDEDED; --pc-ink-4: #EDEDED; --pc-grey-9: #EDEDED; --pc-gold-9: #EDEDED;
+  --pc-gold-5: #262626; --pc-gold-1: #262626; --pc-paper-8: #262626; --pc-ink-6: #EDEDED; --pc-ink-2: #EDEDED; --pc-ink-7-a20: #4E4E4E;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -32,42 +54,48 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
 #page { height: 100%; display: grid; grid-template-rows: 32px minmax(0, 1fr) 32px; }
 
 /* ---- top bar: logo, brand tab, breadcrumb tab ---- */
-#top-bar { display: flex; align-items: stretch; background: var(--ui-bkg); border-bottom: 0.5px solid var(--border-default); min-width: 0; }
+#top-bar { display: flex; align-items: stretch; background: var(--ui-bkg); border-bottom: 0.6px solid var(--border-default); min-width: 0; }
 #logo { width: 32px; display: flex; align-items: center; justify-content: center; color: var(--text-accent); }
-#title { background: var(--brand); color: var(--df-bg); display: flex; align-items: center; padding: 0 13.6px 0 12px; border-radius: 0 0 16px 0; z-index: 1; }
+#logo { border-right: 0.6px solid var(--border-default); }
+#title { background: var(--brand); color: var(--brand-ink); display: flex; align-items: center; padding: 0 13.6px 0 12px; border-radius: 0 0 16px 0; z-index: 1;
+  border-right: 0.6px solid var(--border-default); }
 #editor-mode { background: var(--surface-tab); color: var(--text-muted); display: flex; align-items: center; gap: 8px; padding: 0 16px 0 28px; margin-left: -16px;
-  border-radius: 0 0 16px 0; white-space: nowrap; min-width: 0; }
+  border-radius: 0 0 16px 0; white-space: nowrap; min-width: 0; border-right: 0.6px solid var(--border-default); }
 #editor-mode #project { color: var(--text-default); overflow: hidden; text-overflow: ellipsis; }
 #top-bar .spacer { flex: 1; }
 #top-right { display: flex; align-items: center; gap: 14px; padding-right: 12px; font-size: 13px; color: var(--text-muted); }
 #top-right a { color: var(--text-accent); text-decoration: none; } #top-right a:hover { text-decoration: underline; }
+#top-right button { font: 400 12px var(--code-font); color: var(--text-accent); background: transparent; border: 0.6px solid var(--border-soft); border-radius: 4px; padding: 1px 8px; cursor: pointer; }
+#top-right button:hover { background: var(--surface-highlight-soft); }
+#top-right button:focus-visible { outline: 0.6px solid var(--border-strong); outline-offset: 1px; }
 
 /* ---- main: canvas pane and chat sidebar ---- */
 #main { display: grid; grid-template-columns: minmax(0, 1fr) 432px; min-height: 0; }
 @media (max-width: 900px) { #main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr); } }
 #canvas-pane { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; }
-#canvas-pane .canvas-header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6.4px 12.8px; font-family: var(--code-font); font-size: 12px; color: var(--text-default); }
+#canvas-pane .canvas-header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6.4px 12.8px; font-family: var(--code-font); font-size: 12px; color: var(--text-default);
+  border-bottom: 0.6px solid var(--border-default); }
 #canvas-pane .canvas-title { font: 700 16px var(--ui-font); text-transform: uppercase; color: var(--text-accent); margin-right: 6px; }
 #canvas-pane .canvas-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; flex: 1; }
 #canvas-pane .toolbar-spacer { flex: 1 1 auto; }
-.canvas-tool-btn { border: 1px solid var(--border-soft); border-radius: 4px; padding: 1px 8px; cursor: pointer; white-space: nowrap; user-select: none;
+.canvas-tool-btn { border: 0.6px solid var(--border-default); border-radius: 4px; padding: 1px 8px; cursor: pointer; white-space: nowrap; user-select: none;
   background: transparent; color: inherit; font: inherit; }
 .canvas-tool-btn:hover { background: var(--surface-highlight-soft); }
 .canvas-tool-btn.tool-active { background: var(--surface-highlight); color: var(--text-strong); }
 .canvas-tool-btn:focus-visible, #send:focus-visible, #prompt:focus-visible { outline: 0.6px solid var(--border-strong); outline-offset: 1px; }
-#canvas-host { position: relative; min-height: 0; overflow: hidden; }
+#canvas-host { position: relative; min-height: 0; overflow: hidden; background: var(--board); }
 #canvas { position: absolute; inset: 0; }
 #flux { position: absolute; left: 12px; bottom: 12px; max-width: min(46rem, calc(100% - 24px)); background: var(--df-bg); border: 1px solid var(--err);
   border-radius: 8px; padding: 8px 10px; font: 400 12px/1.4 var(--code-font); color: var(--text-default); white-space: pre-wrap; max-height: 40%; overflow: auto; z-index: 5; }
 #flux b { color: var(--err); font-weight: 600; }
-#info { border-top: 0.5px solid var(--border-default); background: var(--df-bg); max-height: 32vh; display: flex; flex-direction: column; min-height: 0; }
+#info { border-top: 0.6px solid var(--border-default); background: var(--df-bg); max-height: 32vh; display: flex; flex-direction: column; min-height: 0; }
 #info-head { display: flex; gap: 14px; align-items: baseline; padding: 7px 12.8px; font: 400 13px/1.3 var(--code-font); color: var(--text-muted); }
 #info-path { color: var(--text-strong); font-weight: 600; } #info-type { color: var(--token-typ); }
 #info-code { margin: 0; padding: 0 12.8px 10px; font: 400 14px/1.45 var(--code-font); overflow: auto; white-space: pre; color: var(--text-default); }
 #info-code:empty { display: none; }
 
 /* ---- chat, after Hazel's agent sidebar ---- */
-#sidebar { border-left: 0.5px solid var(--border-default); background: var(--ui-bkg); display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
+#sidebar { border-left: 0.6px solid var(--border-default); background: var(--ui-bkg); display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
 @media (max-width: 900px) { #sidebar { border-left: 0; border-top: 0.5px solid var(--border-default); } }
 #feed { overflow-y: auto; overflow-x: hidden; padding: 0.5em 1em 1em; display: flex; flex-direction: column; gap: 1em; }
 .who { font-size: 0.8em; opacity: 0.7; margin-bottom: 4px; padding: 0 4px; }
@@ -81,21 +109,27 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
 .tool .more { grid-column: 2; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 8em; overflow: auto; opacity: 0.8; }
 .tool .more:empty { display: none; }
 .turn { font-size: 0.7em; color: var(--text-muted); text-align: center; letter-spacing: 0.06em; text-transform: uppercase; }
-#ask { padding: 0.5em 1em 1em; position: relative; }
+#ask { padding: 0.8em 1em 1em; position: relative; border-top: 0.6px solid var(--border-default); }
 #prompt { width: 100%; resize: none; min-height: 4.2em; max-height: 40vh; padding: 0.6em 2.6em 0.6em 0.8em; border-radius: 8px; border: 0.6px solid var(--border-default);
   background: var(--df-bg); color: var(--text-default); font: 400 0.9em/1.4 var(--ui-font); outline: none; }
 #prompt:hover, #prompt:focus { border-color: var(--border-strong); }
 #send { position: absolute; right: 1.5em; bottom: 1.55em; width: 26px; height: 26px; border-radius: 6px; border: 0; cursor: pointer; background: var(--surface-highlight); color: var(--text-strong); font-size: 15px; line-height: 1; }
-#stop { position: absolute; right: 1.5em; top: 1em; font: 400 11px var(--code-font); color: var(--text-muted); background: none; border: 0; cursor: pointer; }
+#stop { position: absolute; right: 1.5em; top: 1.3em; font: 400 11px var(--code-font); color: var(--text-muted); background: none; border: 0; cursor: pointer; }
 #stop:hover { color: var(--err); }
 
 /* ---- bottom bar ---- */
-#bottom-bar { display: flex; align-items: stretch; background: var(--ui-bkg); border-top: 0.5px solid var(--border-default); font-size: 14px; min-width: 0; }
-#bottom-bar .lead { background: var(--border-strong); color: var(--df-bg); display: flex; align-items: center; padding: 0 12px; border-radius: 0 16px 0 0; font: 600 12px var(--code-font); letter-spacing: 0.04em; }
+#bottom-bar { display: flex; align-items: stretch; background: var(--ui-bkg); border-top: 0.6px solid var(--border-default); font-size: 14px; min-width: 0; }
+#bottom-bar .lead { background: var(--surface-tab); color: var(--text-accent); display: flex; align-items: center; padding: 0 12px; border-radius: 0 16px 0 0;
+  border-right: 0.6px solid var(--border-default); font: 600 12px var(--code-font); letter-spacing: 0.04em; }
 #bottom-bar .cell { display: flex; align-items: center; padding: 0 12px; color: var(--text-default); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--code-font); font-size: 13px; }
-#bottom-bar .cell.ok { color: oklch(52% 0.13 150); } #bottom-bar .cell.bad { color: var(--err); } #bottom-bar .cell.live { color: var(--text-strong); }
+#bottom-bar .cell.bad { color: var(--err); } #bottom-bar .cell.live { color: var(--text-strong); }
 #bottom-bar .spacer { flex: 1; }
-#bottom-bar .tail { background: var(--surface-highlight-soft); border-radius: 16px 0 0 0; }
+#bottom-bar .tail { background: var(--surface-highlight-soft); border-radius: 16px 0 0 0; border-left: 0.6px solid var(--border-default); }
+
+/* ---- variation: square bar tabs ---- */
+:root[data-corners="square"] #title, :root[data-corners="square"] #editor-mode,
+:root[data-corners="square"] #bottom-bar .lead, :root[data-corners="square"] #bottom-bar .tail { border-radius: 0; }
+:root[data-corners="square"] #editor-mode { margin-left: 0; padding: 0 14px; }
 
 /* ---- the plain fallback view (view.js), only used when the canvas bundle is missing ---- */
 #canvas svg.pv { width: 100%; height: 100%; display: block; font-family: var(--code-font); user-select: none; }

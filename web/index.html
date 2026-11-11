@@ -7,6 +7,15 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
 <link rel="stylesheet" href="canvas/canvas.css">
 <link rel="stylesheet" href="style.css">
+<script>
+// Theme and corner style: from the address (?theme=dark, ?corners=square), else what was last chosen.
+(function () {
+  var q = new URLSearchParams(location.search), get = function (k) { try { return localStorage.getItem('portolan.' + k); } catch (e) { return null; } };
+  var theme = q.get('theme') || get('theme') || 'light', corners = q.get('corners') || get('corners') || 'round';
+  if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
+  if (corners === 'square') document.documentElement.dataset.corners = 'square';
+})();
+</script>
 </head>
 <body>
 <div id="page">
@@ -17,7 +26,11 @@
     <div id="title">portolan</div>
     <div id="editor-mode"><span>/</span><span id="project">…</span><span id="mode"></span></div>
     <div class="spacer"></div>
-    <div id="top-right"><a href="trace" target="_blank" rel="noopener">trace</a></div>
+    <div id="top-right">
+      <button id="corners" title="Switch the bar tabs between rounded and square"></button>
+      <button id="theme" title="Switch between light and dark"></button>
+      <a href="trace" target="_blank" rel="noopener">trace</a>
+    </div>
   </div>
 
   <div id="main">

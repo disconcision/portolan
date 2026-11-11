@@ -57,6 +57,25 @@
   toggle('follow', on => PC.setFollow(on));
   $('fit').onclick = () => PC && PC.fit();
 
+  // ---- light / dark, and the corner variation ----
+  const root = document.documentElement, keep = (k, v) => { try { localStorage.setItem('portolan.' + k, v); } catch (e) {} };
+  function chrome() {
+    $('theme').textContent = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    $('corners').textContent = root.dataset.corners === 'square' ? 'round' : 'square';
+  }
+  $('theme').onclick = () => {
+    if (root.dataset.theme === 'dark') delete root.dataset.theme; else root.dataset.theme = 'dark';
+    keep('theme', root.dataset.theme || 'light');
+    chrome();
+    window.dispatchEvent(new Event('resize')); // the canvas draws its dot grid by script: have it redraw in the new colour
+  };
+  $('corners').onclick = () => {
+    if (root.dataset.corners === 'square') delete root.dataset.corners; else root.dataset.corners = 'square';
+    keep('corners', root.dataset.corners || 'round');
+    chrome();
+  };
+  chrome();
+
   // ---- the selected definition's code ----
   async function showSource(item, kind, at) {
     $('info-path').textContent = at ? at.path : item.label || item.name || '';
