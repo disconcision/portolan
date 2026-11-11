@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layouts and Edges</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+<link rel="stylesheet" href="log.css">
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · <a href="./">logbook</a> · 03 · 11 November 2026</span>
+  <h1>Which layouts and edge styles make a real module readable?</h1>
+  <p class="result">Of ten layouts and four edge styles now switchable in the page, one pairing reads clearly better on existing code: the ledger layout with metro edges. Nothing tried yet fixes a module of a hundred definitions.</p>
+</header>
+
+<section>
+  <dl class="parts">
+    <dt>Why</dt>
+    <dd><p>Real modules drew as scattered islands with labels too small to read, or as a tangle (entries 1 and 2). Andrew asked for several quite different ways of placing nodes and of drawing edges, railroad styles among them, to try on real code.</p></dd>
+    <dt>What was done</dt>
+    <dd>
+      <p>A helper agent read Hazel's earlier layout research and concept rounds, exposed the six experimental layouts that came over with Hazel's canvas but could not be reached, and added three layouts and two edge styles. Each was shot on three of Portolan's modules and judged from the pictures. The full set is in the <a href="../studies/2026-11-11-layout-options/">layout options study</a>.</p>
+      <p>I then looked at the pairing it rated best on the merged build, with the shorter labels from entry 4.</p>
+    </dd>
+  </dl>
+</section>
+
+<section>
+  <div class="col"><h2>What happened</h2></div>
+  <div class="pair">
+    <figure>
+      <img src="img/01-agent.jpg" alt="The Agent module in the default layered layout: a record in the middle, small functions fanning out, mostly empty board." loading="lazy">
+      <figcaption><strong>Layered, curves</strong> (the default, Hazel's). <code>Agent</code> as it drew this morning.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/03-agent-ledger-metro.jpg" alt="The Agent module in the ledger layout with metro edges: the functions that take the agent are stacked in rows to the right of it, each ending at its result." loading="lazy">
+      <figcaption><strong>Ledger, metro.</strong> The same module, larger since. Every function that takes a <code>t</code> is a row leaving it, in source order, ending at its result.</figcaption>
+    </figure>
+  </div>
+  <div class="col">
+    <p><strong>Ledger</strong> gives each shared type a lane and each function a row, so a signature can be read off a row and the order is the file's order. <strong>Metro</strong> draws arrows as level runs with short diagonals, with arrows that share a route running side by side. Together the board fills and the labels are large enough to read.</p>
+  </div>
+  <figure>
+    <img src="img/03-graph-ledger-metro.jpg" alt="The Graph module in ledger layout with metro edges: bundles of parallel tracks converge on one json node; a pink region follows the tracks." loading="lazy">
+    <figcaption><strong>Where it strains.</strong> <code>Graph</code>: functions between two shared types make long trunk routes across the lanes, and a submodule's region smears along them.</figcaption>
+  </figure>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Option</th><th>Verdict from the pictures</th></tr></thead>
+    <tbody>
+      <tr><td>Ledger (new)</td><td>The most readable for existing code. Bad at functions between two shared types, and it re-places everything when a function is added.</td></tr>
+      <tr><td>Compact (new)</td><td>Closes up the islands on small modules; a wash on tangled ones.</td></tr>
+      <tr><td>Clusters (new)</td><td>The same grouping on arcs. Not better than ledger.</td></tr>
+      <tr><td>The six from Hazel's lab</td><td>All work. None changes what is hard about a real module.</td></tr>
+      <tr><td>Metro edges (new)</td><td>Best with ledger. Does not route around nodes.</td></tr>
+      <tr><td>Straight edges (new), circuit edges</td><td>Usable; no clear gain over curves.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="col">
+    <p><strong>Cost.</strong> The same work found why layout was slow: up to four full placements per redraw, and list searches inside loops. Picking the whole project (about 1,850 nodes) went from 183 seconds in layout to 2.4. A 209-node module went from 522 ms to 28.</p>
+  </div>
+</section>
+
+<section>
+  <dl class="parts">
+    <dt>What it means</dt>
+    <dd>
+      <p>For reading code that already exists, source order and one row per function beat a layered graph. The layered layout was built for watching a small program grow, where stability of place matters more.</p>
+      <p>The new layouts place everything from scratch, so they have not earned that use: none has been watched through an agent's run or dragged by hand.</p>
+    </dd>
+    <dt>Not tried</dt>
+    <dd><p>The two outside layout engines Hazel's lab can call (ELK and CoLa) need about 1.5 MB of extra script. Ties, from Spall: a point that chosen arrows share and slide through, which would be the first manual layout for arrows, and which reads as a tuple of functions.</p></dd>
+    <dt>Next</dt>
+    <dd><p>Andrew tries them. Open questions: whether ledger with metro should be the default for existing code, with layered kept for agent runs; whether the regions of submodules should follow rows instead of routes.</p></dd>
+  </dl>
+</section>
+</main>
+</body>
+</html>
