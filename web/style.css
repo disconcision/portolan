@@ -96,7 +96,6 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
   border-radius: 8px; padding: 8px 10px; font: 400 12px/1.4 var(--code-font); color: var(--text-default); white-space: pre-wrap; max-height: 40%; overflow: auto; z-index: 5; }
 #flux b { color: var(--err); font-weight: 600; }
 #info { border-top: 0.6px solid var(--border-default); background: var(--df-bg); max-height: 32vh; display: flex; flex-direction: column; min-height: 0; }
-#info-head .toolbar-spacer { flex: 1; } #info-head button { font-size: 12px; }
 #info-head { display: flex; gap: 14px; align-items: baseline; padding: 7px 12.8px; font: 400 13px/1.3 var(--code-font); color: var(--text-muted); }
 #info-path { color: var(--text-strong); font-weight: 600; } #info-type { color: var(--token-typ); }
 #info-code { margin: 0; padding: 0 12.8px 10px; font: 400 14px/1.45 var(--code-font); overflow: auto; white-space: pre; color: var(--text-default); }
@@ -117,6 +116,14 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
 .msg.md code { font: 0.92em var(--code-font); background: var(--surface-raised); padding: 0.05em 0.3em; border-radius: 3px; }
 .msg.md pre { font: 12px/1.45 var(--code-font); background: var(--df-bg); border: 0.6px solid var(--border-soft); border-radius: 6px; padding: 0.5em 0.7em; overflow-x: auto; white-space: pre; }
 .msg.md a { color: var(--token-pat); }
+.msg.md .table-scroll { overflow-x: auto; }
+.msg.md table { border-collapse: collapse; font-size: 0.95em; }
+.msg.md th, .msg.md td { text-align: left; vertical-align: top; padding: 0.25em 0.8em 0.25em 0; border-bottom: 0.6px solid var(--border-soft); }
+.msg.md th { font-weight: 600; color: var(--text-strong); border-bottom-color: var(--border-default); }
+.msg.md .html-block { border: 0.6px solid var(--border-soft); border-radius: 6px; overflow: hidden; background: var(--df-bg); }
+.msg.md .html-block iframe { display: block; width: 100%; height: 120px; border: 0; }
+.msg.md .html-block summary { font: 11px var(--code-font); color: var(--text-muted); padding: 3px 8px; cursor: pointer; }
+.msg.md .html-block details pre { border: 0; border-radius: 0; margin: 0; }
 .msg.you { padding: 0.6em 0.8em; border-radius: 8px; border: 0.6px solid var(--border-default); background: var(--df-bg); }
 .msg.think { font-size: 0.78em; font-style: italic; opacity: 0.65; padding-left: 0.5em; border-left: 2px solid var(--border-soft); }
 .tool { font: 400 12px/1.4 var(--code-font); color: var(--text-accent); display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 2px 6px; margin-top: -0.5em; }

@@ -18,10 +18,15 @@
   // A project of any size is too much to draw whole, so the canvas draws one file's module:
   // its types and functions, with the types it uses from elsewhere as faint outside nodes.
   const top = x => (x.m_path || [])[0] || '';
+  // The project's modules, by folder then name, each with how many definitions it has.
   function modules(g) {
-    const count = {}, order = [];
-    [...g.nodes.filter(n => n.kind === 'alias'), ...g.edges, ...(g.values || [])].forEach(x => { const m = top(x); if (!m) return; if (!(m in count)) { count[m] = 0; order.push(m); } count[m]++; });
-    return order.map(m => ({ name: m, size: count[m] }));
+    const by = {};
+    [...g.nodes.filter(n => n.kind === 'alias'), ...g.edges, ...(g.values || [])].forEach(x => {
+      const m = top(x); if (!m) return;
+      const file = (x.at && x.at.file) || '', dir = file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '';
+      (by[m] = by[m] || { name: m, size: 0, dir }).size++;
+    });
+    return Object.values(by).sort((a, b) => a.dir.localeCompare(b.dir) || a.name.localeCompare(b.name));
   }
   function moduleOfFile(g, file) {
     const hit = g.edges.find(e => e.at && e.at.file === file) || g.nodes.find(n => n.at && n.at.file === file) || (g.values || []).find(v => v.at && v.at.file === file);
@@ -50,12 +55,22 @@
   function drawPicker() {
     const ms = latest ? modules(latest) : [], sel = $('module');
     $('module-wrap').hidden = ms.length < 2;
-    const want = [['', 'whole project'], ...ms.map(m => [m.name, m.name + '  ·  ' + m.size])];
-    if (sel.options.length !== want.length || want.some((w, i) => sel.options[i].value !== w[0] || sel.options[i].textContent !== w[1]))
-      sel.replaceChildren(...want.map(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; }));
+    const sig = JSON.stringify(ms);
+    if (sel.dataset.sig !== sig) {
+      sel.dataset.sig = sig;
+      const option = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; };
+      const dirs = [...new Set(ms.map(m => m.dir))], kids = [option('', 'whole project')];
+      dirs.forEach(d => {
+        const os = ms.filter(m => m.dir === d).map(m => option(m.name, m.name + '  ·  ' + m.size));
+        if (dirs.length < 2) return kids.push(...os);
+        const group = document.createElement('optgroup'); group.label = d || '.'; group.append(...os); kids.push(group);
+      });
+      sel.replaceChildren(...kids);
+    }
     sel.value = moduleName || '';
   }
   function choose(mod, cause) {
+    if (mod !== moduleName) unpick();
     moduleName = mod;
     keep('module.' + project, mod);
     drawPicker();
@@ -71,7 +86,7 @@
       fresh = fresh || moduleName !== ''; // a one-module project's first definitions arrive as a beat
     }
     if (moduleName && !modules(latest).some(m => m.name === moduleName)) moduleName = '';
-    const g = moduleView(latest, moduleName), key = JSON.stringify(g);
+    const g = inSyntax(moduleView(latest, moduleName)), key = JSON.stringify(g);
     if (key === shownKey && !fresh) return; // nothing in this module changed
     shown = g;
     shownKey = key;
@@ -176,24 +191,58 @@
     redraw();
   });
 
-  // ---- the selected definition's code, as written or in the other syntax ----
-  let picked = null, syntax = kept('syntax') || 'written'; // 'written' | 're' | 'ml'
-  const native = file => (/\.rei?$/.test(file) ? 're' : 'ml');
-  function drawSyntax() {
-    const b = $('syntax'), at = picked && picked.at;
-    b.hidden = !at || !!traceUrl;
-    if (!at) return;
-    const other = native(at.file) === 're' ? 'ml' : 're', on = syntax === other;
-    b.textContent = on ? 'as written' : other === 're' ? 'as Reason' : 'as OCaml';
+  // ---- OCaml or Reason: one choice for the code shown and for the types on the canvas ----
+  // Until chosen, it is the syntax most of the project is written in. The graph record prints
+  // types in OCaml syntax; the sidecar converts them, and what it cannot convert stays as it is.
+  let syntaxPref = ['re', 'ml'].includes(kept('syntax')) ? kept('syntax') : null, typesOff = !!traceUrl;
+  const native = file => (/\.rei?$/.test(file) ? 're' : 'ml'), reason = new Map();
+  function projectSyntax(g) {
+    let re = 0, ml = 0;
+    g.edges.forEach(e => { if (e.at) native(e.at.file) === 're' ? re++ : ml++; });
+    return re > ml ? 're' : 'ml';
   }
-  $('syntax').onclick = () => {
-    const at = picked && picked.at;
-    if (!at) return;
-    const other = native(at.file) === 're' ? 'ml' : 're';
-    syntax = syntax === other ? 'written' : other;
-    keep('syntax', syntax);
-    showSource(picked.item, picked.kind, at);
+  const syntaxNow = () => syntaxPref || (latest ? projectSyntax(latest) : 'ml');
+  const typed = n => n.kind === 'derived';
+  async function learnTypes(g) {
+    if (typesOff || syntaxNow() !== 're') return;
+    const want = new Set();
+    const add = t => { if (t && !reason.has(t)) want.add(t); };
+    g.nodes.forEach(n => { add(n.ty); if (typed(n)) add(n.label); });
+    g.edges.forEach(e => add(e.ty));
+    (g.values || []).forEach(v => add(v.ty));
+    if (!want.size) return;
+    const types = [...want];
+    try {
+      const r = await fetch('types', { method: 'POST', body: JSON.stringify({ types }) });
+      if (!r.ok) throw new Error(r.status);
+      (await r.json()).types.forEach((t, i) => reason.set(types[i], t || types[i]));
+    } catch (e) { typesOff = true; } // a replay has no sidecar to ask: types stay as printed
+  }
+  function inSyntax(g) {
+    if (typesOff || syntaxNow() !== 're') return g;
+    const re = t => (t && reason.get(t)) || t;
+    return { ...g, nodes: g.nodes.map(n => ({ ...n, ty: re(n.ty), label: typed(n) ? re(n.label) : n.label })),
+      edges: g.edges.map(e => ({ ...e, ty: re(e.ty) })), values: (g.values || []).map(v => ({ ...v, ty: re(v.ty) })) };
+  }
+  let picked = null;
+  function drawSyntax() {
+    const b = $('lang');
+    b.hidden = !!traceUrl;
+    b.textContent = syntaxNow() === 're' ? 'ocaml' : 'reason';
+  }
+  $('lang').onclick = async () => {
+    syntaxPref = syntaxNow() === 're' ? 'ml' : 're';
+    keep('syntax', syntaxPref);
+    drawSyntax();
+    if (latest) { await learnTypes(latest); present(null, true); }
+    if (picked) showSource(picked.item, picked.kind, picked.at);
   };
+  drawSyntax();
+  function unpick() {
+    picked = null;
+    $('info-path').textContent = 'Pick a function or type on the canvas to see its definition.';
+    $('info-type').textContent = $('info-code').textContent = '';
+  }
   async function showSource(item, kind, at) {
     picked = { item, kind, at };
     $('info-path').textContent = at ? at.path : item.label || item.name || '';
@@ -203,9 +252,8 @@
     if (!at) return;
     try {
       if (files) { $('info-code').textContent = (files[at.file] || '').split('\n').slice(at.line - 1, at.end_line).join('\n'); return; }
-      const convert = syntax !== 'written' && syntax !== native(at.file);
-      if (convert) {
-        const r = await fetch('refmt?file=' + encodeURIComponent(at.file) + '&line=' + at.line + '&end_line=' + at.end_line + '&to=' + syntax);
+      if (syntaxNow() !== native(at.file)) {
+        const r = await fetch('refmt?file=' + encodeURIComponent(at.file) + '&line=' + at.line + '&end_line=' + at.end_line + '&to=' + syntaxNow());
         if (r.ok) { $('info-code').textContent = await r.text(); return; }
       }
       const text = await (await fetch('source?file=' + encodeURIComponent(at.file))).text();
@@ -222,7 +270,7 @@
       .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     return s.replace(/\u0000(\d+)\u0000/g, (_, i) => '<code>' + code[+i] + '</code>');
   }
-  function markdown(text) {
+  function markdown(text, done) {
     const lines = text.replace(/\r/g, '').split('\n'), out = [];
     let i = 0, para = [], list = null;
     const flushP = () => { if (para.length) { out.push('<p>' + inline(para.join(' ')) + '</p>'); para = []; } };
@@ -235,14 +283,25 @@
         const body = [];
         i++;
         while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) body.push(lines[i++]);
+        const closed = i < lines.length;
         i++;
-        out.push('<pre>' + esc(body.join('\n')) + '</pre>');
+        // A finished `html` block is shown as the page fragment it describes, with its source underneath.
+        if (done && closed && fence[1].trim().toLowerCase() === 'html') out.push('<div class="html-block" data-html="' + esc(body.join('\n')) + '"></div>');
+        else out.push('<pre>' + esc(body.join('\n')) + '</pre>');
         continue;
       }
       const h = l.match(/^(#{1,4})\s+(.*)$/), ul = l.match(/^\s*[-*]\s+(.*)$/), ol = l.match(/^\s*\d+[.)]\s+(.*)$/);
       if (h) { flushP(); flushL(); out.push('<h' + Math.min(4, h[1].length + 1) + '>' + inline(h[2]) + '</h' + Math.min(4, h[1].length + 1) + '>'); }
       else if (ul || ol) { flushP(); const tag = ul ? 'ul' : 'ol'; if (!list || list.tag !== tag) { flushL(); list = { tag, items: [] }; } list.items.push((ul || ol)[1]); }
-      else if (/^\s*\|.*\|\s*$/.test(l)) { flushP(); flushL(); const rows = []; while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(lines[i++]); out.push('<pre>' + esc(rows.join('\n')) + '</pre>'); continue; }
+      else if (/^\s*\|.*\|\s*$/.test(l)) {
+        flushP(); flushL();
+        const rows = [];
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(lines[i++].trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
+        const ruled = rows.length > 1 && rows[1].every(c => /^:?-+:?$/.test(c));
+        const tr = (cells, tag) => '<tr>' + cells.map(c => '<' + tag + '>' + inline(c) + '</' + tag + '>').join('') + '</tr>';
+        out.push('<div class="table-scroll"><table>' + (ruled ? '<thead>' + tr(rows[0], 'th') + '</thead>' : '') + '<tbody>' + rows.slice(ruled ? 2 : 0).map(r => tr(r, 'td')).join('') + '</tbody></table></div>');
+        continue;
+      }
       else if (!l.trim()) { flushP(); flushL(); }
       else if (list && /^\s{2,}\S/.test(l)) list.items[list.items.length - 1] += ' ' + l.trim();
       else { flushL(); para.push(l.trim()); }
@@ -256,12 +315,30 @@
   const rel = p => { const k = '/' + project + '/'; const i = p ? p.lastIndexOf(k) : -1; return i >= 0 ? p.slice(i + k.length) : p || ''; };
   const pinned = () => feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
   function append(d) { const stick = pinned(); feed.appendChild(d); if (stick) feed.scrollTop = feed.scrollHeight; return d; }
+  // An `html` block from the agent is drawn in a frame that can run no script and load nothing
+  // from outside: markup, styles and inline SVG only.
+  function frames(el) {
+    el.querySelectorAll('.html-block').forEach(block => {
+      const css = getComputedStyle(document.body), ink = css.color;
+      const frame = document.createElement('iframe');
+      frame.setAttribute('sandbox', 'allow-same-origin');
+      frame.srcdoc = '<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:; font-src data:">' +
+        '<style>html{color-scheme:' + (root.dataset.theme === 'dark' ? 'dark' : 'light') + '}body{margin:0;padding:10px 12px;font:13px/1.5 system-ui,sans-serif;color:' + ink + ';background:transparent}svg{max-width:100%;height:auto}table{border-collapse:collapse}td,th{padding:3px 8px;border-bottom:1px solid rgba(128,128,128,.3);text-align:left}</style>' + block.dataset.html;
+      frame.onload = () => { try { frame.style.height = Math.min(640, frame.contentDocument.documentElement.scrollHeight) + 'px'; } catch (e) {} };
+      const source = document.createElement('details'), sum = document.createElement('summary'), pre = document.createElement('pre');
+      sum.textContent = 'source';
+      pre.textContent = block.dataset.html;
+      source.append(sum, pre);
+      block.removeAttribute('data-html');
+      block.append(frame, source);
+    });
+  }
   function add(cls, text, who, rich) {
     if (who && who !== lastWho) { const w = document.createElement('div'); w.className = 'who' + (who === 'You' ? ' you' : ''); w.textContent = who; append(w); }
     if (who) lastWho = who;
     const d = document.createElement('div');
     d.className = cls;
-    if (rich) d.innerHTML = markdown(text); else d.textContent = text;
+    if (rich) { d.innerHTML = markdown(text, true); frames(d); } else d.textContent = text;
     return append(d);
   }
   function toolRow(name, input) {
@@ -355,9 +432,11 @@
       flux(e.ok, false, e.output);
     },
     tests(e) { cell('tests', e.failing.length ? e.failing.length + ' test' + (e.failing.length > 1 ? 's' : '') + ' failing' : e.ok ? 'tests pass' : 'tests did not run', e.failing.length || !e.ok ? 'bad' : ''); },
-    graph(e) {
+    async graph(e) {
       latest = e.graph;
       drawPicker();
+      drawSyntax();
+      await learnTypes(latest);
       if (e.partial) flux(false, true, buildOut);
       // Follow the work: when the agent changes another module, the canvas goes there.
       const file = e.cause && e.cause.file, m = file ? moduleOfFile(latest, file) : '';
@@ -367,7 +446,9 @@
     error(e) { add('tool bad', e.where + ': ' + e.message); },
     files(e) { files = e.files; },
   };
-  const dispatch = e => (handlers[e.type] || (() => {}))(e);
+  // One event at a time, in order: a graph waits for its types before it is drawn.
+  let turn = Promise.resolve();
+  const dispatch = e => { turn = turn.then(() => (handlers[e.type] || (() => {}))(e)).catch(err => console.error(err)); };
 
   if (traceUrl) {
     // A recorded run, played in the page with its own timing. No sidecar involved.
