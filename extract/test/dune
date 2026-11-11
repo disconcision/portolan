@@ -1,0 +1,6 @@
+; Checks the graphs extracted from examples/vector and examples/shapes.
+; It reads their annotations from the source tree and builds nothing:
+; run ./run.sh, which builds both examples first.
+(test
+ (name test_extract)
+ (libraries portolan_extract portolan_graph alcotest))

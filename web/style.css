@@ -14,6 +14,7 @@
   --brand: #FFC24B; --brand-ink: #0E121B; color-scheme: dark } }
 
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); }
 #app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 400px; grid-template-rows: 30px minmax(0, 1fr); }

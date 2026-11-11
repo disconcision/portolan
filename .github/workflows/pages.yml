@@ -20,8 +20,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # The notebook, plus the page itself under app/ so recorded runs in site/runs/ can be replayed
+      # in the browser (app/?trace=../runs/<name>.jsonl) with no sidecar.
+      - name: Assemble the site
+        run: mkdir _site && cp -R site/. _site/ && cp -R web _site/app
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

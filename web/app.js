@@ -4,6 +4,8 @@
   const feed = $('feed');
   let project = '', live = false, graphs = [], seen = new Set(), tools = {}, liveEl = null, liveTool = null, toolJson = '';
   let view = null, which = 'plain';
+  const params = new URLSearchParams(location.search), traceUrl = params.get('trace'), speed = Math.max(0.25, +params.get('speed') || 1);
+  let files = null; // file contents carried by a recorded trace
 
   // ---- canvas: the ported Hazel canvas when its bundle is present, else the plain view ----
   const views = {
@@ -41,7 +43,7 @@
     $('info-code').textContent = '';
     if (!at) return;
     try {
-      const text = await (await fetch('source?file=' + encodeURIComponent(at.file))).text();
+      const text = files ? files[at.file] || '' : await (await fetch('source?file=' + encodeURIComponent(at.file))).text();
       $('info-code').textContent = text.split('\n').slice(at.line - 1, at.end_line).join('\n');
     } catch (e) { $('info-code').textContent = '(could not read ' + at.file + ')'; }
   }
@@ -147,11 +149,35 @@
     graph(e) { graphs.push(e); view.push(e.graph, e.cause, live); },
     extract(e) { if (!e.ok) chip('build', 'extractor failed', 'bad'); },
     error(e) { add('tool bad', e.where + ': ' + e.message); },
+    files(e) { files = e.files; },
   };
+  const dispatch = e => (handlers[e.type] || (() => {}))(e);
 
-  const es = new EventSource('events');
-  es.onmessage = m => { let e; try { e = JSON.parse(m.data); } catch (x) { return; } (handlers[e.type] || (() => {}))(e); };
-  es.onerror = () => chip('agent', 'disconnected', 'bad');
+  if (traceUrl) {
+    // A recorded run, played in the page with its own timing. No sidecar involved.
+    $('ask').hidden = true;
+    chip('mode', 'recorded run · ' + speed + '×');
+    fetch(traceUrl).then(r => r.text()).then(async text => {
+      const evs = text.split('\n').filter(l => l.trim()).map(l => { try { return JSON.parse(l); } catch (x) { return null; } }).filter(Boolean);
+      evs.filter(e => e.type === 'files').forEach(dispatch);
+      live = true;
+      // Schedule against the clock, so a throttled tab plays in bursts instead of slowing down.
+      const run = evs.filter(e => e.type !== 'files');
+      let prev = 0, at = 0;
+      const due = run.map(e => { at += Math.min(2000, ((e.t || prev) - prev) / speed); prev = e.t || prev; return at; });
+      const start = performance.now();
+      for (let i = 0; i < run.length;) {
+        const now = performance.now() - start;
+        while (i < run.length && due[i] <= now) dispatch(run[i++]);
+        if (i < run.length) await new Promise(r => setTimeout(r, Math.min(250, Math.max(15, due[i] - now))));
+      }
+      chip('mode', 'recorded run · finished');
+    }).catch(() => chip('mode', 'could not load the recording', 'bad'));
+  } else {
+    const es = new EventSource('events');
+    es.onmessage = m => { let e; try { e = JSON.parse(m.data); } catch (x) { return; } dispatch(e); };
+    es.onerror = () => chip('agent', 'disconnected', 'bad');
+  }
 
   // ---- prompt box ----
   async function send() {

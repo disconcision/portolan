@@ -14,19 +14,31 @@
   const short = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
   function place(g) {
-    const rank = {};
-    g.nodes.forEach(n => (rank[n.key] = 0));
-    for (let i = 0; i < 8; i++) {
-      g.nodes.forEach(n => { if (n.kind === 'product' || n.kind === 'derived') (n.parts || []).forEach(p => { if (p in rank) rank[n.key] = Math.min(6, Math.max(rank[n.key], rank[p] + 1)); }); });
-      g.edges.forEach(e => { if (e.src !== e.dst && e.src in rank && e.dst in rank) rank[e.dst] = Math.min(6, Math.max(rank[e.dst], rank[e.src] + 1)); });
-    }
+    // Placed nodes keep their column. A new node goes one column right of the
+    // furthest thing that feeds it. An argument tuple counts as its parts, so a
+    // function from (point, shape) to shape does not push shape rightwards.
+    const byKey = {}, rank = {}, preds = {};
+    g.nodes.forEach(n => { byKey[n.key] = n; if (pos[n.key]) rank[n.key] = Math.round((pos[n.key].x - 90) / 200); });
+    const feeds = (a, b) => { if (a !== b) (preds[b] = preds[b] || []).push(a); };
+    g.edges.forEach(e => { const s = byKey[e.src]; (s && s.kind === 'product' ? s.parts || [] : [e.src]).forEach(a => feeds(a, e.dst)); });
+    g.nodes.forEach(n => { if (n.kind === 'derived') (n.parts || []).forEach(p => feeds(p, n.key)); });
+    for (let i = 0; i < 3; i++)
+      g.nodes.forEach(n => { if (!pos[n.key] && n.kind !== 'product') rank[n.key] = Math.min(8, Math.max(0, ...(preds[n.key] || []).map(a => (rank[a] ?? -1) + 1))); });
     const near = {};
     const link = (a, b) => { (near[a] = near[a] || []).push(b); (near[b] = near[b] || []).push(a); };
     g.edges.forEach(e => link(e.src, e.dst));
     g.nodes.forEach(n => (n.parts || []).forEach(p => link(n.key, p)));
+    // An argument tuple sits just right of the middle of its parts.
+    const dots = {};
+    const product = n => {
+      const ps = (n.parts || []).map(p => pos[p]).filter(Boolean);
+      const cx = ps.length ? ps.reduce((a, p) => a + p.x, 0) / ps.length : 90, cy = ps.length ? ps.reduce((a, p) => a + p.y, 0) / ps.length : 70;
+      const k = `${Math.round(cx)},${Math.round(cy)}`, i = (dots[k] = (dots[k] || 0) + 1) - 1;
+      pos[n.key] = { x: cx + 64, y: cy - 22 + i * 26 };
+    };
     g.nodes.forEach(n => {
-      if (pos[n.key]) return;
-      const r = rank[n.key], col = (used[r] = used[r] || new Set());
+      if (pos[n.key] || n.kind === 'product') return;
+      const r = rank[n.key] || 0, col = (used[r] = used[r] || new Set());
       const ys = (near[n.key] || []).filter(k => pos[k]).map(k => pos[k].y);
       let want = ys.length ? Math.round((ys.reduce((a, b) => a + b, 0) / ys.length - 70) / 92) : col.size;
       want = Math.max(0, want);
@@ -35,6 +47,7 @@
       col.add(slot);
       pos[n.key] = { x: 90 + r * 200, y: 70 + slot * 92 };
     });
+    g.nodes.forEach(n => { if (!pos[n.key] && n.kind === 'product') product(n); });
   }
 
   function geometry(g) {

@@ -1,0 +1,17 @@
+(library
+ (name portolan_extract)
+ (modules extract)
+ (libraries compiler-libs.common portolan_graph))
+
+(executable
+ (name main)
+ (modules main)
+ (libraries portolan_extract portolan_graph))
+
+; The command-line tool under its own name, next to main.exe:
+; _build/default/extract/portolan-extract
+(rule
+ (targets portolan-extract)
+ (deps main.exe)
+ (action
+  (copy main.exe portolan-extract)))

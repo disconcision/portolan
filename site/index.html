@@ -66,12 +66,13 @@ footer { font: 400 0.8rem/1.6 var(--mono); color: var(--muted); }
 
 <script>
 // kind: prototype | living | study. href is relative to this page. Everything linked as a page is in the repo.
-// prototype: state is 'live' (a web app anyone can open: give href), 'source' (runs from source only) or 'planned'.
+// prototype: state is 'live' (a web app anyone can open: give href), 'recorded' (href replays a recorded run),
+// 'source' (runs from source only) or 'planned'.
 // living: updated is the date of the last change. study: date is the day it was written.
 const ENTRIES = [
-  { kind: 'prototype', title: 'Portolan', state: 'planned',
-    desc: 'Not built yet. The first build is Hazel\'s canvas for a dune project: types as nodes, functions as arrows, modules as hulls. The steps are in the scope notes.',
-    also: [['Scope notes', 'notes/scope.html'], ['Source', 'https://github.com/disconcision/portolan']] },
+  { kind: 'prototype', title: 'Portolan', state: 'recorded', href: 'app/?trace=../runs/vector-1.jsonl&speed=3',
+    desc: 'First build, running from source: a sidecar watches a dune project and runs Claude Code, and the page shows the chat beside the graph. The link replays the first real run (the vector-scene prompt, three minutes, shown at 3×) in your browser. The canvas here is a plain stand-in; the port of Hazel\'s canvas is in progress.',
+    also: [['How to run it', 'https://github.com/disconcision/portolan#run-it'], ['Scope notes', 'notes/scope.html'], ['Source', 'https://github.com/disconcision/portolan']] },
   { kind: 'prototype', title: 'Constellation, in Hazel', state: 'source',
     desc: 'The canvas this starts from, drawn live as Hazel\'s built-in agent edits a program. It runs from source on the agent-canvas branch.',
     also: [['Draft pull request', 'https://github.com/hazelgrove/hazel/pull/2505'], ['Branch', 'https://github.com/hazelgrove/hazel/tree/agent-canvas']] },
@@ -84,7 +85,7 @@ const ENTRIES = [
 ];
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const STATE = { live: ['open it', ''], source: ['runs from source', ''], planned: ['not built yet', ' wait'] };
+const STATE = { live: ['open it', ''], recorded: ['watch a recorded run', ''], source: ['runs from source', ''], planned: ['not built yet', ' wait'] };
 const links = e => (e.also || []).map(([t, h]) => `<a href="${h}">${esc(t)}</a>`).join('');
 document.getElementById('protos').innerHTML = ENTRIES.filter(e => e.kind === 'prototype').map(e => {
   const [label, cls] = STATE[e.state];
