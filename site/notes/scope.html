@@ -268,6 +268,7 @@ tr.pick td { background: var(--mark-soft); }
       <tr><td>Editing by definition</td><td>you, from modular editors</td><td>no</td></tr>
       <tr><td>Properties on the diagram</td><td>you; the evidence ladder and reading existing property tests are proposed here</td><td>no</td></tr>
       <tr><td>Slices of a definition</td><td>you; the four kinds of slice and coverage as a cheap dynamic slice are proposed here</td><td>no</td></tr>
+      <tr><td>History as material</td><td>you; importing transcripts as traces is proposed here</td><td>maybe: a ready source of test runs</td></tr>
     </tbody>
   </table>
   </div>
@@ -391,6 +392,8 @@ tr.pick td { background: var(--mark-soft); }
   <div class="col">
     <h3>Slices of a definition</h3>
     <p>A side note for when drilling down reaches code. The stance is to be selective about what is surfaced: opening a definition should not put a multi-page <code>match</code> in front of you. Folding to definitions is already a coarse slice, and the same folding can go one level finer, to the arms that matter, with the rest shown as a count. What matters depends on why you opened it. For a change: the arms that changed. For a selected type: the arms that mention its constructors. For an error: the parts that contribute to it, which is what type slicing computes. For a run: the arms a test actually took. That last one is dynamic, and a full version means work in the runtime, but coverage data per test gives arm-level answers cheaply. The agent's map could use the same slices to save tokens.</p>
+    <h3>History as material</h3>
+    <p>Once an OCaml code base can be drawn, Hazel's past becomes data. There are two sources, with different grain. Git history and merged pull requests are coarse and complete: any commit is a snapshot, any pull request a change set. Claude Code session logs on your machine are fine-grained and chronological: each read and edit in order, which is enough to rebuild what an agent saw and did. Replaying a log's edits onto its base commit would turn a past session into a trace, with no agent run again. That gives after-the-fact viewing early, and test material for the first build. Open questions: what to keep from now on, and whose logs. A trace needs only graph snapshots, tool names and paths, so it can leave the conversation out.</p>
   </div>
 </section>
 
@@ -417,6 +420,7 @@ tr.pick td { background: var(--mark-soft); }
       <tr><td>Voice and ink</td><td>not built</td><td>direction</td><td>exists in Spall and the Stratum gateway</td></tr>
       <tr><td>Properties and laws</td><td>not built; test pips only</td><td>direction</td><td>design once; draw existing property tests first</td></tr>
       <tr><td>Slices of a definition</td><td>not built; folds exist</td><td>direction</td><td>static first; dynamic needs runtime work</td></tr>
+      <tr><td>Past sessions and history as traces</td><td>traces of its own agent only</td><td>direction, possibly early</td><td>snapshots make old runs replayable</td></tr>
       <tr><td>Outline, definition verbs, agent map</td><td>built</td><td>direction, over MCP</td><td>same verbs, paths and map format</td></tr>
       <tr><td>Authoring on the canvas</td><td>built</td><td>later</td><td>through the kernel's templates</td></tr>
       <tr><td>Probes, livelits, type cards</td><td>built</td><td>out of scope</td><td>test pips first; values on request from a toplevel later</td></tr>
