@@ -224,8 +224,13 @@ let vector_edges = () => {
   Alcotest.check(
     strings,
     "bounding_box dst parts",
-    ["Scene.point"],
+    ["Scene.point", "Scene.point"],
     dst.parts,
+  );
+  Alcotest.(check(option(string)))(
+    "bounding_box dst is a tuple",
+    Some("()"),
+    dst.former,
   );
   Alcotest.check(
     strings,
@@ -461,17 +466,25 @@ let shapes_arguments = () => {
     G.Derived,
     node(g, outline.src).kind,
   );
+  let formed = key => (node(g, key).former, node(g, key).parts);
+  let former = Alcotest.(pair(option(string), strings));
   Alcotest.check(
-    strings,
-    "t list mentions t",
-    ["Figure.t"],
-    node(g, outline.src).parts,
+    former,
+    "t list is a list of t",
+    (Some("[]"), ["Figure.t"]),
+    formed(outline.src),
   );
   Alcotest.check(
-    strings,
-    "option of a pair mentions vec",
-    ["Geo.vec"],
-    node(g, outline.dst).parts,
+    former,
+    "an option of a pair is an option of one node",
+    (Some("?"), ["Geo.vec * Geo.vec"]),
+    formed(outline.dst),
+  );
+  Alcotest.check(
+    former,
+    "the pair is a tuple of two vecs",
+    (Some("()"), ["Geo.vec", "Geo.vec"]),
+    formed("Geo.vec * Geo.vec"),
   );
   Alcotest.(check(string))(
     "value",
@@ -723,7 +736,7 @@ let formers = () => {
   check(vector, "Scene.shape", None, []);
   let shapes = extract("shapes");
   check(shapes, "Geo.vec", Some("{}"), ["int", "int"]);
-  check(shapes, "Geo.length", None, []); /* [= int], hidden */
+  check(shapes, "Geo.length", Some("="), ["int"]); /* hidden, but so it is inside */
   check(shapes, "Geo.Angle.t", None, []);
   let plane = extract("plane");
   check(plane, "Point.t", Some("{}"), ["int", "int"]);

@@ -727,7 +727,7 @@ let add_node = (ctx: ctx, n: G.node): unit => {
 };
 
 /* A node that is not a declaration of the project. */
-let plain_node = (~key, ~label, ~kind, ~parts): G.node => {
+let plain_node = (~former=None, ~key, ~label, ~kind, ~parts, ()): G.node => {
   key,
   label,
   m_path: [],
@@ -737,7 +737,7 @@ let plain_node = (~key, ~label, ~kind, ~parts): G.node => {
   n_doc: None,
   n_err: false,
   parts,
-  former: None,
+  former,
   abstract: false,
   exported: true,
   at: None,
@@ -766,7 +766,7 @@ let builtin = (ctx: ctx, name: string): string => {
   if (!Hashtbl.mem(ctx.seen, name)) {
     add_node(
       ctx,
-      plain_node(~key=name, ~label=name, ~kind=Builtin, ~parts=[]),
+      plain_node(~key=name, ~label=name, ~kind=Builtin, ~parts=[], ()),
     );
   };
   name;
@@ -776,7 +776,7 @@ let ghost = (ctx: ctx, name: string): string => {
   if (!Hashtbl.mem(ctx.seen, name)) {
     add_node(
       ctx,
-      plain_node(~key=name, ~label=name, ~kind=Ghost, ~parts=[]),
+      plain_node(~key=name, ~label=name, ~kind=Ghost, ~parts=[], ()),
     );
   };
   name;
@@ -787,6 +787,25 @@ let is_variable = (ty: Types.type_expr): bool =>
   | Tvar(_)
   | Tunivar(_) => true
   | _ => false
+  };
+
+/* [a -> ?b:c -> d] as ([a; c], d). An optional argument is stored as
+   [c option]: unwrap it. */
+let rec flatten_arrow =
+        (ty: Types.type_expr): (list(Types.type_expr), Types.type_expr) =>
+  switch (Types.get_desc(ty)) {
+  | [@implicit_arity] Tpoly(t, _) => flatten_arrow(t)
+  | [@implicit_arity] Tarrow(label, arg, rest, _) =>
+    let arg =
+      switch (label, Types.get_desc(arg)) {
+      | (Optional(_), [@implicit_arity] Tconstr(p, [t], _))
+          when Path.same(p, Predef.path_option) => t
+      | _ => arg
+      };
+
+    let (args, result) = flatten_arrow(rest);
+    ([arg, ...args], result);
+  | _ => ([], ty)
   };
 
 /* Emit the Alias node of a declared type, the first time it is reached:
@@ -848,70 +867,76 @@ and add_previous = (ctx: ctx, key: string): unit =>
         List.iter(add_previous(ctx), n.parts);
         ctx.nodes = [n, ...ctx.nodes];
       | _ =>
-        add_node(ctx, plain_node(~key, ~label=key, ~kind=Ghost, ~parts=[]))
+        add_node(
+          ctx,
+          plain_node(~key, ~label=key, ~kind=Ghost, ~parts=[], ()),
+        )
       };
     };
   }
 
-/* What a declared type is formed with, and from which nodes: a tuple
-   "()", a record "{}", a list or an array "[]", an option "?". */
+/* What a declared type is formed with, and from which nodes. */
 and formed_from =
     (ctx: ctx, u: unit_info, ~from: list(string), d: type_declaration)
-    : (option(string), list(string)) => {
-  let node = node_of_type(ctx, u, ~from);
-  let is = (p, predef) => Path.same(p, predef);
+    : (option(string), list(string)) =>
   switch (d.typ_type.type_kind, d.typ_type.type_manifest) {
   | ([@implicit_arity] Type_record(labels, _), _) => (
       Some("{}"),
-      List.map((l: Types.label_declaration) => node(l.ld_type), labels),
+      List.map(
+        (l: Types.label_declaration) =>
+          node_of_type(ctx, u, ~from, l.ld_type),
+        labels,
+      ),
     )
   | (Type_abstract(_), Some(ty)) =>
     switch (Types.get_desc(ty)) {
-    | Ttuple(l) => (Some("()"), List.map(node, l))
-    | [@implicit_arity] Tconstr(p, [arg], _)
-        when is(p, Predef.path_list) || is(p, Predef.path_array) => (
-        Some("[]"),
-        [node(arg)],
+    /* [type json = Yojson.Safe.t]: another name for one type */
+    | [@implicit_arity] Tconstr(_, [], _) => (
+        Some("="),
+        [node_of_type(ctx, u, ~from, ty)],
       )
-    | [@implicit_arity] Tconstr(p, [arg], _) when is(p, Predef.path_option) => (
-        Some("?"),
-        [node(arg)],
-      )
-    | _ => (None, [])
+    | _ => formed(ctx, u, ~from, ty)
     }
   | _ => (None, [])
-  };
-}
+  }
 
-/* Keys of the project and built-in types a type mentions, in order,
-   emitting their nodes on the way. */
-and mentioned =
+/* What a type expression is formed with, and from which nodes: a tuple
+   "()", a list or an array "[]", an option "?", a function "->" (its
+   arguments, then its result). Any other type applied to arguments has
+   no former: its parts are the type itself, when the project declares
+   it, and the arguments. Type variables are not parts. */
+and formed =
     (ctx: ctx, u: unit_info, ~from: list(string), ty: Types.type_expr)
-    : list(string) => {
-  let all = l => List.concat_map(mentioned(ctx, u, ~from), l);
+    : (option(string), list(string)) => {
+  let nodes = l =>
+    List.filter(t => !is_variable(t), l)
+    |> List.map(node_of_type(ctx, u, ~from));
+  let is = (p, predef) => Path.same(p, predef);
   switch (Types.get_desc(ty)) {
+  | [@implicit_arity] Tpoly(t, _) => formed(ctx, u, ~from, t)
+  | Ttuple(l) => (Some("()"), nodes(l))
+  | Tarrow(_) =>
+    let (args, result) = flatten_arrow(ty);
+    (Some("->"), nodes(args @ [result]));
+  | [@implicit_arity] Tconstr(p, [arg], _)
+      when is(p, Predef.path_list) || is(p, Predef.path_array) => (
+      Some("[]"),
+      nodes([arg]),
+    )
+  | [@implicit_arity] Tconstr(p, [arg], _) when is(p, Predef.path_option) => (
+      Some("?"),
+      nodes([arg]),
+    )
   | [@implicit_arity] Tconstr(p, args, _) =>
-    let here =
-      if (is_predef(p)) {
-        if (args == []) {
-          [builtin(ctx, Path.name(p))];
-        } else {
-          [];
-        };
-      } else {
-        switch (project_type(ctx, u, ~from, p)) {
-        | Some(key) =>
-          touch_alias(ctx, key);
-          [key];
-        | None => []
-        };
+    let declared =
+      switch (project_type(ctx, u, ~from, p)) {
+      | Some(key) =>
+        touch_alias(ctx, key);
+        [key];
+      | None => []
       };
-
-    here @ all(args);
-  | [@implicit_arity] Tarrow(_, a, b, _) => all([a, b])
-  | Ttuple(l) => all(l)
-  | [@implicit_arity] Tpoly(t, _) => mentioned(ctx, u, ~from, t)
-  | _ => []
+    (None, dedup(declared @ nodes(args)));
+  | _ => (None, [])
   };
 }
 
@@ -920,7 +945,8 @@ and mentioned =
    - a built-in without arguments (int, string, exn, ...): a Builtin
    - an outside type without arguments (Buffer.t): a Ghost
    - anything else (tuple, arrow, variable, [shape list], [int tree],
-     [(shape, string) result]): a Derived node keyed by its printed form. */
+     [(shape, string) result]): a Derived node keyed by its printed form,
+     with the nodes of its own components as parts (see [formed]). */
 and node_of_type =
     (ctx: ctx, u: unit_info, ~from: list(string), ty: Types.type_expr)
     : string =>
@@ -949,9 +975,12 @@ and derived =
     : string => {
   let key = print_type(ctx, u, ~qualified=true, ~from, ty);
   if (!Hashtbl.mem(ctx.seen, key)) {
-    let parts = dedup(mentioned(ctx, u, ~from, ty));
+    let (former, parts) = formed(ctx, u, ~from, ty);
     let label = print_type(ctx, u, ~qualified=false, ~from, ty);
-    add_node(ctx, plain_node(~key, ~label, ~kind=Derived, ~parts));
+    add_node(
+      ctx,
+      plain_node(~former, ~key, ~label, ~kind=Derived, ~parts, ()),
+    );
   };
   key;
 };
@@ -963,7 +992,10 @@ let product =
   let key = "(" ++ String.concat(", ", arg_keys) ++ ")";
   if (!Hashtbl.mem(ctx.seen, key)) {
     let label = "(" ++ String.concat(", ", labels) ++ ")";
-    add_node(ctx, plain_node(~key, ~label, ~kind=Product, ~parts=arg_keys));
+    add_node(
+      ctx,
+      plain_node(~key, ~label, ~kind=Product, ~parts=arg_keys, ()),
+    );
   };
   key;
 };
@@ -1144,25 +1176,6 @@ let find_inline_tests =
 };
 
 /* ---------- pass 2: emit ---------- */
-
-/* [a -> ?b:c -> d] as ([a; c], d). An optional argument is stored as
-   [c option]: unwrap it. */
-let rec flatten_arrow =
-        (ty: Types.type_expr): (list(Types.type_expr), Types.type_expr) =>
-  switch (Types.get_desc(ty)) {
-  | [@implicit_arity] Tpoly(t, _) => flatten_arrow(t)
-  | [@implicit_arity] Tarrow(label, arg, rest, _) =>
-    let arg =
-      switch (label, Types.get_desc(arg)) {
-      | (Optional(_), [@implicit_arity] Tconstr(p, [t], _))
-          when Path.same(p, Predef.path_option) => t
-      | _ => arg
-      };
-
-    let (args, result) = flatten_arrow(rest);
-    ([arg, ...args], result);
-  | _ => ([], ty)
-  };
 
 let is_unit_type = (ty: Types.type_expr): bool =>
   switch (Types.get_desc(ty)) {

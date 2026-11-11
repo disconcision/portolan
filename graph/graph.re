@@ -30,12 +30,15 @@ type node = {
   n_ty: option(string), /* the declaration's right-hand side */
   n_doc: option(string),
   n_err: bool,
-  /* keys of the component nodes: of a Product or Derived node, and of an
-     Alias whose definition is a tuple, a record, a list, an array or an
-     option */
+  /* keys of the component nodes, one level down: the arguments of a
+     Product, and what an Alias or a Derived node is formed from (the
+     fields of a record, the element of a list, ...). A component that is
+     itself an unnamed type is a Derived node with parts of its own. */
   parts: list(string),
-  /* what such an Alias is formed with: "()" tuple, "{}" record,
-     "[]" list or array, "?" option */
+  /* what an Alias or a Derived node is formed with: "()" tuple,
+     "{}" record, "[]" list or array, "?" option, "->" function (its
+     parts are the arguments, then the result), "=" another name for its
+     one part. [None] with parts: a type applied to arguments. */
   former: option(string),
   abstract: bool, /* hidden behind an interface */
   exported: bool,
@@ -100,14 +103,18 @@ let empty = {
 
 /* --- JSON, by hand so the shape is explicit --- */
 
-let str = s => `String(s);
-let strs = l => `List(List.map(str, l));
-let opt = f =>
+/* named, so that the helpers below read [handle => json] and not the
+   variant type the compiler would infer for each */
+type json = Yojson.Safe.t;
+
+let str = (s): json => `String(s);
+let strs = (l): json => `List(List.map(str, l));
+let opt = (f: 'a => json): (option('a) => json) =>
   fun
   | None => `Null
   | Some(x) => f(x);
 
-let handle_to_json = h =>
+let handle_to_json = (h): json =>
   `Assoc([
     ("file", str(h.file)),
     ("path", str(h.path)),
@@ -129,7 +136,7 @@ let status_to_string =
   | Fail => "fail"
   | Unknown => "unknown";
 
-let node_to_json = n =>
+let node_to_json = (n): json =>
   `Assoc(
     [
       ("key", str(n.key)),
@@ -156,7 +163,7 @@ let node_to_json = n =>
     ],
   );
 
-let test_to_json = t =>
+let test_to_json = (t): json =>
   `Assoc([
     ("name", str(t.t_name)),
     ("status", str(status_to_string(t.t_status))),
@@ -164,7 +171,7 @@ let test_to_json = t =>
     ("at", handle_to_json(t.t_at)),
   ]);
 
-let edge_to_json = e =>
+let edge_to_json = (e): json =>
   `Assoc([
     ("name", str(e.e_name)),
     ("label", str(e.e_label)),
@@ -182,7 +189,7 @@ let edge_to_json = e =>
     ("at", handle_to_json(e.e_at)),
   ]);
 
-let value_to_json = v =>
+let value_to_json = (v): json =>
   `Assoc([
     ("name", str(v.v_name)),
     ("label", str(v.v_label)),
@@ -214,8 +221,6 @@ exception Bad(string);
    the first traces were recorded: a node's [former], and a value's [doc],
    [deps] and [exported]. */
 module Of_json = {
-  type json = Yojson.Safe.t;
-
   let bad = (what, field) =>
     raise(Bad(Printf.sprintf("%s: bad or missing \"%s\"", what, field)));
 
