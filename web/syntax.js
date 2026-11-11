@@ -161,7 +161,10 @@
         const starts = () => { t.k = 'exp'; };
         if (w === 'let' || w === 'external' || w === 'val') { starts(); f.decl = 'let'; f.mode = 'pat'; }
         else if (w === 'for' && !re) { starts(); f.decl = 'let'; f.mode = 'pat'; }
-        else if (w === 'and') { if (f.decl === 'let' || f.decl === 'type') { starts(); f.mode = 'pat'; } else plain(); }
+        else if (w === 'and') {
+          // with no definition before it the text starts mid-way: take it for a let
+          if (f.decl !== 'mod') { starts(); f.decl = f.decl || 'let'; f.mode = 'pat'; } else plain();
+        }
         else if (w === 'type') {
           // not a definition: `module type`, `(type a)`, and `type a.` inside a binder's annotation
           if (f.mode === 'mod' || (prev && prev.s === '(') || (f.decl === 'let' && (f.mode === 'pat' || f.mode === 'typ'))) plain();
