@@ -12,6 +12,10 @@ let remembered: Project.t => list(string);
     are not repeated. */
 let remember: (Project.t, list(string)) => unit;
 
+/** [fresh(~known, patterns)] is the patterns that are new to [known],
+    trimmed, in order, each once; blank ones are left out. */
+let fresh: (~known: list(string), list(string)) => list(string);
+
 /** The patterns to offer for "always allow" when the agent asks to use
     [tool] with [input]. [suggestions] are the rules Claude Code proposes
     with the request (its `permission_suggestions`), which name the exact

@@ -101,4 +101,22 @@ let tests = [
     );
     rule("WebSearch", {|{"toolName":"WebSearch"}|});
   }),
+  case("only patterns not yet remembered are added, trimmed, each once", () =>
+    Alcotest.check(
+      strings,
+      "fresh",
+      ["Bash(git commit:*)", "Read(//etc/**)"],
+      Permissions.fresh(
+        ~known=["Bash(git add:*)", "Bash(ocamlformat:*)"],
+        [
+          "Bash(git add:*)",
+          " Bash(git commit:*) ",
+          "Bash(ocamlformat:*)",
+          "",
+          "Read(//etc/**)",
+          "Bash(git commit:*)",
+        ],
+      ),
+    )
+  ),
 ];
