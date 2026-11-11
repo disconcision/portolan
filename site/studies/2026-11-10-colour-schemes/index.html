@@ -41,16 +41,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 /* The whole app in miniature, after web/style.css. Every colour is a variable set by the scheme. */
 .app { height: 640px; display: grid; grid-template-rows: 28px minmax(0, 1fr) 26px; background: var(--ui-bkg); color: var(--text-default);
   font: 14px/1.3 "Helvetica Neue", Helvetica, Arial, sans-serif; text-align: left; }
-.app .top { display: flex; align-items: stretch; border-bottom: 0.5px solid var(--border-default); }
+.app .top { display: flex; align-items: stretch; border-bottom: 0.6px solid var(--border-default); }
+.app .logo { border-right: 0.6px solid var(--border-default); }
 .app .logo { width: 28px; display: flex; align-items: center; justify-content: center; color: var(--text-strong); }
-.app .brand { background: var(--brand); color: var(--ui-bkg); display: flex; align-items: center; padding: 0 12px 0 11px; border-radius: 0 0 14px 0; z-index: 1; }
-.app .crumb { background: var(--surface-tab); color: var(--text-muted); display: flex; align-items: center; gap: 7px; padding: 0 14px 0 26px; margin-left: -14px; border-radius: 0 0 14px 0; }
+.app .brand { background: var(--brand); color: var(--brand-ink); display: flex; align-items: center; padding: 0 12px 0 11px; border-right: 0.6px solid var(--border-default); }
+.app .crumb { background: var(--surface-tab); color: var(--text-muted); display: flex; align-items: center; gap: 7px; padding: 0 13px; border-right: 0.6px solid var(--border-default); }
 .app .crumb b { color: var(--text-default); font-weight: 400; }
 .app .mid { display: grid; grid-template-columns: minmax(0, 1fr) 27%; min-height: 0; }
 .app .pane { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; background: var(--board); }
-.app .head { display: flex; align-items: center; gap: 4px 8px; padding: 5px 11px; font: 400 11px "Source Code Pro", monospace; background: var(--ui-bkg); }
+.app .head { display: flex; align-items: center; gap: 4px 8px; padding: 5px 11px; font: 400 11px "Source Code Pro", monospace; background: var(--ui-bkg); border-bottom: 0.6px solid var(--border-default); }
 .app .head .t { font: 700 14px "Helvetica Neue", Helvetica, Arial, sans-serif; text-transform: uppercase; color: var(--text-strong); margin-right: 5px; }
-.app .tb { border: 1px solid var(--border-soft); border-radius: 4px; padding: 1px 7px; }
+.app .tb { border: 0.6px solid var(--border-default); border-radius: 4px; padding: 1px 7px; }
 .app .tb.on { background: var(--surface-highlight); color: var(--text-strong); }
 #live { position: relative; min-height: 0; overflow: hidden; }
 #live-canvas { position: absolute; inset: 0; pointer-events: none; } /* a still specimen: scrolling the page must not pan it */
@@ -65,14 +66,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .app .think { font-size: 10.5px; font-style: italic; opacity: 0.65; padding-left: 6px; border-left: 2px solid var(--border-soft); }
 .app .tool { font: 400 10.5px/1.4 "Source Code Pro", monospace; display: flex; gap: 6px; margin-top: -4px; white-space: nowrap; overflow: hidden; }
 .app .tool i { font-style: normal; color: var(--ok); } .app .tool.bad i { color: var(--err); } .app .tool.run i { color: var(--agent); }
-.app .ask { padding: 6px 11px 10px; position: relative; }
+.app .ask { padding: 8px 11px 10px; position: relative; border-top: 0.6px solid var(--border-default); }
 .app .ask div { min-height: 44px; padding: 6px 8px; border-radius: 7px; border: 0.6px solid var(--border-strong); background: var(--df-bg); color: var(--text-muted); font-size: 12px; }
 .app .ask span { position: absolute; right: 18px; bottom: 16px; width: 20px; height: 20px; border-radius: 5px; background: var(--surface-highlight); color: var(--text-strong); display: flex; align-items: center; justify-content: center; font-size: 12px; }
 .app .bot { display: flex; align-items: stretch; border-top: 0.5px solid var(--border-default); font: 400 11px "Source Code Pro", monospace; }
-.app .bot .lead { background: var(--border-strong); color: var(--ui-bkg); display: flex; align-items: center; padding: 0 10px; border-radius: 0 14px 0 0; font-weight: 600; }
+.app .bot .lead { background: var(--surface-tab); color: var(--text-muted); display: flex; align-items: center; padding: 0 10px; border-right: 0.6px solid var(--border-default); font-weight: 600; }
 .app .bot span { display: flex; align-items: center; padding: 0 10px; }
-.app .bot .okc { color: var(--ok); } .app .bot .badc { color: var(--err); }
-.app .bot .tail { margin-left: auto; background: var(--surface-highlight-soft); border-radius: 14px 0 0 0; color: var(--text-strong); }
+.app .bot .badc { color: var(--err); }
+.app .bot .tail { margin-left: auto; background: var(--surface-highlight-soft); border-left: 0.6px solid var(--border-default); color: var(--text-strong); }
 
 .editor { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 .editor-head { display: flex; align-items: center; gap: 8px; }
@@ -119,7 +120,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
 <header>
   <span class="eyebrow"><a href="https://andrewblinn.com/portolan/">Portolan notebook</a> · study · 10 November 2026</span>
   <h1>Colour schemes</h1>
-  <p class="lede">Nine candidates. Each shows the whole app, with the real canvas drawing the same graph. Pick one to see it large and change any colour. Your changes, notes and stars are saved, and Claude can read them.</p>
+  <p class="lede">Fifteen candidates, six of them Graphite with an accent colour. Each shows the whole app, with the real canvas drawing the same graph. Pick one to see it large and change any colour. Your changes, notes and stars are saved, and Claude can read them.</p>
   <div class="bar">
     <div class="seg" role="group" aria-label="Graph">
       <button id="spec-vector" aria-pressed="true">Vector run, mid-way</button>
@@ -207,13 +208,26 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
     ['Agent', [['agent', 'Trine'], ['agentInk', 'Trine outline'], ['bubble', 'Bubbles'], ['bubbleInk', 'Bubble ink']]],
   ];
   const S = (id, name, blurb, c) => ({ id, name, blurb, c });
+  const GRAPHITE = { ui: '#181818', surface: '#202020', text: '#D2D2D2', muted: '#8A8A8A', strong: '#F0F0F0', line: '#3F3F3F', highlight: '#3A3A3A', brand: '#3A3A3A', board: '#121212', dots: '#303030', type: '#EDEDED', arrow: '#CFCFCF', label: '#EDEDED', guide: '#8A8A8A', hull1: '#5A5A5A', hull2: '#777777', hull3: '#454545', hull4: '#8C8C8C', hullLabel: '#A0A0A0', pass: '#EDEDED', fail: '#FF5A4A', indet: '#7A7A7A', select: '#FFFFFF', agent: '#181818', agentInk: '#EDEDED', bubble: '#262626', bubbleInk: '#EDEDED' };
   const SCHEMES = [
-    S('hazel', 'Hazel', 'What the build uses now: Hazel\'s cream paper, purple types, slate arrows, blue names.',
-      { ui: '#FCF5E3', surface: '#FFFCF3', text: '#566D75', muted: '#AF9D6C', strong: '#736131', line: '#AF9D6C', highlight: '#F8E18A', brand: '#4CB86A', board: '#FCF5E3', dots: '#DFCC99', type: '#955BE3', arrow: '#566D75', label: '#0093D8', guide: '#333333', hull1: '#6FBFC9', hull2: '#D493C6', hull3: '#D8B56A', hull4: '#97A5E0', hullLabel: '#8A744A', pass: '#4A9A4A', fail: '#D04030', indet: '#D0B040', select: '#317749', agent: '#F3C94B', agentInk: '#5A4118', bubble: '#F8DC7A', bubbleInk: '#3A2A12' }),
+    S('hazel', 'Hazel', 'What the build uses in light mode: Hazel\'s cream paper, purple types, slate arrows, blue names, and yellow where Hazel has green.',
+      { ui: '#FCF5E3', surface: '#FFFCF3', text: '#566D75', muted: '#AF9D6C', strong: '#736131', line: '#AF9D6C', highlight: '#F8E18A', brand: '#F8E18A', board: '#FCF5E3', dots: '#DFCC99', type: '#955BE3', arrow: '#566D75', label: '#0093D8', guide: '#333333', hull1: '#6FBFC9', hull2: '#D493C6', hull3: '#D8B56A', hull4: '#97A5E0', hullLabel: '#8A744A', pass: '#4A9A4A', fail: '#D04030', indet: '#D0B040', select: '#317749', agent: '#F3C94B', agentInk: '#5A4118', bubble: '#F8DC7A', bubbleInk: '#3A2A12' }),
     S('ink', 'Ink', 'Minimal monochrome, light. One black ink on near-white; red is kept only for a failing test.',
       { ui: '#F4F4F1', surface: '#FFFFFF', text: '#1A1A1A', muted: '#8A8A85', strong: '#1A1A1A', line: '#C9C9C4', highlight: '#E4E4DF', brand: '#1A1A1A', board: '#FAFAF8', dots: '#DADAD5', type: '#1A1A1A', arrow: '#1A1A1A', label: '#1A1A1A', guide: '#8A8A85', hull1: '#D9D9D4', hull2: '#C6C6C0', hull3: '#E5E5E0', hull4: '#B6B6B0', hullLabel: '#6B6B66', pass: '#1A1A1A', fail: '#C8321E', indet: '#A8A8A3', select: '#1A1A1A', agent: '#FFFFFF', agentInk: '#1A1A1A', bubble: '#FFFFFF', bubbleInk: '#1A1A1A' }),
-    S('graphite', 'Graphite', 'Minimal monochrome, dark. Light grey on near-black, with the same single red.',
-      { ui: '#181818', surface: '#202020', text: '#D8D8D8', muted: '#7A7A7A', strong: '#FFFFFF', line: '#3A3A3A', highlight: '#333333', brand: '#EDEDED', board: '#121212', dots: '#2E2E2E', type: '#EDEDED', arrow: '#CFCFCF', label: '#EDEDED', guide: '#707070', hull1: '#2C2C2C', hull2: '#3B3B3B', hull3: '#252525', hull4: '#484848', hullLabel: '#9A9A9A', pass: '#EDEDED', fail: '#FF5A4A', indet: '#7A7A7A', select: '#FFFFFF', agent: '#121212', agentInk: '#EDEDED', bubble: '#1E1E1E', bubbleInk: '#EDEDED' }),
+    S('graphite', 'Graphite', 'What the build uses in dark mode. Monochrome: light grey on near-black, red only for a failing test.',
+      GRAPHITE),
+    S('graphite-red-types', 'Graphite, red types', 'Graphite with the types in the red accent. Failing tests are the same red, as asked; judge whether that clashes.',
+      { ...GRAPHITE, type: '#FF5A4A' }),
+    S('graphite-red-names', 'Graphite, red names', 'Graphite with the function names in red and the types left grey.',
+      { ...GRAPHITE, label: '#FF5A4A' }),
+    S('graphite-red-tab', 'Graphite, red tab', 'Graphite with only the portolan tab and the headings in red.',
+      { ...GRAPHITE, brand: '#FF5A4A', strong: '#FF7A6C' }),
+    S('graphite-red', 'Graphite, red throughout', 'Red on the tab, headings, types, selection and Trine. Failing tests move to amber so they still stand apart.',
+      { ...GRAPHITE, brand: '#FF5A4A', strong: '#FF7A6C', type: '#FF5A4A', select: '#FF5A4A', agent: '#FF5A4A', agentInk: '#181818', fail: '#FFC24B' }),
+    S('graphite-amber', 'Graphite, amber', 'The same accenting in amber, which leaves red free for failures.',
+      { ...GRAPHITE, brand: '#FFC24B', strong: '#FFD27A', type: '#FFC24B', select: '#FFC24B', agent: '#FFC24B', agentInk: '#181818' }),
+    S('graphite-ice', 'Graphite, ice', 'The same accenting in a cold blue.',
+      { ...GRAPHITE, brand: '#7FD6E8', strong: '#A8E4F0', type: '#7FD6E8', select: '#7FD6E8', agent: '#7FD6E8', agentInk: '#181818' }),
     S('sepia', 'Sepia', 'Hazel\'s paper with one brown ink. The closest monochrome to the original; Trine keeps his yellow.',
       { ui: '#F3EBD9', surface: '#FBF7EC', text: '#4A3A20', muted: '#A08A5A', strong: '#4A3A20', line: '#C9B88F', highlight: '#EADBB0', brand: '#4A3A20', board: '#F6EFE0', dots: '#DCCFB4', type: '#4A3A20', arrow: '#4A3A20', label: '#4A3A20', guide: '#8A744A', hull1: '#EADFC6', hull2: '#DFD0AE', hull3: '#F0E7D2', hull4: '#D2C097', hullLabel: '#8A744A', pass: '#4A3A20', fail: '#B0433A', indet: '#B09A6A', select: '#4A3A20', agent: '#F3C94B', agentInk: '#4A3A20', bubble: '#FBEEB8', bubbleInk: '#3A2A12' }),
     S('blueprint', 'Blueprint', 'Monochrome on a blue ground: white line work, the way a drawing office would print it.',
@@ -230,6 +244,9 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
 
   // ---- colours -> the canvas's variables ----
   const mix = (a, b, t) => { const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); const x = p(a), y = p(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+  const lum = h => { const n = parseInt(h.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+  // The ink that reads best on a fill, out of the scheme's own colours.
+  const on = (bg, inks) => inks.reduce((a, b) => (Math.abs(lum(b) - lum(bg)) > Math.abs(lum(a) - lum(bg)) ? b : a));
   function vars(c) {
     const soft = mix(c.ui, c.line, 0.5), strongLine = mix(c.line, c.text, 0.4);
     return {
@@ -237,7 +254,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
       '--ui-bkg': c.ui, '--df-bg': c.surface, '--surface-tab': mix(c.ui, c.text, 0.09), '--surface-highlight': c.highlight, '--surface-highlight-soft': mix(c.ui, c.highlight, 0.5),
       '--border-default': c.line, '--border-soft': soft, '--border-strong': strongLine,
       '--text-default': c.text, '--text-muted': c.muted, '--text-strong': c.strong, '--token-typ': c.type, '--token-pat': c.label,
-      '--brand': c.brand, '--ok': c.pass, '--err': c.fail, '--agent': c.agent, '--board': c.board, '--dots': c.dots,
+      '--brand': c.brand, '--brand-ink': on(c.brand, [c.strong, c.ui, c.surface]), '--ok': c.pass, '--err': c.fail, '--agent': c.agent, '--board': c.board, '--dots': c.dots,
       // the canvas (its stylesheet's own variables)
       '--pc-ui-bkg': c.ui, '--pc-surface-shard': c.dots, '--pc-tan-1': c.dots,
       '--pc-df-bg': c.surface, '--pc-paper-2': c.surface, '--pc-cell-active': c.surface,
@@ -255,6 +272,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
       '--pc-ink-1': c.agentInk, '--pc-ink-4': c.agentInk, '--pc-grey-9': c.agentInk, '--pc-gold-9': c.agentInk,
       '--pc-gold-5': c.bubble, '--pc-gold-1': c.bubble, '--pc-paper-8': c.bubble,
       '--pc-ink-6': c.bubbleInk, '--pc-ink-2': c.bubbleInk, '--pc-ink-7-a20': mix(c.bubble, c.bubbleInk, 0.2),
+      '--pc-white': on(c.type, [c.surface, c.ui, c.text]), // the () drawn on a filled tuple node
     };
   }
   const paint = (el, c) => { const v = vars(c); for (const k in v) el.style.setProperty(k, v[k]); };

@@ -45,6 +45,7 @@
   --pc-red-7: #FF5A4A; --pc-green-7: #FFFFFF; --pc-green-4: #FFFFFF; --pc-green-2: #484848; --pc-gold-7: #181818; --pc-gold-6: #181818;
   --pc-gold-3: #1C1C1C; --pc-gold-4: #8A8A8A; --pc-ink-1: #EDEDED; --pc-ink-4: #EDEDED; --pc-grey-9: #EDEDED; --pc-gold-9: #EDEDED;
   --pc-gold-5: #262626; --pc-gold-1: #262626; --pc-paper-8: #262626; --pc-ink-6: #EDEDED; --pc-ink-2: #EDEDED; --pc-ink-7-a20: #4E4E4E;
+  --pc-white: #202020; /* the () on a filled tuple node: dark on the light disc */
 }
 
 *, *::before, *::after { box-sizing: border-box; }
