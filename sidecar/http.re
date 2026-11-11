@@ -173,13 +173,26 @@ let sse = (oc, s) => {
 };
 
 /* Live: everything so far at once, then a marker, then events as they come. */
+/* A viewer joining late needs only the newest graph: the earlier ones
+   were steps towards it, and each is the whole project. */
+let newest_graph_only = batch =>
+  snd(
+    List.fold_right(
+      (line, (seen, kept)) =>
+        Bus.type_of(line) == Some("graph")
+          ? (true, seen ? kept : [line, ...kept]) : (seen, [line, ...kept]),
+      batch,
+      (false, []),
+    ),
+  );
+
 let events_live = oc => {
   sse_headers(oc);
   let cursor = ref(0)
   and first = ref(true);
   while (true) {
     let batch = Bus.wait_from(cursor^);
-    List.iter(sse(oc), batch);
+    List.iter(sse(oc), first^ ? newest_graph_only(batch) : batch);
     cursor := cursor^ + List.length(batch);
     if (first^) {
       sse(oc, "{\"type\":\"caught_up\"}");

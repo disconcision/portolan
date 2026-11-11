@@ -68,7 +68,8 @@ let locations = out => {
         let file = String.sub(out, s, e - s);
         let rest = String.sub(out, e, min(40, String.length(out) - e));
         try(
-          Scanf.sscanf(rest, "\", line %d", n =>
+          /* "line 3" or, for an error over several lines, "lines 3-5". */
+          Scanf.sscanf(rest, "\", line%_[s] %d", n =>
             if (!List.mem((file, n), acc^)) {
               acc := [(file, n), ...acc^];
             }
@@ -184,21 +185,16 @@ let anything_compiled = project => {
   any(Project.root(project) / Project.build_dir / "default");
 };
 
-/* Draws the graph and sends it if it is new. [why] overrides the cause. */
-let emit_graph = (w, ~why=?, ~broken=?, ()) =>
+/* Draws the graph and sends it, with its cause [why], if it is new. */
+let emit_graph = (w, ~why, ~broken=?, ()) =>
   switch (extract(w, ~broken)) {
   | Ok(graph) =>
     let json = Yojson.Safe.to_string(graph);
     if (json != w.last_graph) {
       w.last_graph = json;
       Files.write(Project.root(w.project) / last_graph_file, json);
-      let cause =
-        switch (why) {
-        | Some(c) => c
-        | None => w.cause()
-        };
       Bus.emit(
-        [("type", `String("graph")), ("graph", graph), ("cause", cause)]
+        [("type", `String("graph")), ("graph", graph), ("cause", why)]
         @ (broken == None ? [] : [("partial", `Bool(true))]),
       );
     };
@@ -218,6 +214,9 @@ let emit_graph = (w, ~why=?, ~broken=?, ()) =>
 let cycle = w =>
   if (Sys.file_exists(Project.root(w.project) / "dune-project")) {
     Project.ensure_build_dir(w.project);
+    /* Asked once per change, sent or not, so a cause is never left over
+       for a later change by someone else. */
+    let why = w.cause();
     let started = Unix.gettimeofday();
     let (code, out) =
       Project.run(
@@ -235,7 +234,7 @@ let cycle = w =>
     ]);
     if (code == 0) {
       /* First with the test results we already had, so pips do not blink. */
-      emit_graph(w, ());
+      emit_graph(w, ~why, ());
       let (tcode, tout) =
         Project.run(
           ~timeout=90.,
@@ -264,7 +263,12 @@ let cycle = w =>
       ]);
       emit_graph(w, ~why=`Assoc([("label", `String("tests"))]), ());
     } else {
-      emit_graph(w, ~broken=in_project(w.project, locations(out)), ());
+      emit_graph(
+        w,
+        ~why,
+        ~broken=in_project(w.project, locations(out)),
+        (),
+      );
     };
   };
 

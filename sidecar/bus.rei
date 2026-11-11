@@ -21,6 +21,10 @@ let wait_from: int => list(string);
 /** Every event so far, as JSON text, oldest first. */
 let all: unit => list(string);
 
+/** The type of an event given as JSON text, read off its front without
+    parsing the whole (possibly large) event. */
+let type_of: string => option(string);
+
 /** The most recent event of the given type, if there is one. */
 let last: string => option(Yojson.Safe.t);
 

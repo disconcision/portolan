@@ -407,6 +407,7 @@
   }
 
   function cell(id, text, cls) { const c = $(id); c.textContent = text; c.className = 'cell' + (id === 'agent' ? ' tail' : '') + (cls ? ' ' + cls : ''); }
+  let marked = false; // the graph on show is a partial one, with broken definitions marked
   function flux(ok, partial, output) {
     const f = $('flux');
     f.hidden = ok;
@@ -419,7 +420,7 @@
   let buildOut = '';
   const handlers = {
     hello(e) { project = e.project; $('project').textContent = e.project; $('mode').textContent = e.agent && e.agent.startsWith('script') ? '· scripted agent' : ''; },
-    caught_up() { live = true; if (shown) { view.reset(); view.show(shown); } },
+    async caught_up() { if (latest) await learnTypes(latest); live = true; present(null, true); },
     session(e) { if (e.restart && feed.children.length) { add('turn', 'earlier session above'); lastWho = ''; } },
     replay_end() { $('mode').textContent = '· replay finished'; },
     prompt(e) { add('msg you', e.text, 'You'); },
@@ -429,15 +430,18 @@
     build(e) {
       cell('build', e.ok ? 'build ok · ' + e.ms + ' ms' : 'build failing', e.ok ? '' : 'bad');
       buildOut = e.ok ? '' : e.output;
-      flux(e.ok, false, e.output);
+      flux(e.ok, marked, e.output); // the marks from the last partial graph still stand until a build succeeds
+      if (e.ok) marked = false;
     },
     tests(e) { cell('tests', e.failing.length ? e.failing.length + ' test' + (e.failing.length > 1 ? 's' : '') + ' failing' : e.ok ? 'tests pass' : 'tests did not run', e.failing.length || !e.ok ? 'bad' : ''); },
     async graph(e) {
       latest = e.graph;
       drawPicker();
       drawSyntax();
-      await learnTypes(latest);
+      marked = !!e.partial;
       if (e.partial) flux(false, true, buildOut);
+      if (!live) return; // the backlog's graph is drawn once, when it has all arrived
+      await learnTypes(latest);
       // Follow the work: when the agent changes another module, the canvas goes there.
       const file = e.cause && e.cause.file, m = file ? moduleOfFile(latest, file) : '';
       if (live && moduleName && m && m !== moduleName && $('follow').classList.contains('tool-active')) choose(m, e.cause);
