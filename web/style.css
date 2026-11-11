@@ -119,6 +119,7 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
 .msg.md .table-scroll { overflow-x: auto; }
 .msg.md table { border-collapse: collapse; font-size: 0.95em; }
 .msg.md th, .msg.md td { text-align: left; vertical-align: top; padding: 0.25em 0.8em 0.25em 0; border-bottom: 0.6px solid var(--border-soft); }
+.msg.md td code, .msg.md th code { white-space: nowrap; }
 .msg.md th { font-weight: 600; color: var(--text-strong); border-bottom-color: var(--border-default); }
 .msg.md .html-block { border: 0.6px solid var(--border-soft); border-radius: 6px; overflow: hidden; background: var(--df-bg); }
 .msg.md .html-block iframe { display: block; width: 100%; height: 120px; border: 0; }

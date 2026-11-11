@@ -12,11 +12,15 @@ type t = {
 
 /* ---------- which files count ---------- */
 
-let is_source = name =>
+/* An OCaml or Reason file, as opposed to a dune file. */
+let is_code = name =>
   List.exists(
     ext => Filename.check_suffix(name, ext),
     [".ml", ".mli", ".re", ".rei", ".mll", ".mly"],
-  )
+  );
+
+let is_source = name =>
+  is_code(name)
   || List.mem(name, ["dune", "dune-project", "dune-workspace"]);
 
 /* Build folders, hidden folders and the like are not the project's own. */
@@ -244,7 +248,8 @@ let cycle = w =>
             Project.build_dir,
           ),
         );
-      let failing = locations(tout);
+      /* Dune names its own files too (the test rule in a `dune` file). */
+      let failing = List.filter(((f, _)) => is_code(f), locations(tout));
       w.last_failing = Some(failing);
       Bus.emit([
         ("type", `String("tests")),
