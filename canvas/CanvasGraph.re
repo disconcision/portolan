@@ -11,10 +11,11 @@
    unchanged. What differs:
    - an id is a string (the definition's qualified name), not a Hazel Id.t;
    - terms are source text, not Exp.t;
-   - there is no extraction here: a graph arrives as Portolan's Graph JSON
-     (graph/graph.ml, `Graph.to_string`) and `of_json` reads it. */
+   - there is no extraction here: a graph arrives as Portolan's graph
+     record (graph/graph.re) and `of_graph` makes the picture of it. */
 
 module Id = Haz3lcore.Id;
+module Graph = Portolan_graph.Graph;
 
 module TestStatus = {
   type t =
@@ -99,13 +100,14 @@ type value = {
   v_exported: bool,
 };
 
-/* PORTOLAN: where a definition lives (Graph.handle) */
-type handle = {
-  file: string,
-  path: string,
-  line: int,
-  end_line: int,
-};
+/* PORTOLAN: where a definition lives */
+type handle =
+  Graph.handle = {
+    file: string,
+    path: string,
+    line: int,
+    end_line: int,
+  };
 
 type t = {
   nodes: list(tynode),
@@ -208,11 +210,16 @@ let is_former_key = (key: string): bool =>
 let former_key = (path: list(string)): string =>
   "{}@" ++ String.concat(".", path);
 
-/* ---------- PORTOLAN: reading Graph JSON ---------- */
+/* ---------- PORTOLAN: from the graph record ---------- */
 
 /* PORTOLAN: short labels for long printed types (Hazel cuts a label at 20
    characters; OCaml's inferred types need more care than that). */
-module Abbreviate = {
+module Abbreviate: {
+  /* the most characters a label has */
+  let limit: int;
+  /* A printed type, short enough for a label. */
+  let ty: string => string;
+} = {
   let limit = 32;
   let dots = {js|…|js};
 
@@ -407,16 +414,17 @@ module Abbreviate = {
   };
 };
 
-/* The canvas wants a few things Portolan's record does not say outright.
-   Each is read from the JSON when the producer supplies it (optional
-   fields `deps`, `hidden_deps`, `sat`, `former` on a node) and derived
-   here, the way Hazel's extraction does it, when it does not:
+/* The picture of a graph record.
+
+   The canvas wants a few things the record does not say. They are
+   derived here, the way Hazel's extraction does it:
 
    - satellites: a builtin node (or a type variable) that is a function's
      only argument, its result, or a component is split into one small
      terminal per use-site, docked to the node at the other end;
    - `deps` of a named type: the other named types its body mentions;
-   - `former`: "()" for a type with component parts, "+" for a sum;
+   - `former`, where the record gives none: "()" for a type with
+     component parts, "+" for a sum;
    - a module's former node ("{}@M"): the host its members cluster on.
 
    And a few things are drawn differently from how the record says them:
@@ -428,82 +436,121 @@ module Abbreviate = {
      the whole of it is in the node's tooltip;
    - a type from outside (Ghost) shows no components of its own;
    - a node that nothing in the picture uses is left out. */
-module Read = {
-  module J = Yojson.Safe.Util;
-  type json = Yojson.Safe.t;
+module Read: {
+  let graph: Graph.t => t;
+} = {
+  /* A node of the picture is found by its key: one of the record's, or
+     one made here for a terminal ("int@Geo.scale") or a module's former
+     ("{}@Geo"). */
+  type key = Graph.key;
 
-  let mem = (k: string, j: json): json =>
-    switch (j) {
-    | `Assoc(kvs) => Option.value(List.assoc_opt(k, kvs), ~default=`Null)
-    | _ => `Null
-    };
-  let str = (~default="", k, j): string =>
-    switch (mem(k, j)) {
-    | `String(s) => s
-    | _ => default
-    };
-  let str_opt = (k, j): option(string) =>
-    switch (mem(k, j)) {
-    | `String(s) => Some(s)
-    | _ => None
-    };
-  let bool = (~default=false, k, j): bool =>
-    switch (mem(k, j)) {
-    | `Bool(b) => b
-    | _ => default
-    };
-  let int = (k, j): int =>
-    switch (mem(k, j)) {
-    | `Int(i) => i
-    | _ => 0
-    };
-  let list = (k, j): list(json) =>
-    switch (mem(k, j)) {
-    | `List(l) => l
-    | _ => []
-    };
-  let strs = (k, j): list(string) =>
-    List.filter_map(
-      fun
-      | `String(s) => Some(s)
-      | _ => None,
-      list(k, j),
-    );
-  let strs_opt = (k, j): option(list(string)) =>
-    switch (mem(k, j)) {
-    | `List(_) => Some(strs(k, j))
-    | _ => None
+  let kind = (k: Graph.node_kind): node_kind =>
+    switch (k) {
+    | Graph.Alias => Alias
+    | Graph.Builtin => Builtin
+    | Graph.Derived => Derived
+    | Graph.Ghost => Ghost
+    | Graph.Product => Product
     };
 
-  let handle = (j: json): option(handle) =>
-    switch (j) {
-    | `Assoc(_) =>
-      Some({
-        file: str("file", j),
-        path: str("path", j),
-        line: int("line", j),
-        end_line: int("end_line", j),
-      })
-    | _ => None
-    };
-
-  let kind = (s: string): node_kind =>
+  let status = (s: Graph.test_status): option(TestStatus.t) =>
     switch (s) {
-    | "alias" => Alias
-    | "builtin" => Builtin
-    | "derived" => Derived
-    | "ghost" => Ghost
-    | "product" => Product
-    | _ => Ghost
+    | Graph.Pass => Some(TestStatus.Pass)
+    | Graph.Fail => Some(TestStatus.Fail)
+    | Graph.Unknown => None
     };
 
-  let status = (s: string): option(TestStatus.t) =>
-    switch (s) {
-    | "pass" => Some(TestStatus.Pass)
-    | "fail" => Some(TestStatus.Fail)
-    | "indet" => Some(TestStatus.Indet)
-    | _ => None
+  /* ---- the record's items, in the canvas's shape ---- */
+
+  /* [deps], [hidden_deps] and [sat] are not in the record: [graph]
+     fills them in. */
+  let node = (n: Graph.node): tynode => {
+    let kind = kind(n.kind);
+    {
+      key: n.key,
+      /* a tuple-formation dot is drawn with its glyph; what it is a tuple
+         OF is told by its formation lines (and its key) */
+      label: kind == Product && !is_former_key(n.key) ? "()" : n.label,
+      m_path: n.m_path,
+      n_id: Option.map(_ => n.key, n.at),
+      kind,
+      /* a record's fields are in its body; `ctrs` would read as a sum */
+      ctrs: kind == Alias && n.former == Some("{}") ? [] : n.ctors,
+      n_ty: n.n_ty,
+      n_doc: n.n_doc,
+      n_err: n.n_err,
+      deps: [],
+      hidden_deps: [],
+      /* a type from outside: what it is made of is not this picture's */
+      parts: kind == Ghost ? [] : n.parts,
+      sat: None,
+      former: kind == Ghost ? None : n.former,
     };
+  };
+
+  let test_id = (t: Graph.test): Id.t => "test:" ++ t.t_name;
+
+  let test = (t: Graph.test): test_info => {
+    t_id: test_id(t),
+    status: status(t.t_status),
+    t_body: t.t_name,
+    t_refs: t.t_refs,
+  };
+
+  let edge = (e: Graph.edge): edge => {
+    e_name: e.e_name,
+    e_label: e.e_label,
+    m_path: e.e_m_path,
+    e_id: e.e_name,
+    e_ty: e.e_ty,
+    e_src: e.src,
+    dst: e.dst,
+    e_doc: e.e_doc,
+    e_err: e.e_err,
+    e_hole: e.e_hole,
+    main: e.main,
+    tests: List.map(test, e.tests),
+    e_arg_ids: [],
+    e_whole_ids: [],
+    e_out_id: None,
+    e_deps: e.e_deps,
+    e_exported: e.e_exported,
+  };
+
+  let value = (v: Graph.value): value => {
+    v_name: v.v_name,
+    v_label: v.v_label,
+    m_path: v.v_m_path,
+    v_id: v.v_name,
+    v_key: v.v_key,
+    v_ty: v.v_ty,
+    v_err: v.v_err,
+    v_def: "",
+    v_doc: v.v_doc,
+    v_deps: v.v_deps,
+    v_exported: v.v_exported,
+  };
+
+  /* where each id is declared: nodes, then each function and its tests,
+     then values, then loose tests */
+  let handles = (g: Graph.t): list((Id.t, handle)) => {
+    let of_test = (t: Graph.test) => (test_id(t), t.t_at);
+    List.concat([
+      List.filter_map(
+        (n: Graph.node) => Option.map(h => (n.key, h), n.at),
+        g.nodes,
+      ),
+      List.concat_map(
+        (e: Graph.edge) =>
+          [(e.e_name, e.e_at), ...List.map(of_test, e.tests)],
+        g.edges,
+      ),
+      List.map((v: Graph.value) => (v.v_name, v.v_at), g.values),
+      List.map(of_test, g.loose_tests),
+    ]);
+  };
+
+  /* ---- what the picture adds ---- */
 
   /* identifiers in a printed type: "point * shape list" -> point, shape,
      list; a dotted path stays whole ("Geo.point") */
@@ -545,19 +592,6 @@ module Read = {
       [" list", " array", " option", " seq"],
     );
 
-  let test = (j: json): (test_info, option(handle)) => {
-    let name = str("name", j);
-    (
-      {
-        t_id: "test:" ++ name,
-        status: status(str("status", j)),
-        t_body: str(~default=name, "body", j),
-        t_refs: strs("refs", j),
-      },
-      handle(mem("at", j)),
-    );
-  };
-
   let prefixes = (path: list(string)): list(list(string)) => {
     let rec go = (acc, rev_done, rest) =>
       switch (rest) {
@@ -569,143 +603,37 @@ module Read = {
     go([], [], path);
   };
 
-  let graph = (j: json): t => {
-    let handles: ref(list((Id.t, handle))) = ref([]);
-    let note = (id: Id.t, h: option(handle)) =>
-      switch (h) {
-      | Some(h) => handles := [(id, h), ...handles^]
-      | None => ()
-      };
-    /* (node, deps given?, former given?) */
-    let raw_nodes =
-      List.map(
-        n => {
-          let key = str("key", n);
-          note(key, handle(mem("at", n)));
-          let sat =
-            switch (mem("sat", n)) {
-            | `Assoc(_) as s => Some((str("anchor", s), bool("output", s)))
-            | _ => None
-            };
-          let kind = kind(str("kind", n));
-          (
-            {
-              key,
-              /* a tuple-formation dot is drawn with its glyph; what it is
-                 a tuple OF is told by its formation lines (and its key) */
-              label:
-                kind == Product && !is_former_key(key)
-                  ? "()" : str(~default=display_label(key), "label", n),
-              m_path: strs("m_path", n),
-              n_id: mem("at", n) == `Null ? None : Some(key),
-              kind,
-              ctrs: strs("ctors", n),
-              n_ty: str_opt("ty", n),
-              n_doc: str_opt("doc", n),
-              n_err: bool("err", n),
-              deps: strs("deps", n),
-              hidden_deps: strs("hidden_deps", n),
-              parts: strs("parts", n),
-              sat,
-              former: str_opt("former", n),
-            },
-            strs_opt("deps", n) != None,
-            mem("former", n) != `Null,
-          );
-        },
-        list("nodes", j),
-      );
-    let all_tests: ref(list(test_info)) = ref([]);
-    let tests_of = (l: list(json)): list(test_info) =>
-      List.map(
-        tj => {
-          let (t, h) = test(tj);
-          note(t.t_id, h);
-          all_tests := [t, ...all_tests^];
-          t;
-        },
-        l,
-      );
-    let edges: list(edge) =
-      List.map(
-        e => {
-          let name = str("name", e);
-          note(name, handle(mem("at", e)));
-          {
-            e_name: name,
-            e_label: str(~default=name, "label", e),
-            m_path: strs("m_path", e),
-            e_id: name,
-            e_ty: str("ty", e),
-            e_src: str("src", e),
-            dst: str("dst", e),
-            e_doc: str_opt("doc", e),
-            e_err: bool("err", e),
-            e_hole: bool("hole", e),
-            main: bool("main", e),
-            tests: tests_of(list("tests", e)),
-            e_arg_ids: [],
-            e_whole_ids: [],
-            e_out_id: None,
-            e_deps: strs("deps", e),
-            e_exported: bool(~default=true, "exported", e),
-          };
-        },
-        list("edges", j),
-      );
-    let values: list(value) =
-      List.map(
-        v => {
-          let name = str("name", v);
-          note(name, handle(mem("at", v)));
-          {
-            v_name: name,
-            v_label: str(~default=name, "label", v),
-            m_path: strs("m_path", v),
-            v_id: name,
-            v_key: str("key", v),
-            v_ty: str("ty", v),
-            v_err: bool("err", v),
-            v_def: str("def", v),
-            v_doc: str_opt("doc", v),
-            v_deps: strs("deps", v),
-            v_exported: bool(~default=true, "exported", v),
-          };
-        },
-        list("values", j),
-      );
-    let loose_tests = tests_of(list("loose_tests", j));
+  /* the glyph an unnamed tuple, list or option is drawn as */
+  let glyph_of = (n: tynode): option(string) =>
+    switch (n.kind, n.former) {
+    | (Derived, Some(("()" | "[]" | "?") as glyph)) when n.parts != [] =>
+      Some(glyph)
+    | _ => None
+    };
 
-    /* ---- what the picture is made of ---- */
-    let raw_nodes =
-      List.map(
-        ((n: tynode, deps_given, former_given)) =>
-          switch (n.kind) {
-          /* a type from outside: what it is made of is not this picture's */
-          | Ghost => (
-              {
-                ...n,
-                parts: [],
-                former: None,
-              },
-              deps_given,
-              true,
-            )
-          /* a record's fields are in its body; `ctrs` would read as a sum */
-          | Alias when n.former == Some("{}") => (
-              {
-                ...n,
-                ctrs: [],
-              },
-              deps_given,
-              former_given,
-            )
-          | _ => (n, deps_given, former_given)
-          },
-        raw_nodes,
-      );
-    let nodes0 = List.map(((n, _, _)) => n, raw_nodes);
-    let by_key: Hashtbl.t(string, tynode) = Hashtbl.create(64);
+  let is_variable = (n: tynode): bool =>
+    n.kind == Derived
+    && String.length(n.label) >= 2
+    && n.label.[0] == '\''
+    && !String.contains(n.label, ' ');
+
+  let value_names = (vs: list(value)): string =>
+    String.concat(", ", List.map((v: value) => v.v_label, vs));
+
+  /* the tooltip of a node drawn as [label]: its whole text, if the label
+     is not that */
+  let shown_whole = (n: tynode, label: string): option(string) =>
+    n.n_doc == None && label != n.label ? Some(n.label) : n.n_doc;
+
+  let graph = (g: Graph.t): t => {
+    let nodes0 = List.map(node, g.nodes);
+    let edges = List.map(edge, g.edges);
+    let values = List.map(value, g.values);
+    let loose_tests = List.map(test, g.loose_tests);
+    let all_tests =
+      List.concat_map((e: edge) => e.tests, edges) @ loose_tests;
+
+    let by_key: Hashtbl.t(key, tynode) = Hashtbl.create(64);
     List.iter(
       (n: tynode) =>
         if (!Hashtbl.mem(by_key, n.key)) {
@@ -713,12 +641,12 @@ module Read = {
         },
       nodes0,
     );
-    let find0 = (k: string): option(tynode) => Hashtbl.find_opt(by_key, k);
+    let find0 = (k: key): option(tynode) => Hashtbl.find_opt(by_key, k);
     /* who uses a node: the functions it is an end of (their module
        paths), the nodes it is a part of, the values of its type */
-    let fn_ends: Hashtbl.t(string, list(string)) = Hashtbl.create(64)
-    and hosts: Hashtbl.t(string, tynode) = Hashtbl.create(64)
-    and holds: Hashtbl.t(string, list(value)) = Hashtbl.create(16);
+    let fn_ends: Hashtbl.t(key, list(string)) = Hashtbl.create(64)
+    and hosts: Hashtbl.t(key, tynode) = Hashtbl.create(64)
+    and holds: Hashtbl.t(key, list(value)) = Hashtbl.create(16);
     let first = (t, k, x) =>
       if (!Hashtbl.mem(t, k)) {
         Hashtbl.replace(t, k, x);
@@ -738,19 +666,13 @@ module Read = {
         ),
       values,
     );
-    let glyph_of = (n: tynode): option(string) =>
-      switch (n.kind, n.former) {
-      | (Derived, Some(("()" | "[]" | "?") as glyph)) when n.parts != [] =>
-        Some(glyph)
-      | _ => None
-      };
     /* An unnamed tuple, list or option is a former dot where something
        is made of it or a function uses it: a function's end, or a part
        of a declared type, of an argument tuple or of another dot. One
        that only holds values, or is a part of a type shown as text,
        keeps its text. */
-    let dots: Hashtbl.t(string, string) = Hashtbl.create(64);
-    let rec dot = (k: string) =>
+    let dots: Hashtbl.t(key, string) = Hashtbl.create(64);
+    let rec dot = (k: key) =>
       switch (find0(k)) {
       | Some(n) when !Hashtbl.mem(dots, k) =>
         switch (glyph_of(n)) {
@@ -778,33 +700,25 @@ module Read = {
     /* A tuple or a dot is in the module of the first function it is an
        end of. One that is only a part of types stays outside: a module's
        former has room for few members around it. */
-    let home = (k: string): list(string) =>
+    let home = (k: key): list(string) =>
       Option.value(Hashtbl.find_opt(fn_ends, k), ~default=[]);
-    let is_variable = (n: tynode): bool =>
-      n.kind == Derived
-      && String.length(n.label) >= 2
-      && n.label.[0] == '\''
-      && !String.contains(n.label, ' ');
-    let producer_sats = List.exists((n: tynode) => n.sat != None, nodes0);
     /* split into one terminal per use-site: a builtin, a type variable */
-    let plain_builtin = (k: string): bool =>
-      !producer_sats
-      && (
-        switch (find0(k)) {
-        | Some(n) => (n.kind == Builtin || is_variable(n)) && n.sat == None
-        | None => false
-        }
-      );
-    let label_of = (k: string): string =>
+    let plain_builtin = (k: key): bool =>
+      switch (find0(k)) {
+      | Some(n) => n.kind == Builtin || is_variable(n)
+      | None => false
+      };
+    let label_of = (k: key): string =>
       switch (find0(k)) {
       | Some(n) => n.label
       | None => display_label(k)
       };
     let sats: ref(list(tynode)) = ref([]);
     let sat_keys = Hashtbl.create(64);
+    /* the terminal of [k] at one use-site, which [dup] tells apart */
     let ensure_sat =
-        (~m_path=[], ~anchor_key: string, ~output: bool, ~dup: string, k)
-        : string => {
+        (~m_path=[], ~anchor_key: key, ~output: bool, ~dup: string, k: key)
+        : key => {
       let label = label_of(k);
       let key = label ++ "@" ++ dup;
       if (!Hashtbl.mem(sat_keys, key)) {
@@ -823,13 +737,9 @@ module Read = {
       };
       key;
     };
-    let value_names = (vs: list(value)): string =>
-      String.concat(", ", List.map((v: value) => v.v_label, vs));
-    let shown_whole = (n: tynode, label: string): option(string) =>
-      n.n_doc == None && label != n.label ? Some(n.label) : n.n_doc;
     let nodes1 =
       List.map(
-        ((n: tynode, deps_given, former_given)) => {
+        (n: tynode) => {
           /* how this node is drawn */
           let n =
             switch (n.kind, Hashtbl.find_opt(dots, n.key)) {
@@ -897,92 +807,84 @@ module Read = {
                  [],
                );
           let former =
-            former_given
-              ? switch (n.former) {
-                | Some("->") => Some({js|→|js})
-                | f => f
-                }
-              : (
-                switch (n.kind) {
-                | Alias
-                    when
-                      List.length(parts) == 1
-                      && (
-                        switch (n.n_ty) {
-                        | Some(ty) => ends_with_container(ty)
-                        | None => false
-                        }
-                      ) =>
-                  Some("[]")
-                | Alias when parts != [] => Some("()")
-                | Alias
-                    when
+            switch (n.former) {
+            | Some("->") => Some({js|→|js})
+            | Some(_) as given => given
+            | None =>
+              switch (n.kind) {
+              | Alias
+                  when
+                    List.length(parts) == 1
+                    && (
                       switch (n.n_ty) {
-                      | Some(ty) => String.contains(ty, '|')
+                      | Some(ty) => ends_with_container(ty)
                       | None => false
-                      } =>
-                  Some("+")
-                | _ => None
-                }
-              );
-          let deps =
-            deps_given
-              ? n.deps
-              : (
-                switch (n.kind) {
-                | Product =>
-                  List.filter(p => !plain_builtin(p), n.parts)
-                  |> List.sort_uniq(compare)
-                | Alias =>
-                  /* the named types the body mentions */
-                  let named = (id: string): option(string) =>
-                    List.find_map(
-                      ((m: tynode, _, _)) =>
-                        m.key != n.key
-                        && (
-                          m.kind == Alias
-                          && (
-                            m.key == id
-                            || m.key == qname(n.m_path, id)
-                            || m.label == id
-                            && m.m_path == n.m_path
-                          )
-                          || m.kind == Ghost
-                          && m.key == id
-                        )
-                          ? Some(m.key) : None,
-                      raw_nodes,
-                    );
-                  let of_body =
+                      }
+                    ) =>
+                Some("[]")
+              | Alias when parts != [] => Some("()")
+              | Alias
+                  when
                     switch (n.n_ty) {
-                    | Some(ty) => List.filter_map(named, idents(ty))
-                    | None => []
-                    };
-                  let of_parts =
-                    List.filter(
-                      p =>
-                        switch (find0(p)) {
-                        | Some(m) => !plain_builtin(p) && m.key != n.key
-                        | None => false
-                        },
-                      n.parts,
-                    );
-                  List.sort_uniq(compare, of_body @ of_parts);
-                | _ => []
-                }
-              );
-          let hidden_deps =
-            n.hidden_deps == [] && n.kind == Alias && parts != []
-              ? deps : n.hidden_deps;
+                    | Some(ty) => String.contains(ty, '|')
+                    | None => false
+                    } =>
+                Some("+")
+              | _ => None
+              }
+            };
+          let deps: list(key) =
+            switch (n.kind) {
+            | Product =>
+              List.filter(p => !plain_builtin(p), n.parts)
+              |> List.sort_uniq(compare)
+            | Alias =>
+              /* the named types the body mentions */
+              let named = (id: string): option(key) =>
+                List.find_map(
+                  (m: tynode) =>
+                    m.key != n.key
+                    && (
+                      m.kind == Alias
+                      && (
+                        m.key == id
+                        || m.key == qname(n.m_path, id)
+                        || m.label == id
+                        && m.m_path == n.m_path
+                      )
+                      || m.kind == Ghost
+                      && m.key == id
+                    )
+                      ? Some(m.key) : None,
+                  nodes0,
+                );
+              let of_body =
+                switch (n.n_ty) {
+                | Some(ty) => List.filter_map(named, idents(ty))
+                | None => []
+                };
+              let of_parts =
+                List.filter(
+                  p =>
+                    switch (find0(p)) {
+                    | Some(m) => !plain_builtin(p) && m.key != n.key
+                    | None => false
+                    },
+                  n.parts,
+                );
+              List.sort_uniq(compare, of_body @ of_parts);
+            | _ => []
+            };
           {
             ...n,
             parts,
             former,
             deps,
-            hidden_deps,
+            /* shown through the formation lines of its parts instead */
+            hidden_deps: n.kind == Alias && parts != [] ? deps : [],
           };
         },
-        raw_nodes,
+        nodes0,
       );
     /* functions: a single builtin argument docks at the result, a
        builtin result docks at the input */
@@ -1045,7 +947,7 @@ module Read = {
        which became a terminal, the insides of a type from outside */
     let all = nodes1 @ List.rev(sats^);
     let kept = Hashtbl.create(64);
-    let rec keep = (k: string) =>
+    let rec keep = (k: key) =>
       if (!Hashtbl.mem(kept, k)) {
         Hashtbl.replace(kept, k, ());
         switch (List.find_opt((n: tynode) => n.key == k, all)) {
@@ -1099,16 +1001,23 @@ module Read = {
       edges,
       values,
       loose_tests,
-      all_tests: List.rev(all_tests^),
+      all_tests,
       last_def: None,
       livelit_defs: [],
-      handles: List.rev(handles^),
+      handles: handles(g),
     };
   };
 };
 
-let of_json = (j: Yojson.Safe.t): t => Read.graph(j);
-let of_string = (s: string): t => of_json(Yojson.Safe.from_string(s));
+/* The picture of a graph record: see Read. */
+let of_graph: Graph.t => t = Read.graph;
+
+/* [of_graph] of a record's JSON; [Error] says what is not a graph record
+   about it. */
+let of_json = (j: Yojson.Safe.t): result(t, string) =>
+  Result.map(of_graph, Graph.of_json(j));
+let of_string = (s: string): result(t, string) =>
+  Result.map(of_graph, Graph.of_string(s));
 
 let handle_of = (g: t, id: Id.t): option(handle) =>
   List.assoc_opt(id, g.handles);
