@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portolan Layout Options</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../assets/notebook.css">
+<style>
+/* Rows of screenshots: the same layout on three modules, or one module in several styles. */
+.shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.shots.two { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+figure a { display: block; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: #FFFDF5; }
+figure img { display: block; width: 100%; height: auto; }
+figcaption { font: 500 0.75rem/1.35 var(--mono); color: var(--muted); }
+.verdict { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../../">Portolan notebook</a> · study · 11 November 2026</span>
+  <h1>Layout and edge options</h1>
+  <p class="lede">The canvas can now be switched between ten ways of placing nodes and four ways of drawing arrows while a graph is on the board. This page shows them on three of Portolan's own modules and says what each is good and bad at.</p>
+  <p class="note">Built and written by an agent in one session. Every picture is a headless Chrome screenshot (canvas 1500 × 1000, light theme) of Portolan serving its own source, taken after picking the module and framing it. The agent looked at each one; Andrew has not. The cost figures were measured with <span class="mono">tools/layout-cost.mjs</span>; the default layout's positions were compared before and after the cost work and are the same. Not verified: any of the new options through a paced agent run, dragging nodes under them, the canvas's dark theme, Firefox and Safari.</p>
+</header>
+
+<section>
+  <div class="col">
+    <h2>The switches</h2>
+    <p>Two selects in the canvas header, next to pace, follow and fit: <b>layout</b> and <b>edges</b>. A change lays the current graph out again and glides to it. The choice is remembered, and <code>?layout=ledger&amp;edges=metro</code> in the address overrides it. From script: <code>PortolanCanvas.layouts()</code>, <code>edgeStyles()</code>, <code>setLayout(id)</code>, <code>setEdges(id)</code>.</p>
+    <p>The three modules below: <span class="mono">Watcher</span> (16 definitions, 48 nodes drawn), <span class="mono">Graph</span> (41 definitions with a submodule, 83 drawn) and <span class="mono">CanvasGraph</span> (36 definitions, 88 drawn). Very long type names overflow in every picture; that is a matter of what the graph contains, which another piece of work is changing.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Layouts</h2>
+    <h3>layered <span class="tag">default, Hazel's</span></h3>
+    <p>Types in left-to-right layers by dependency and function flow, stretched to fill the pane. It keeps to the canvas principles, and on a small program it reads well. On a real module the stretch spreads a few dozen nodes across the whole board, a record's field types sit in a far column joined by long dotted lines, and the functions tangle around the hub type.</p>
+  </div>
+  <div class="shots">
+    <figure><a href="img/Watcher-current-curves.jpg"><img src="img/Watcher-current-curves.jpg" alt="Watcher, layered layout, curved edges" loading="lazy"></a><figcaption>Watcher · layered · curves</figcaption></figure>
+    <figure><a href="img/Graph-current-curves.jpg"><img src="img/Graph-current-curves.jpg" alt="Graph, layered layout, curved edges" loading="lazy"></a><figcaption>Graph · layered · curves</figcaption></figure>
+    <figure><a href="img/CanvasGraph-current-curves.jpg"><img src="img/CanvasGraph-current-curves.jpg" alt="CanvasGraph, layered layout, curved edges" loading="lazy"></a><figcaption>CanvasGraph · layered · curves</figcaption></figure>
+  </div>
+
+  <div class="col">
+    <h3>compact <span class="tag">new</span></h3>
+    <p>The same layers without the stretch. An unnamed type that is used in one place (a record's field type, a lone result) docks beside that place instead of taking a row in a far layer, and the separate pieces are packed in source order into rows shaped like the pane. <span class="verdict">Better than the default where the default scatters, about the same elsewhere.</span> On <span class="mono">Watcher</span> the islands close up. On <span class="mono">Graph</span> and <span class="mono">CanvasGraph</span>, which are one connected piece each, it comes out wider and flatter and no easier to read. It does nothing for the tangle of arrows around a hub type, and a piece that grows makes the pieces after it move.</p>
+  </div>
+  <div class="shots">
+    <figure><a href="img/Watcher-compact-curves.jpg"><img src="img/Watcher-compact-curves.jpg" alt="Watcher, compact layout, curved edges" loading="lazy"></a><figcaption>Watcher · compact · curves</figcaption></figure>
+    <figure><a href="img/Graph-compact-curves.jpg"><img src="img/Graph-compact-curves.jpg" alt="Graph, compact layout, curved edges" loading="lazy"></a><figcaption>Graph · compact · curves</figcaption></figure>
+    <figure><a href="img/CanvasGraph-compact-curves.jpg"><img src="img/CanvasGraph-compact-curves.jpg" alt="CanvasGraph, compact layout, curved edges" loading="lazy"></a><figcaption>CanvasGraph · compact · curves</figcaption></figure>
+  </div>
+
+  <div class="col">
+    <h3>ledger <span class="tag">new</span></h3>
+    <p>Each shared type heads a lane. What makes it sits in rows on its left, what is made from it in rows on its right, one function per row in source order, so a lane reads like a list of signatures: <span class="mono">t ─ cycle → unit</span>. A type with no name that is used in one place is a row of that place; a record's plain fields share rows, a few abreast. Lanes fill columns, a type after the types it is made from. <span class="verdict">The most readable of the ten for a module with one or two central types,</span> and the only one where a function's name, input and result can be read off a row. Bad at: functions between two shared types, which become long arrows across lanes (the trunk lines in <span class="mono">CanvasGraph</span>); space, since lanes of different widths leave gaps; and stability, since a new function moves every row below it.</p>
+  </div>
+  <div class="shots">
+    <figure><a href="img/Watcher-ledger-metro.jpg"><img src="img/Watcher-ledger-metro.jpg" alt="Watcher, ledger layout, metro edges" loading="lazy"></a><figcaption>Watcher · ledger · metro</figcaption></figure>
+    <figure><a href="img/Graph-ledger-metro.jpg"><img src="img/Graph-ledger-metro.jpg" alt="Graph, ledger layout, metro edges" loading="lazy"></a><figcaption>Graph · ledger · metro</figcaption></figure>
+    <figure><a href="img/CanvasGraph-ledger-metro.jpg"><img src="img/CanvasGraph-ledger-metro.jpg" alt="CanvasGraph, ledger layout, metro edges" loading="lazy"></a><figcaption>CanvasGraph · ledger · metro</figcaption></figure>
+  </div>
+
+  <div class="col">
+    <h3>clusters <span class="tag">new</span></h3>
+    <p>The ledger's groups with the rows bent into arcs: what makes a type fans out to its left, what is made from it to its right. It is more compact than the ledger for a type with few functions. <span class="verdict">Not better than the ledger:</span> labels on slanted spokes collide, neighbouring fans run into each other, and nothing lines up to be read down.</p>
+  </div>
+  <div class="shots">
+    <figure><a href="img/Watcher-clusters-straight.jpg"><img src="img/Watcher-clusters-straight.jpg" alt="Watcher, clusters layout, straight edges" loading="lazy"></a><figcaption>Watcher · clusters · straight</figcaption></figure>
+    <figure><a href="img/Graph-clusters-straight.jpg"><img src="img/Graph-clusters-straight.jpg" alt="Graph, clusters layout, straight edges" loading="lazy"></a><figcaption>Graph · clusters · straight</figcaption></figure>
+    <figure><a href="img/CanvasGraph-clusters-straight.jpg"><img src="img/CanvasGraph-clusters-straight.jpg" alt="CanvasGraph, clusters layout, straight edges" loading="lazy"></a><figcaption>CanvasGraph · clusters · straight</figcaption></figure>
+  </div>
+
+  <div class="col">
+    <h3>The lab's six <span class="tag">Hazel's layout lab</span></h3>
+    <p>These were compiled in but unreachable. <b>function layers</b> and <b>type layers</b> are the default with only one of its two reasons for a layer. <b>packed groups</b> is the default's own packing without the stretch. <b>grid</b> gives every host a cell of the same size. <b>stable growth</b> and <b>soft anchors</b> place new things around what was already there, so on a graph shown all at once they are the packing again. None of them changes what is hard about a real module. The lab's four engine layouts (ELK and CoLa) are not offered: they need a worker bundle of elkjs and WebCoLa that Hazel builds from its <span class="mono">node_modules</span>.</p>
+  </div>
+  <div class="shots">
+    <figure><a href="img/Graph-lab.jpg"><img src="img/Graph-lab.jpg" alt="Graph in the lab's six layouts" loading="lazy"></a><figcaption>Graph · function layers, type layers, packed groups / grid, stable growth, soft anchors · curves</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Edge styles</h2>
+    <p>All four on <span class="mono">Graph</span> in the default layout, then two more on the ledger.</p>
+    <ul>
+      <li><b>curves</b> (default): horizontal-tangent cubics. Soft, and the label sits on the arrow. Several arrows out of one type leave on top of each other.</li>
+      <li><b>metro</b> (new): level runs joined by short diagonals with rounded bends. Arrows that share a side of a node leave it side by side and turn in an order that keeps them from crossing each other; the label rides the longest level run. <span class="verdict">The best partner for the ledger</span>, and in the default layout it separates the arrows out of a hub. It does not route around nodes, so a run can pass through one.</li>
+      <li><b>straight</b> (new): chords from rim to rim; arrows between the same two nodes bow apart. Honest about distance and direction, and good for a fan. Long chords cross everything in their way.</li>
+      <li><b>circuit</b> (the lab's router): right-angled routes that avoid nodes and each other. Tidy on a small graph; on a module the detours add more line than they remove crossings.</li>
+    </ul>
+  </div>
+  <div class="shots two">
+    <figure><a href="img/Graph-current-curves.jpg"><img src="img/Graph-current-curves.jpg" alt="Graph, layered, curves" loading="lazy"></a><figcaption>Graph · layered · curves</figcaption></figure>
+    <figure><a href="img/Graph-current-metro.jpg"><img src="img/Graph-current-metro.jpg" alt="Graph, layered, metro" loading="lazy"></a><figcaption>Graph · layered · metro</figcaption></figure>
+    <figure><a href="img/Graph-current-straight.jpg"><img src="img/Graph-current-straight.jpg" alt="Graph, layered, straight" loading="lazy"></a><figcaption>Graph · layered · straight</figcaption></figure>
+    <figure><a href="img/Graph-current-circuit.jpg"><img src="img/Graph-current-circuit.jpg" alt="Graph, layered, circuit" loading="lazy"></a><figcaption>Graph · layered · circuit</figcaption></figure>
+    <figure><a href="img/Graph-ledger-curves.jpg"><img src="img/Graph-ledger-curves.jpg" alt="Graph, ledger, curves" loading="lazy"></a><figcaption>Graph · ledger · curves</figcaption></figure>
+    <figure><a href="img/Graph-ledger-straight.jpg"><img src="img/Graph-ledger-straight.jpg" alt="Graph, ledger, straight" loading="lazy"></a><figcaption>Graph · ledger · straight</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Layout cost</h2>
+    <p>A render asked for the same graph in up to four frames and each was a full placement; and three passes searched lists by key inside loops over arrows and nodes. One placement now serves every frame, and those passes keep tables. The default layout's output is unchanged.</p>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Graph</th><th>Nodes drawn</th><th>Picking it: layouts, time in layout</th><th>One change to it</th></tr></thead>
+    <tbody>
+      <tr><td>Watcher</td><td>48</td><td>7, 36 ms → 4, 5 ms</td><td>3, 20 ms → 1, 3 ms</td></tr>
+      <tr><td>Graph</td><td>83</td><td>7, 147 ms → 4, 15 ms</td><td>3, 111 ms → 1, 9 ms</td></tr>
+      <tr><td>CanvasEnact</td><td>170</td><td>7, 392 ms → 4, 27 ms</td><td>4, 389 ms → 1, 16 ms</td></tr>
+      <tr><td>CanvasDirector</td><td>209</td><td>7, 522 ms → 4, 28 ms</td><td>3, 394 ms → 1, 16 ms</td></tr>
+      <tr><td>the whole project</td><td>about 1850</td><td>7, 183 s → 4, 2.4 s</td><td>not measured before → 2, 2.5 s</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="col">
+    <p class="muted">Optimised bundle, headless Chrome, default layout. One of the four layouts on a pick is the empty board. The whole project still holds the page for about seven seconds when picked; that time is now outside layout. The details are in <span class="mono">canvas/UPSTREAM.md</span>.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Ties</h2>
+    <p>In Spall a tie gathers several cables into one bundle at a point. Each cable keeps a slot in the bundle's cross-section, the cables slide through the tie rather than being fixed to it, the bundle then moves as one heavier body, and a tie can be clamped to a post. Between two ties the run keeps its cross-section.</p>
+    <p>Here a tie would be a point on the board that a chosen set of arrows is routed through, side by side. It gives two things the canvas lacks. The first is manual layout for arrows: today only nodes can be dragged, and a tie is a draggable waypoint that several arrows share, stored the way drag offsets are (by name, as a delta from the automatic place). The metro style already draws arrows that share a side of a node as parallel tracks; a tie is that with the shared stretch placed by hand.</p>
+    <p>The second is the reading Andrew noted: a tie is a tuple made on the spot, of functions rather than of types. Tying three arrows out of <span class="mono">t</span> says "these three together", which is one arrow from <span class="mono">t</span> to a product; tying arrows into a type reads as a case over a sum; tying arrows that run in parallel between different ends reads as a product of functions. The canvas already has a node for a tuple of types (the filled <span class="mono">()</span>). A tie would be its counterpart for functions, and it is the seed of something the source can hold: a record of functions, a module signature, the part of an interface one caller uses. A tie that has stayed for a while is a suggestion to name it.</p>
+    <p>Not built. The routing is a small step from the metro style; choosing arrows, placing and dragging the tie, and keeping it across changes are the work, and more than an hour of it.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Rough, and not done</h2>
+    <ul>
+      <li>Only the default keeps the canvas principles. The new layouts place everything afresh from the graph in source order: nothing jumps on a switch (it is one glide), but during an agent's run a new function will push its neighbours.</li>
+      <li>Metro and straight do not avoid nodes. In the ledger this rarely matters; in the layered layouts runs pass through nodes.</li>
+      <li>The ledger gives a terminal a row 42 px high because its label hangs below it. With the label beside the terminal the rows could be 28 px.</li>
+      <li>A submodule's hull follows its arrows, so in the ledger it smears across lanes.</li>
+      <li>The packing aims at the pane's shape but the camera does not magnify past 1:1, so a small module can leave part of the board empty.</li>
+      <li>Dragging a node works in every layout; the dragged offsets are dropped on a switch.</li>
+    </ul>
+  </div>
+</section>
+</main>
+</body>
+</html>

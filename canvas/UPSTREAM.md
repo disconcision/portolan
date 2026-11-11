@@ -247,6 +247,12 @@ error cause, a burst of six queued pushes, `reset` then `push`, `show`,
 `demo.html`. The extractor's real output for `examples/vector` was read and
 drawn.
 
+The layouts and edge styles were each drawn on Portolan's own modules in
+headless Chrome and looked at (`site/studies/2026-11-11-layout-options/`);
+the two selects were driven in the page, and a switch left no `JUMP:`,
+`SCORE:` or `ORPHAN:` line in the journal. None of the new options has been
+watched through a paced run, or dragged in by hand.
+
 Known in the journal: one `JUMP: canvas-avatar` line (32–80 px) on a beat that
 starts while the avatar is already embodied and thinking.
 
