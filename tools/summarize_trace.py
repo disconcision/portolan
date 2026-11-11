@@ -47,5 +47,7 @@ for e in ev:
                     out(f"{t:7.1f}s   {n} {str(i.get('command', ''))[:70]}")
         elif a.get("type") == "result":
             done = e["t"] / 1000
+if fail_start is not None:
+    broken_ms += ev[-1].get("t", 0) - fail_start  # still broken at the end
 print(f"\n{(done or ev[-1].get('t', 0) / 1000):.0f} s · {graphs} graph changes · definitions arriving per change: {adds} · "
       f"{len(writes)} whole-file writes {writes} · {edits} edits · {fails} failed builds, broken for {broken_ms / 1000:.0f} s")
