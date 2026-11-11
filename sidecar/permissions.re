@@ -5,9 +5,8 @@ let remembered = project =>
   | Sys_error(_) => []
   };
 
-let remember = (project, patterns) => {
-  let known = remembered(project);
-  let fresh =
+let fresh = (~known, patterns) =>
+  List.rev(
     List.fold_left(
       (acc, p) => {
         let p = String.trim(p);
@@ -16,12 +15,14 @@ let remember = (project, patterns) => {
       },
       [],
       patterns,
-    );
+    ),
+  );
+
+let remember = (project, patterns) => {
+  let known = remembered(project);
+  let fresh = fresh(~known, patterns);
   if (fresh != []) {
-    Files.write(
-      file(project),
-      String.concat("\n", known @ List.rev(fresh)) ++ "\n",
-    );
+    Files.write(file(project), String.concat("\n", known @ fresh) ++ "\n");
   };
 };
 

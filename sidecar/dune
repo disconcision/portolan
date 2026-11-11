@@ -1,5 +1,13 @@
+; The sidecar's modules are a library, so that the tests can use them;
+; main.re reads the arguments and starts them.
+(library
+ (name portolan_sidecar)
+ (modules :standard \ main)
+ (libraries unix threads.posix str yojson))
+
 (executable
  (name main)
  (public_name portolan)
  (package portolan)
- (libraries unix threads.posix str yojson))
+ (modules main)
+ (libraries portolan_sidecar))
