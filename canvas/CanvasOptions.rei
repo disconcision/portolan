@@ -31,9 +31,14 @@ let components:
   (list(CanvasLayoutExperiments.item), list((string, string))) =>
   list(CanvasLayoutExperiments.item);
 
-/* "compact": the layered arrangement with its separate pieces moved
-   together, in source order, in rows that fill the pane's shape. Each
-   piece keeps its inner arrangement. */
+/* "compact", before the layers are solved: the graph with every unnamed
+   type that is used in one place marked as a satellite of that place, so it
+   docks there instead of taking a row in a layer of its own. */
+let dock_single_use: CanvasGraph.t => CanvasGraph.t;
+
+/* "compact", after the layers are solved (unstretched): the separate
+   pieces moved together, in source order, in rows that fill the pane's
+   shape. Each piece keeps its inner arrangement. */
 let arrange:
   (CanvasGraph.t, list(CanvasLayoutExperiments.item)) =>
   list(CanvasLayoutExperiments.item);

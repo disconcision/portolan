@@ -438,6 +438,76 @@ let components =
 
 /* ---------- compact: the layered arrangement, packed ---------- */
 
+/* An unnamed type used in one place (a record's field type, a function's
+   only result) docks beside that place instead of taking a row of its own
+   layer: the graph with those nodes marked as satellites. */
+let dock_single_use = (g: CanvasGraph.t): CanvasGraph.t => {
+  let node: Hashtbl.t(string, CanvasGraph.tynode) = Hashtbl.create(64);
+  List.iter(
+    (n: CanvasGraph.tynode) => Hashtbl.replace(node, n.key, n),
+    g.nodes,
+  );
+  let uses: Hashtbl.t(string, list((string, bool))) = Hashtbl.create(64);
+  let use = (k, u) =>
+    Hashtbl.replace(
+      uses,
+      k,
+      [u, ...Option.value(~default=[], Hashtbl.find_opt(uses, k))],
+    );
+  List.iter(
+    (e: CanvasGraph.edge) =>
+      if (e.e_src != e.dst) {
+        use(e.e_src, (e.dst, false));
+        use(e.dst, (e.e_src, true));
+      },
+    g.edges,
+  );
+  List.iter(
+    (n: CanvasGraph.tynode) =>
+      List.iter(
+        p =>
+          if (p != n.key) {
+            use(p, (n.key, false));
+          },
+        List.sort_uniq(compare, n.parts @ n.deps),
+      ),
+    g.nodes,
+  );
+  let docked: Hashtbl.t(string, string) = Hashtbl.create(16);
+  /* does following anchors from [k] come to [target]? */
+  let rec leads_to = (steps, k, target) =>
+    k == target
+    || steps < 24
+    && (
+      switch (Hashtbl.find_opt(docked, k)) {
+      | Some(a) => leads_to(steps + 1, a, target)
+      | None =>
+        switch (Hashtbl.find_opt(node, k)) {
+        | Some({sat: Some((a, _)), _}) => leads_to(steps + 1, a, target)
+        | _ => false
+        }
+      }
+    );
+  {
+    ...g,
+    nodes:
+      List.map(
+        (n: CanvasGraph.tynode) =>
+          switch (n.sat, n.kind, Hashtbl.find_opt(uses, n.key)) {
+          | (None, Derived | Ghost, Some([(other, is_result)]))
+              when Hashtbl.mem(node, other) && !leads_to(0, other, n.key) =>
+            Hashtbl.replace(docked, n.key, other);
+            {
+              ...n,
+              sat: Some((other, is_result)),
+            };
+          | _ => n
+          },
+        g.nodes,
+      ),
+  };
+};
+
 let arrange = (g: CanvasGraph.t, items: list(Lab.item)): list(Lab.item) => {
   let (node_ord, _) = source_order(g);
   let parent: Hashtbl.t(string, string) = Hashtbl.create(64);
@@ -665,7 +735,8 @@ let place =
   let link: Hashtbl.t(string, (int, float)) = Hashtbl.create(64);
   List.iter(
     (e: CanvasGraph.edge) => {
-      let chip = float_of_int(String.length(e.e_label)) *. 7.4 +. 24.;
+      /* (the canvas reserves a label's room by its qualified name) */
+      let chip = float_of_int(String.length(e.e_name)) *. 7.4 +. 24.;
       List.iter(
         k =>
           switch (Hashtbl.find_opt(link, k)) {
@@ -862,7 +933,10 @@ let place =
       let total = List.fold_left((s, (_, b)) => s +. weight(b), 0., cs);
       let rings = List.length(cs) > 7 ? 2. : 1.;
       let span =
-        min(2.9, max(List.length(cs) < 2 ? 0.1 : 1.3, total *. 0.5 /. rings));
+        min(
+          2.9,
+          max(List.length(cs) < 2 ? 0.1 : 1.3, total *. 0.5 /. rings),
+        );
       let room = List.fold_left((s, (c, _)) => max(s, chip(c)), 0., cs);
       let rho = max(rad +. 40. +. room *. 0.8, total *. 40. /. rings /. span);
       let (at, _) =

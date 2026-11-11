@@ -823,6 +823,8 @@ let layout_core =
         g.nodes,
       ),
   };
+  /* PORTOLAN: "compact" docks every one-use unnamed type */
+  let g = experiment == "compact" ? CanvasOptions.dock_single_use(g) : g;
   /* ---- classify: grid vs docked ---- */
   let fan = (k: string): int =>
     List.length(
@@ -1838,7 +1840,7 @@ let layout_core =
                   g.edges,
                 )
                 |> Option.map((e: CanvasGraph.edge) =>
-                     float_of_int(String.length(e.e_label)) *. 7.4 +. 44.
+                     float_of_int(String.length(e.e_name)) *. 7.4 +. 44.
                    )
                 |> Option.value(~default=60.),
             List.filter_map(
