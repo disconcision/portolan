@@ -42,6 +42,7 @@
   }
   function moduleView(g, mod) {
     if (!mod) return flatten(g);
+    if (mod === PortolanMap.MAP) return PortolanMap.graph(g);
     const inMod = x => top(x) === mod, cut = x => ({ ...x, m_path: (x.m_path || []).slice(1) });
     const edges = g.edges.filter(inMod), values = (g.values || []).filter(inMod);
     const byKey = new Map(g.nodes.map(n => [n.key, n])), want = new Set();
@@ -59,7 +60,7 @@
     if (sel.dataset.sig !== sig) {
       sel.dataset.sig = sig;
       const option = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; };
-      const dirs = [...new Set(ms.map(m => m.dir))], kids = [option('', 'whole project')];
+      const dirs = [...new Set(ms.map(m => m.dir))], kids = [option(PortolanMap.MAP, 'map of modules'), option('', 'whole project')];
       dirs.forEach(d => {
         const os = ms.filter(m => m.dir === d).map(m => option(m.name, m.name + '  ·  ' + m.size));
         if (dirs.length < 2) return kids.push(...os);
@@ -81,11 +82,11 @@
     if (!latest) return;
     if (moduleName === null) {
       const ms = modules(latest), saved = kept('module.' + project);
-      moduleName = ms.length < 2 ? '' : ms.some(m => m.name === saved) ? saved : ms[0].name;
+      moduleName = ms.length < 2 ? '' : saved === PortolanMap.MAP || ms.some(m => m.name === saved) ? saved : ms[0].name;
       drawPicker();
       fresh = fresh || moduleName !== ''; // a one-module project's first definitions arrive as a beat
     }
-    if (moduleName && !modules(latest).some(m => m.name === moduleName)) moduleName = '';
+    if (moduleName && moduleName !== PortolanMap.MAP && !modules(latest).some(m => m.name === moduleName)) moduleName = '';
     const g = inSyntax(moduleView(latest, moduleName)), key = JSON.stringify(g);
     if (key === shownKey && !fresh) return; // nothing in this module changed
     shown = g;
@@ -120,6 +121,7 @@
       reset: () => PC.reset(),
       onSelect: cb => PC.onSelect((name, _kind, at) => {
         const g = shown;
+        if (moduleName === PortolanMap.MAP && latest && modules(latest).some(m => m.name === name)) return choose(name); // on the map, a module opens
         const item = g && (g.edges.find(e => e.name === name || e.label === name) || g.nodes.find(n => n.key === name || n.label === name) || (g.values || []).find(v => v.name === name));
         cb(item || { label: name, at }, item && g.edges.includes(item) ? 'edge' : 'node', at || (item && item.at));
       }),
