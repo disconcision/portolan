@@ -29,11 +29,16 @@ type answer =
   | Deny
   | Answers(list((string, string)));
 
+type mode =
+  | Live
+  | Snapshot;
+
 type t =
   | Session({restart: bool})
   | Hello({
       project: string,
       agent: string,
+      mode,
       opam_switch: option(string),
     })
   | Conversation({earlier: string})
@@ -213,11 +218,19 @@ let optional = (name, value) =>
 let fields: t => list((string, Yojson.Safe.t)) =
   fun
   | Session({restart}) => [("restart", `Bool(restart))]
-  | Hello({project, agent, opam_switch}) =>
+  | Hello({project, agent, mode, opam_switch}) =>
     [
       ("project", str(project)),
       ("agent", str(agent)),
-      ("mode", str("live")),
+      (
+        "mode",
+        str(
+          switch (mode) {
+          | Live => "live"
+          | Snapshot => "snapshot"
+          },
+        ),
+      ),
     ]
     @ optional("switch", opam_switch)
   | Conversation({earlier}) => [("earlier", str(earlier))]
@@ -409,6 +422,7 @@ let of_json = json => {
       Hello({
         project,
         agent,
+        mode: string("mode", json) == Some("snapshot") ? Snapshot : Live,
         opam_switch: string("switch", json),
       }),
     );

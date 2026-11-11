@@ -15,6 +15,7 @@ let written: list((Event.t, string)) = [
     Hello({
       project: "scene",
       agent: "claude",
+      mode: Live,
       opam_switch: None,
     }),
     {|{"type":"hello","project":"scene","agent":"claude","mode":"live"}|},
@@ -22,7 +23,17 @@ let written: list((Event.t, string)) = [
   (
     Hello({
       project: "scene",
+      agent: "none",
+      mode: Snapshot,
+      opam_switch: None,
+    }),
+    {|{"type":"hello","project":"scene","agent":"none","mode":"snapshot"}|},
+  ),
+  (
+    Hello({
+      project: "scene",
       agent: "script:steps.json",
+      mode: Live,
       opam_switch: Some("5.2.0"),
     }),
     {|{"type":"hello","project":"scene","agent":"script:steps.json","mode":"live","switch":"5.2.0"}|},

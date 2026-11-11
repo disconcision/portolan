@@ -38,7 +38,7 @@ for f in sorted(mentioned):
 
 events = [
     {"t": 0, "type": "hello", "project": name, "agent": "none", "mode": "snapshot"},
-    {"t": 1, "type": "graph", "graph": graph, "cause": {"label": "snapshot", "by": "hand"}},
+    {"t": 1, "type": "graph", "graph": graph, "cause": {"label": "edit", "by": "hand"}},
     {"t": 2, "type": "build", "ok": True, "output": "", "ms": 0},
     {"t": 3, "type": "files", "files": files},
 ]

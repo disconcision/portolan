@@ -57,18 +57,27 @@ type answer =
     );
 
 /** An event. The comments give each one's ["type"] and fields on the wire. */
+/** How a project is being shown. */
+type mode =
+  | /** A sidecar is watching it. */
+    Live
+  | /** As it stood when it was extracted once (`portolan snapshot`): no
+        run and no agent. */
+    Snapshot;
+
 type t =
   | /** `session {restart}`: a sidecar started; [restart] if the trace
         already held events. */
     Session({
       restart: bool,
     })
-  | /** `hello {project, agent, mode: "live", switch?}`: the project's
-        name, the `--agent` flag as given, and the opam switch if not the
-        sidecar's own. */
+  | /** `hello {project, agent, mode, switch?}`: the project's name, the
+        `--agent` flag as given, how the project is being shown, and the
+        opam switch if not the sidecar's own. */
     Hello({
       project: string,
       agent: string,
+      mode,
       opam_switch: option(string),
     })
   | /** `conversation {earlier}`: a new conversation; the one before is

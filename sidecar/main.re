@@ -166,6 +166,7 @@ let serve = (o, ~home, dir) => {
     Hello({
       project: Project.name(project),
       agent: o.agent,
+      mode: Live,
       opam_switch: Project.opam_switch(project),
     }),
   );
