@@ -137,7 +137,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
 <header>
   <span class="eyebrow"><a href="https://andrewblinn.com/portolan/">Portolan notebook</a> · study · 10 November 2026</span>
   <h1>Colour schemes</h1>
-  <p class="lede">Sixteen candidates, six of them Graphite with an accent colour. Each shows the whole app, with the real canvas drawing the same graph. Pick one to see it large and change any colour: click a part of the picture to find its colour, drag one colour onto another to swap them, turn all the accents at once, and undo. Your changes, notes and stars are saved, and Claude can read them.</p>
+  <p class="lede">Sixteen candidates, six of them Graphite with an accent colour. Each shows the whole app, with the real canvas drawing the same graph. Pick one to see it large and change any colour: click a part of the picture to find its colour, drag one colour onto another to swap them, turn all the accents at once, and undo. Your changes, notes and stars are saved in this browser; Copy scheme puts one on the clipboard as text to paste to Claude.</p>
   <div class="bar">
     <div class="seg" role="group" aria-label="Graph">
       <button id="spec-vector" aria-pressed="true">Vector run, mid-way</button>
@@ -202,6 +202,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
       <div class="actions">
         <button class="btn" id="undo" disabled>Undo</button>
         <button class="btn" id="redo" disabled>Redo</button>
+        <button class="btn" id="copy" title="Put this scheme on the clipboard as text, to paste to Claude or keep">Copy scheme</button>
         <button class="btn" id="dup">Duplicate as new</button>
         <button class="btn" id="reset">Reset colours</button>
         <button class="btn danger" id="del" hidden>Delete</button>
@@ -427,6 +428,21 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
   function undo() { const p = past[selected] || []; if (!p.length) return; (future[selected] = future[selected] || []).push(current()); restore(p.pop()); }
   function redo() { const f = future[selected] || []; if (!f.length) return; (past[selected] = past[selected] || []).push(current()); restore(f.pop()); }
   function drawHistory() { $('undo').disabled = !(past[selected] || []).length; $('redo').disabled = !(future[selected] || []).length; }
+  // The scheme as text: what was changed, and every colour as it now stands, so it can be pasted into a chat or a file.
+  $('copy').onclick = async () => {
+    const s = scheme(selected), sv = saved[selected] || {}, c = colours(selected), was = derive(s.c), diff = {};
+    ROLES.forEach(([, rs]) => rs.forEach(([id]) => { if (c[id].toLowerCase() !== was[id].toLowerCase()) diff[id] = c[id]; }));
+    const text = 'Portolan colour scheme\n' + JSON.stringify({ name: s.custom ? sv.name || 'Untitled' : s.name, from: s.custom ? sv.from : s.id, note: sv.note || '', changed: diff, colours: Object.fromEntries(ROLES.flatMap(([, rs]) => rs.map(([id]) => [id, c[id]]))) }, null, 1);
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+      const t = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.appendChild(t); t.select();
+      try { ok = document.execCommand('copy'); } catch (x) {}
+      t.remove();
+    }
+    $('copy').textContent = ok ? 'Copied' : 'Could not copy';
+    setTimeout(() => { $('copy').textContent = 'Copy scheme'; }, 1600);
+  };
   $('undo').onclick = undo;
   $('redo').onclick = redo;
   document.addEventListener('keydown', ev => {
