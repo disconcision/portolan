@@ -1,12 +1,13 @@
 # How code is written here
 
-A light guide for agents and people working on Portolan's own code. These are leanings, not laws. Where one fights the code in front of you, go the other way and say why in the commit. It is expected to change as we learn what works, partly from what the canvas shows about our own modules.
+A light guide for agents and people working on Portolan's own code. These are leanings, not laws. Where one fights the code in front of you, go the other way and say why in the commit. It is expected to change as we learn what works, partly from what the canvas shows about our own modules. The first test of it, on the sidecar, is logbook entry 6 in the notebook; the rules it would have got wrong were changed.
 
 ## Types carry the design
 
-- **Name the things of the domain.** If two functions pass the same string or int with the same meaning (a node key, a qualified name, a path in the project, an event), give it a type, abstract if it has a rule to keep. A function from `string` to `string` tells a reader nothing.
-- **A state is a variant, not a record of options.** If only some combinations of `None` and `Some` make sense, write the combinations down as constructors.
-- **Parse at the edge.** Text and JSON become typed values in one place; past that point nothing handles `Yojson.Safe.t` or raw text. The same on the way out.
+- **Name the things of the domain.** If two functions pass the same string or int with the same meaning (a node key, a qualified name, a path in the project, an event), give it a type, abstract if it has a rule to keep. A function from `string` to `string` tells a reader nothing. Stop where a type would have no rule to keep and nothing to be confused with: then it is only conversions.
+- **A state is a variant, not a record of options.** If only some combinations of `None` and `Some` make sense, write the combinations down as constructors. What must outlive a state stays outside its constructor.
+- **Parse at the edge.** Text and JSON become typed values in one place; past that point nothing handles `Yojson.Safe.t` or raw text. The same on the way out. Data that is only passed along may stay as it arrived.
+- **Annotate what the compiler would leave anonymous.** A function that builds JSON or a polymorphic variant gets its result type written out, so readers and the canvas see a name.
 - **One definition of each model.** Two modules that both need a record share it, or one converts at the boundary. No parallel copies kept in step by hand.
 - **Expected failure is in the type** (`option`, `result`); exceptions are for bugs. The interface says which a function does.
 
@@ -14,7 +15,7 @@ A light guide for agents and people working on Portolan's own code. These are le
 
 - **One job, sayable in a sentence**, at the top of the `.rei`. Each value in the interface says what it does. If the sentence needs an "and", consider two modules.
 - **Abstract by default.** Expose a type's shape only when callers need it.
-- **State is a value.** Prefer a `t` that is passed in over module-level `ref`s. A module that is one-per-process by nature (the event bus) says so at the top of its interface.
+- **State is a value.** Prefer a `t` that is passed in over module-level `ref`s. A module that is one-per-process by nature (the event bus) says so at the top of its interface, and is not threaded through every call for form's sake.
 - **Effects at the rim.** Keep the part that decides (parsing, comparing, choosing) apart from the part that reads files, runs commands or emits events, so the first can be tested without the second.
 - **Dependencies point one way.** Small modules (`Files`, `Run`) know nothing of the ones built on them.
 - **Nested modules and functors when they earn it:** a nested module for a type with its handful of operations; a functor when there are two real uses. Not for show.
@@ -24,6 +25,7 @@ A light guide for agents and people working on Portolan's own code. These are le
 - **A function with a decision in it has a test**, named for the behaviour ("a broken module keeps its definitions"), written against the interface.
 - **A bug fix starts with the test that fails.**
 - **Glue needs no test of its own**; it is covered by running the thing.
+- **An executable is a thin file over a library**, so its code can be tested.
 - Tests show on the canvas as pips on the function they exercise, so untested logic is visible.
 
 ## Changes

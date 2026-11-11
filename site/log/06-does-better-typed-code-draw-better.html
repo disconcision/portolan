@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Does Better-Typed Code Draw Better?</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+<link rel="stylesheet" href="log.css">
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · <a href="./">logbook</a> · 06 · 11 November 2026</span>
+  <h1>Does better-typed code draw better?</h1>
+  <p class="result">Yes for the agent module, clearly. Partly for the event bus, and only because the canvas had learned in the meantime to link a list or an option to the type inside it. The style guide was right twice and would have made the code worse three times.</p>
+</header>
+
+<section>
+  <dl class="parts">
+    <dt>Why</dt>
+    <dd><p>Entry 1 found shapes on the canvas that meant something in the source, and they became the last table of the repository's style guide. This is the test in the other direction: follow the guide on the two worst modules and see whether the picture improves. Andrew's condition was that Portolan should not be made modular for the sake of it.</p></dd>
+    <dt>What was done</dt>
+    <dd>
+      <p>A helper agent restructured the sidecar by the guide, keeping behaviour the same. Events became one variant type with their JSON written in one place. The agent module, 955 lines, was split by job into five, and "where the agent's turn stands" became a pure function from a standing and a happening to the next standing and the events to emit. The sidecar got its first tests: 95 cases.</p>
+      <p>It checked behaviour by playing the same scripted session before and after each step and comparing the traces, and by two short turns with the real agent. I took the pictures below on the merged build.</p>
+    </dd>
+  </dl>
+</section>
+
+<section>
+  <div class="col"><h2>What happened</h2></div>
+  <div class="pair">
+    <figure>
+      <img src="img/01-agent.jpg" alt="The Agent module before: a record ringed by its optional fields, with a fan of arrows into unit." loading="lazy">
+      <figcaption><strong>Agent, before</strong> (as in entry 1; it then grew to 31 definitions before the split).</figcaption>
+    </figure>
+    <figure>
+      <img src="img/06-agent-after.jpg" alt="The Agent module after: one small record, two variants, and six short arrows." loading="lazy">
+      <figcaption><strong>Agent, after.</strong> 105 lines. Two variants (which kind of agent, which worker), and a handful of functions.</figcaption>
+    </figure>
+  </div>
+  <figure>
+    <img src="img/06-turn-after.jpg" alt="The new Turn module: a record named standing and a variant named happening, with a function step between them carrying a row of test pips." loading="lazy">
+    <figcaption><strong>Turn, new.</strong> The state that was hidden in optional fields is now two named types, <code>standing</code> and <code>happening</code>, and <code>step</code> between them carries a row of test pips.</figcaption>
+  </figure>
+  <div class="pair">
+    <figure>
+      <img src="img/01-bus.jpg" alt="The Bus module before: ten small arrows between built-in types, nearly all separate." loading="lazy">
+      <figcaption><strong>Bus, before.</strong> No named type anywhere.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/06-bus-after.jpg" alt="The Bus module after: the functions add, emit, last and start_over now connect through a node named Event.t; all and wait connect through Event.Line.t; four functions are still separate." loading="lazy">
+      <figcaption><strong>Bus, after.</strong> <code>add</code>, <code>emit</code>, <code>last</code> and <code>start_over</code> meet at <code>Event.t</code>; <code>all</code> and <code>wait</code> at the stored line. Four helpers remain islands, and the module's state is still six loose values.</figcaption>
+    </figure>
+  </div>
+  <div class="col">
+    <p>The fan into <code>unit</code> did not vanish. It moved to the module that runs the Claude Code process, which is where effects belong.</p>
+    <p>The bus picture only improved because of a canvas change made the same day (entry 4): a list or option of a type is now linked to that type. On the branch where the restructuring was done, without that change, the bus was better code and almost the same picture.</p>
+    <p>A third thing showed up: the canvas draws the types the compiler infers. Functions that build JSON drew as a scatter of anonymous types until their results were annotated, and then they met at one node.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col"><h2>What the guide got right and wrong</h2></div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Verdict</th><th>Rule, and what happened</th></tr></thead>
+    <tbody>
+      <tr><td>Helped</td><td>"A state is a variant" with "effects at the rim" produced <code>Turn.step</code>, the best single result. "Parse at the edge" produced the event and protocol modules.</td></tr>
+      <tr><td>Silent</td><td>Tests need a library, so an executable should be a thin file over one. Data that is only passed along may stay as it arrived. Annotate what builds JSON, so readers and the canvas see a name. Who owns a lock after a split.</td></tr>
+      <tr><td>Would have made it worse</td><td>A type for permission patterns: eight conversions and no rule to keep. Pending requests kept inside a "waiting" constructor: a prompt arriving during a wait would lose them. A bus value threaded through every function, where there is one bus per process.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <dl class="parts">
+    <dt>What it means</dt>
+    <dd><p>The picture and the code quality move together where the guide is about types and state, which is most of it. They come apart where a module is a process-wide service: the bus is fine as it is, and still looks like scattered values.</p></dd>
+    <dt>Next</dt>
+    <dd><p>The guide has been changed to say what this found. The doubled graph record (the last shape in entry 1) is being fixed the same way; its result will be added here.</p></dd>
+  </dl>
+</section>
+</main>
+</body>
+</html>
