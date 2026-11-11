@@ -21,6 +21,7 @@
      Run       a shell command with a timeout
      Project   the watched project: paths, state folder, opam switch
      Watcher   file changes -> build -> graph -> tests
+     Permissions  what the user chose to always allow the agent
      Agent     Claude Code or a scripted stand-in, and what it last did
      Syntax    OCaml <-> Reason conversion of a slice of a file
      Http      the page, the event stream, the routes

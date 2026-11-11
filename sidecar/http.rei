@@ -19,8 +19,14 @@
      POST /types            `{"types": [TEXT, …]}`: printed OCaml types;
                             answers `{"types": […]}`, each in Reason
                             syntax, or null where it could not be read
-     POST /prompt           `{"text": …}`: a prompt for the agent
-     POST /stop             stop the agent */
+     POST /prompt           `{"text": …}`: a prompt for the agent; with
+                            `"about": {name, file, line, end_line}`, the
+                            definition it is about
+     POST /answer           `{"id": …, "decision": "once" | "always" |
+                            "deny" | "answered"}`: the user's answer to
+                            an `ask` event; "always" takes `patterns`,
+                            "answered" takes `answers` (question: label)
+     POST /stop             stop the agent's turn */
 
 /** What the server shows. */
 type source =

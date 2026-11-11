@@ -1,0 +1,100 @@
+{
+ "steps": [
+  {
+   "say": "A small scene model in Reason. First the project files."
+  },
+  {
+   "write": {
+    "file": "dune-project",
+    "content": "(lang dune 3.16)\n"
+   }
+  },
+  {
+   "write": {
+    "file": "lib/dune",
+    "content": "(library\n (name asking))\n"
+   }
+  },
+  {
+   "write": {
+    "file": "lib/scene.re",
+    "content": "type point = (int, int);\n\ntype shape =\n  | Circle(point, int)\n  | Rect(point, point);\n\n/** Twice the area, so everything stays in integers. */\nlet area = (s: shape): int =>\n  switch (s) {\n  | Circle(_, r) => 6 * r * r\n  | Rect((x0, y0), (x1, y1)) => 2 * abs(x1 - x0) * abs(y1 - y0)\n  };\n"
+   }
+  },
+  {
+   "wait": 2500
+  },
+  {
+   "say": "I would like to check the formatting, which needs a command I may not run without asking."
+  },
+  {
+   "ask": {
+    "tool": "Bash",
+    "input": {
+     "command": "refmt --print-width 80 lib/scene.re | diff - lib/scene.re",
+     "description": "Check that scene.re is formatted"
+    }
+   }
+  },
+  {
+   "ask": {
+    "tool": "AskUserQuestion",
+    "input": {
+     "questions": [
+      {
+       "question": "Which should come next?",
+       "header": "Next step",
+       "multiSelect": false,
+       "options": [
+        {
+         "label": "Transforms",
+         "description": "translate and scale, shape to shape"
+        },
+        {
+         "label": "A scene type",
+         "description": "a list of shapes, with a total area"
+        },
+        {
+         "label": "Both",
+         "description": "one edit adding all of it"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "edit": {
+    "file": "lib/scene.re",
+    "old": "  | Circle(_, r) => 6 * r * r\n",
+    "new": "  | Circle(_, r) => 3 * r * r\n"
+   }
+  },
+  {
+   "edit": {
+    "file": "lib/scene.re",
+    "old": "  | Rect((x0, y0), (x1, y1)) => 2 * abs(x1 - x0) * abs(y1 - y0)\n  };\n",
+    "new": "  | Rect((x0, y0), (x1, y1)) => 2 * abs(x1 - x0) * abs(y1 - y0)\n  };\n\nlet translate = ((dx, dy): point, s: shape): shape => {\n  let move = ((x, y)) => (x + dx, y + dy);\n  switch (s) {\n  | Circle(c, r) => Circle(move(c), r)\n  | Rect(a, b) => Rect(move(a), move(b))\n  };\n};\n\nlet scale = (k: int, s: shape): shape =>\n  switch (s) {\n  | Circle(c, r) => Circle(c, k * r)\n  | Rect(a, (x1, y1)) => Rect(a, (k * x1, k * y1))\n  };\n\ntype scene = list(shape);\n\nlet total_area = (sc: scene): int =>\n  List.fold_left((acc, s) => acc + area(s), 0, sc);\n"
+   }
+  },
+  {
+   "wait": 2500
+  },
+  {
+   "ask": {
+    "tool": "Bash",
+    "input": {
+     "command": "git -C . add lib && git -C . commit -m 'Scene: transforms and a total'",
+     "description": "Commit the work"
+    }
+   }
+  },
+  {
+   "wait": 20000
+  },
+  {
+   "say": "Done: a point, a shape, a scene, and four functions over them."
+  }
+ ]
+}

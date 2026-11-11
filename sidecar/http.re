@@ -251,6 +251,60 @@ let refmt = (oc, project, query) => {
   };
 };
 
+/* The definition a prompt is about, from the page's JSON. */
+let about = json =>
+  switch (json) {
+  | `Assoc(fields) =>
+    switch (List.assoc_opt("name", fields)) {
+    | Some(`String(name)) =>
+      Some({
+        Agent.name,
+        where:
+          switch (
+            List.assoc_opt("file", fields),
+            List.assoc_opt("line", fields),
+            List.assoc_opt("end_line", fields),
+          ) {
+          | (Some(`String(file)), Some(`Int(first)), Some(`Int(last))) =>
+            Some((file, first, last))
+          | _ => None
+          },
+      })
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* The user's answer to a request of the agent's, from the page's JSON. */
+let answer = json => {
+  open Yojson.Safe.Util;
+  let strings = name =>
+    switch (json |> member(name)) {
+    | `List(items) => List.filter_map(to_string_option, items)
+    | _ => []
+    };
+  let answer =
+    switch (json |> member("decision")) {
+    | `String("once") => Some(Agent.Once)
+    | `String("always") => Some(Agent.Always(strings("patterns")))
+    | `String("deny") => Some(Agent.Deny)
+    | `String("answered") =>
+      Some(
+        Agent.Answers(
+          json
+          |> member("answers")
+          |> to_assoc
+          |> List.map(((q, label)) => (q, to_string(label))),
+        ),
+      )
+    | _ => None
+    };
+  switch (json |> member("id"), answer) {
+  | (`String(id), Some(answer)) => Some((id, answer))
+  | _ => None
+  };
+};
+
 let route = (oc, ~home, source, {meth, path, query, body}) =>
   switch (meth, path, source) {
   | ("GET", "/events", Live(_)) => events_live(oc)
@@ -280,18 +334,26 @@ let route = (oc, ~home, source, {meth, path, query, body}) =>
   | ("GET", "/source" | "/refmt", Replay(_)) => not_found(oc)
   | ("GET", "/refmt", Live(project, _)) => refmt(oc, project, query)
   | ("POST", "/prompt", Live(_, agent)) =>
-    let text =
-      try(
-        Yojson.Safe.Util.(
-          Yojson.Safe.from_string(body) |> member("text") |> to_string
+    let (text, about) =
+      switch (Yojson.Safe.from_string(body)) {
+      | json => (
+          Yojson.Safe.Util.(json |> member("text") |> to_string),
+          about(Yojson.Safe.Util.member("about", json)),
         )
-      ) {
-      | _ => body
+      | exception _ => (body, None)
       };
     if (String.trim(text) != "") {
-      Agent.prompt(agent, text);
+      Agent.prompt(agent, ~about?, text);
     };
     ok(oc);
+  | ("POST", "/answer", Live(_, agent)) =>
+    switch (answer(Yojson.Safe.from_string(body))) {
+    | Some((id, answer)) =>
+      Agent.answer(agent, ~id, answer);
+      ok(oc);
+    | None
+    | exception _ => respond(oc, ~status="400 Bad Request", "no")
+    }
   | ("POST", "/types", Live(_)) =>
     let texts =
       try(
@@ -333,7 +395,11 @@ let handle = (~home, source, fd) => {
   let ic = Unix.in_channel_of_descr(fd)
   and oc = Unix.out_channel_of_descr(fd);
   try(route(oc, ~home, source, read_request(ic))) {
-  | _ => ()
+  | _ =>
+    /* Usually the viewer has gone; if not, say that it went wrong. */
+    try(respond(oc, ~status="500 Internal Server Error", "error")) {
+    | _ => ()
+    }
   };
   try(flush(oc)) {
   | _ => ()
