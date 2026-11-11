@@ -171,7 +171,7 @@ let mk_node =
 let truncate = (n: int, s: string): string =>
   String.length(s) > n ? String.sub(s, 0, n - 1) ++ {js|…|js} : s;
 
-let display_label = (key: string): string =>
+let display_label = (key: Graph.key): string =>
   if (String.length(key) > 0 && key.[0] == '?') {
     "?";
   } else if (String.length(key) >= 2 && String.sub(key, 0, 2) == "{}") {
@@ -205,9 +205,9 @@ let uniquify_keys = (nodes: list(tynode)): list(tynode) => {
 let qname = (path: list(string), name: string): string =>
   String.concat(".", path @ [name]);
 
-let is_former_key = (key: string): bool =>
+let is_former_key = (key: Graph.key): bool =>
   String.length(key) >= 3 && String.sub(key, 0, 3) == "{}@";
-let former_key = (path: list(string)): string =>
+let former_key = (path: list(string)): Graph.key =>
   "{}@" ++ String.concat(".", path);
 
 /* ---------- PORTOLAN: from the graph record ---------- */
