@@ -98,6 +98,7 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
   background: transparent; color: inherit; font: inherit; }
 .canvas-tool-btn:hover { background: var(--surface-highlight-soft); }
 .canvas-tool-btn.tool-active { background: var(--surface-highlight); color: var(--text-strong); }
+#info-view.listing .tool-active:not(#code-tests) { background: transparent; color: inherit; }
 .canvas-tool-select { border: 0.6px solid var(--border-default); border-radius: 4px; padding: 1px 4px; cursor: pointer; background: transparent; color: inherit; font: inherit; max-width: 15em; }
 .canvas-tool-select:hover { background: var(--surface-highlight-soft); }
 .canvas-tool-select:focus-visible { outline: 0.6px solid var(--border-strong); outline-offset: 1px; }
@@ -120,6 +121,15 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
 #info-note { font: 400 12px var(--ui-font); white-space: nowrap; cursor: help; }
 #info-view { display: flex; gap: 4px; flex: none; font-size: 12px; color: var(--text-default); }
 #info:not(.has-code) #info-view { display: none; }
+#info-tests { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 8px 10px; font: 400 13px/1.5 var(--code-font); color: var(--text-default); }
+#info-tests[hidden], #info-code[hidden] { display: none; }
+.trow { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 2px 6px; border-radius: 4px; cursor: pointer; }
+.trow:hover, .trow.mark { background: var(--surface-highlight-soft); }
+.trow .tname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trow .twhere { color: var(--text-muted); font-size: 12px; }
+.tpip { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--border-strong); box-sizing: border-box; }
+.tpip.pass { background: #4A9A4A; border-color: #3A7A3A; } .tpip.fail { background: #D04030; border-color: #A03020; }
+#info-path.back { cursor: pointer; } #info-path.back:hover { text-decoration: underline; }
 #info-code { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 #info-code:empty { display: none; }
 #info-code .cm-editor { flex: 1 1 auto; min-height: 0; background: transparent; color: var(--text-default); }

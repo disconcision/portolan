@@ -722,7 +722,9 @@ let edge_label =
       /* PORTOLAN: past a handful, one pip per status and a count
          (CanvasPips); the pip opens the first test it stands for. */
       ...{
-           let jump = (t: CanvasGraph.test_info) => inject_jump(t.t_id);
+           /* the host hears the test, then the function it sits on */
+           let jump = (t: CanvasGraph.test_info) =>
+             Effect.Many([inject_jump(t.t_id), on_edge_click(e)]);
            switch (CanvasPips.shown(e.tests)) {
            | Each(tests) => List.map(test_pip(~on_click=jump), tests)
            | Folded(groups) =>
@@ -732,7 +734,7 @@ let edge_label =
                    test_pip(
                      ~title=
                        Printf.sprintf(
-                         "%d tests like this; opens the first",
+                         "%d tests like this; opens the list",
                          more + 1,
                        ),
                      ~on_click=jump,

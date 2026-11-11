@@ -61,7 +61,7 @@
   // ---- the whole project, each module at one of three levels (an experiment, logbook entry 9) ----
   // closed: one node, with arrows to the closed modules it uses; interface: what it exports; open: everything.
   // A click on a module's node moves it to the next level. A large project starts all closed.
-  let levels = null;
+  let levels = null, clickedTest = null;
   const level = (g, m) => {
     if (!levels) { try { levels = JSON.parse(kept('levels.' + project) || '{}'); } catch (e) { levels = {}; } }
     return levels[m] || (modules(g).reduce((n, x) => n + x.size, 0) > 60 ? 'closed' : 'open');
@@ -233,7 +233,15 @@
         if (moduleName === '' && latest && modules(latest).length > 1 && modules(latest).some(m => m.name === name) && (kind === 'module' || level(latest, name) === 'closed')) return cycle(name);
         if (moduleName === PortolanMap.MAP && latest && modules(latest).some(m => m.name === name)) return choose(name); // on the map, a module opens
         const item = g && (g.edges.find(e => e.name === name || e.label === name) || g.nodes.find(n => n.key === name || n.label === name) || (g.values || []).find(v => v.name === name));
-        cb(item || { label: name, at }, item && g.edges.includes(item) ? 'edge' : 'node', at || (item && item.at));
+        // A click on a pip arrives as the test, then at once as the function it sits on.
+        if (kind === 'test') { clickedTest = { at, when: Date.now() }; if (!at) return; }
+        const isEdge = !!item && g.edges.includes(item);
+        cb(item || { label: name, at }, isEdge ? 'edge' : 'node', at || (item && item.at));
+        if (isEdge && clickedTest && Date.now() - clickedTest.when < 150) {
+          const t = (item.tests || []).find(x => x.at && clickedTest.at && x.at.file === clickedTest.at.file && x.at.line === clickedTest.at.line);
+          if (t) openTests(t);
+        }
+        if (kind !== 'test') clickedTest = null;
       }),
     },
     plain: {
@@ -381,15 +389,65 @@
     if (!picked || !shown || !picked.at) return;
     const id = picked.item.name || picked.item.key;
     const item = picked.kind === 'edge' ? shown.edges.find(e => e.name === id) : shown.nodes.find(n => n.key === id) || (shown.values || []).find(v => v.name === id);
-    if (item && item.at && (!changed || changed === item.at.file || JSON.stringify(item.at) !== JSON.stringify(picked.at))) showSource(item, picked.kind, item.at);
+    if (item && item.at && (!changed || changed === item.at.file || JSON.stringify(item.at) !== JSON.stringify(picked.at))) {
+      const open = testsOpen;
+      showSource(item, picked.kind, item.at);
+      if (open) { testsOpen = true; drawTestList(); }
+    }
   }
   async function showSource(item, kind, at) {
     picked = { item, kind, at };
+    testsOpen = false; testShown = null;
     $('info-path').textContent = at ? at.path : item.label || item.name || '';
     $('info-type').textContent = kind === 'edge' && item.ty ? ': ' + item.ty : item.ty ? '= ' + item.ty : '';
     drawSyntax();
+    drawTestList();
     PortolanCode.show({ at, name: item.label || item.name || '', files, syntax: syntaxNow() });
   }
+
+  // ---- the tests of the picked function: a list in the code panel, each opening its source ----
+  let testsOpen = false, testShown = null;
+  const testsOf = () => (picked && picked.kind === 'edge' && picked.item.tests) || [];
+  const sameTest = (a, b) => a && b && a.name === b.name && a.at && b.at && a.at.file === b.at.file && a.at.line === b.at.line;
+  function drawTestList(mark) {
+    const ts = testsOf(), btn = $('code-tests'), list = $('info-tests'), path = $('info-path');
+    btn.hidden = !ts.length;
+    btn.textContent = 'tests ' + ts.length;
+    btn.classList.toggle('tool-active', testsOpen || !!testShown);
+    list.hidden = !testsOpen;
+    $('info-view').classList.toggle('listing', testsOpen);
+    $('info-code').hidden = testsOpen;
+    path.classList.toggle('back', !!testShown);
+    path.title = testShown ? 'Back to the definition' : '';
+    if (picked && picked.at) path.textContent = picked.at.path + (testShown ? '  ›  ' + testShown.name : '');
+    if (!testsOpen) return;
+    const rank = { fail: 0, unknown: 1, pass: 2 };
+    list.replaceChildren(...[...ts].sort((a, b) => (rank[a.status] ?? 1) - (rank[b.status] ?? 1)).map(t => {
+      const row = Object.assign(document.createElement('div'), { className: 'trow' + (sameTest(t, mark) ? ' mark' : '') });
+      row.setAttribute('role', 'listitem');
+      row.innerHTML = '<span class="tpip ' + esc(t.status || 'unknown') + '" title="' + esc(t.status === 'pass' ? 'passing' : t.status === 'fail' ? 'failing' : 'not run') + '"></span><span class="tname">' + esc(t.name) + '</span><span class="twhere">' + (t.at ? esc(t.at.file.split('/').pop() + ':' + t.at.line) : '') + '</span>';
+      row.onclick = () => showTest(t);
+      return row;
+    }));
+    const marked = list.querySelector('.mark');
+    if (marked) marked.scrollIntoView({ block: 'nearest' });
+  }
+  function showTest(t) {
+    if (!t.at) return;
+    testShown = t; testsOpen = false;
+    drawTestList();
+    PortolanCode.show({ at: t.at, name: t.name, files, syntax: syntaxNow() });
+  }
+  // From a pip on the canvas: a function with many tests opens its list at that test, one with few opens the test.
+  function openTests(t) {
+    if (testsOf().length > 6) { testsOpen = true; testShown = null; drawTestList(t); } else showTest(t);
+  }
+  $('code-tests').onclick = () => {
+    if (testsOpen) { testsOpen = false; drawTestList(); } else { testsOpen = true; drawTestList(testShown); }
+  };
+  $('info-path').onclick = () => { if (testShown && picked) showSource(picked.item, picked.kind, picked.at); };
+  // Choosing definition or file leaves the list for the code it was over.
+  ['code-definition', 'code-file'].forEach(id => $(id).addEventListener('click', () => { if (testsOpen) { testsOpen = false; drawTestList(); } }));
 
   // ---- formatted text: a small Markdown reader for the agent's replies ----
   const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
