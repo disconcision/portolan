@@ -18,7 +18,7 @@ type said =
 
 /* ---------- reading ---------- */
 
-let control_request = ev => {
+let control_request = (ev: Yojson.Safe.t) => {
   open Yojson.Safe.Util;
   let id = ev |> member("request_id") |> to_string;
   let request = ev |> member("request");
@@ -113,17 +113,17 @@ let cause = (~relative, ev) => {
 
 type message = Yojson.Safe.t;
 
-let to_string = message => Yojson.Safe.to_string(message);
+let to_string = (message: message) => Yojson.Safe.to_string(message);
 
-let str = s => `String(s);
+let str = (s): Yojson.Safe.t => `String(s);
 
-let prompt = text =>
+let prompt = (text): message =>
   `Assoc([
     ("type", str("user")),
     ("message", `Assoc([("role", str("user")), ("content", str(text))])),
   ]);
 
-let allow = (~rules=[], input) =>
+let allow = (~rules=[], input): Yojson.Safe.t =>
   `Assoc(
     [("behavior", str("allow")), ("updatedInput", input)]
     @ (
@@ -147,7 +147,7 @@ let allow = (~rules=[], input) =>
     ),
   );
 
-let decision = (~input, answer: Event.answer) =>
+let decision = (~input, answer: Event.answer): Yojson.Safe.t =>
   switch (answer) {
   | Once => allow(input)
   | Always(patterns) => allow(~rules=patterns, input)
@@ -175,27 +175,27 @@ let decision = (~input, answer: Event.answer) =>
     );
   };
 
-let response = fields =>
+let response = (fields): message =>
   `Assoc([
     ("type", str("control_response")),
     ("response", `Assoc(fields)),
   ]);
 
-let answer = (~id, ~input, answer) =>
+let answer = (~id, ~input, answer): message =>
   response([
     ("subtype", str("success")),
     ("request_id", str(id)),
     ("response", decision(~input, answer)),
   ]);
 
-let refusal = (~id) =>
+let refusal = (~id): message =>
   response([
     ("subtype", str("error")),
     ("request_id", str(id)),
     ("error", str("Portolan does not handle this request.")),
   ]);
 
-let interrupt = (~id) =>
+let interrupt = (~id): message =>
   `Assoc([
     ("type", str("control_request")),
     ("request_id", str(id)),

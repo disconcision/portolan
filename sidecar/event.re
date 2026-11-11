@@ -142,10 +142,10 @@ let states = [
 
 /* ---------- writing ---------- */
 
-let str = s => `String(s);
-let strs = l => `List(List.map(str, l));
+let str = (s): Yojson.Safe.t => `String(s);
+let strs = (l): Yojson.Safe.t => `List(List.map(str, l));
 
-let about_json = about =>
+let about_json = (about): Yojson.Safe.t =>
   `Assoc(
     [("name", str(about.name))]
     @ (
@@ -160,7 +160,7 @@ let about_json = about =>
     ),
   );
 
-let cause_json = cause =>
+let cause_json = (cause): Yojson.Safe.t =>
   `Assoc(
     switch (cause) {
     | By_hand => [("label", str("edit")), ("by", str("hand"))]
@@ -210,7 +210,7 @@ let optional = (name, value) =>
   };
 
 /* The fields after ["type"], in the order the page and older traces have them. */
-let fields =
+let fields: t => list((string, Yojson.Safe.t)) =
   fun
   | Session({restart}) => [("restart", `Bool(restart))]
   | Hello({project, agent, opam_switch}) =>
@@ -272,14 +272,19 @@ let fields =
     @ optional("tool_use_id", tool_use)
   | Answer({id, answer}) => [("id", str(id)), ...answer_fields(answer)];
 
-let to_json = event =>
-  `Assoc([("type", str(Kind.name(kind(event)))), ...fields(event)]);
+/* An event's fields in full: its kind, then the rest. */
+let whole = event => [
+  ("type", str(Kind.name(kind(event)))),
+  ...fields(event),
+];
+
+let to_json = (event): Yojson.Safe.t => `Assoc(whole(event));
 
 /* ---------- reading ---------- */
 
 let ( let* ) = Option.bind;
 
-let field = (name, json) =>
+let field = (name, json: Yojson.Safe.t) =>
   switch (json) {
   | `Assoc(fields) => List.assoc_opt(name, fields)
   | _ => None
@@ -547,10 +552,7 @@ module Line = {
   type t = string;
 
   let make = (~time, event) =>
-    switch (to_json(event)) {
-    | `Assoc(fields) =>
-      Yojson.Safe.to_string(`Assoc([("t", `Int(time)), ...fields]))
-    };
+    Yojson.Safe.to_string(`Assoc([("t", `Int(time)), ...whole(event)]));
 
   let of_string = s => s;
   let to_string = line => line;

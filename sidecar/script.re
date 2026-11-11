@@ -49,7 +49,7 @@ type step =
       input: Yojson.Safe.t,
     });
 
-let step_of_json = json =>
+let step_of_json = (json: Yojson.Safe.t) =>
   Yojson.Safe.Util.(
     switch (json) {
     | `Assoc([("say", `String(text))]) => Some(Say(text))
