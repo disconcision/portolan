@@ -526,7 +526,11 @@ type ranking =
   | Combined
   | FunctionFlow
   | TypeDependencies;
-let layout_impl =
+/* PORTOLAN: upstream's layout_impl is cut in two where its last step
+   begins. `layout_core` is everything that does not depend on the frame;
+   `layout_frame` translates the result into the frame. A render asks for
+   the same graph in several frames, and now pays for the placement once. */
+let layout_core =
     (
       ~ranking=Combined,
       ~experiment="current",
@@ -547,8 +551,10 @@ let layout_impl =
          the view in a small pane; neighbours may overlap for now). */
       ~cards: list((string, (float, float)))=[],
       g: CanvasGraph.t,
-    )
-    : t => {
+    ) => {
+  /* PORTOLAN: the frame is layout_frame's */
+  ignore(center_within);
+  ignore(origin_override);
   let t_pre = Util.PerfTimer.now();
   let x_scale =
     experiment == "current"
@@ -2047,6 +2053,36 @@ let layout_impl =
       value_layouts,
     );
   };
+  /* PORTOLAN: the cut */
+  (
+    experiment,
+    cards,
+    node_layouts,
+    edge_layouts,
+    value_layouts,
+    formations,
+    dep_links,
+    pad,
+    (min_x, min_y, max_x, max_y),
+  );
+};
+let layout_frame =
+    (
+      ~center_within: option(float),
+      ~origin_override: option(pos),
+      (
+        experiment,
+        cards,
+        node_layouts,
+        edge_layouts,
+        value_layouts,
+        formations,
+        dep_links,
+        pad,
+        (min_x, min_y, max_x, max_y),
+      ),
+    )
+    : t =>
   if (node_layouts == []) {
     {
       nodes: [],
@@ -2166,7 +2202,6 @@ let layout_impl =
       },
     };
   };
-};
 
 /* ---- instrumentation: how often and how long a render lays out ---- */
 let layout_calls: ref(int) = ref(0);
@@ -2186,9 +2221,28 @@ type layout_key = {
   k_offsets: list((string, (float, float))),
   k_pins: list((string, (float, float))),
   k_cards: list((string, (float, float))),
+  /* PORTOLAN: the pane shape a packing layout aimed for */
+  k_aspect: float,
 };
 let layout_memo: ref(list((layout_key, t))) = ref([]);
 let layout_memo_hits: ref(int) = ref(0);
+/* PORTOLAN: two memos. `layout_memo` is upstream's, by every parameter.
+   `core_memo` holds placements by everything but the frame: the fit check,
+   the frame derivation and the view ask for one graph in three or four
+   frames, and those now share a placement. `layout_calls` and `layout_ms`
+   count placements. */
+let same_key = (a: layout_key, b: layout_key) =>
+  a.k_experiment == b.k_experiment
+  && a.k_graph === b.k_graph
+  && a.k_x == b.k_x
+  && a.k_y == b.k_y
+  && a.k_center == b.k_center
+  && a.k_origin == b.k_origin
+  && a.k_offsets == b.k_offsets
+  && a.k_pins == b.k_pins
+  && a.k_cards == b.k_cards
+  && a.k_aspect == b.k_aspect;
+let core_memo = ref([]);
 let layout =
     (
       ~x_scale=1.,
@@ -2202,61 +2256,67 @@ let layout =
     )
     : t => {
   let cards = Option.value(~default=card_extents^, cards);
-  let experiment = (
-    Lab.mode^,
-    Lab.wires^,
-    Lab.scene^,
-    Lab.generation^ + Lab.revision^,
-  );
+  /* PORTOLAN: only the layered layouts stretch, and only the packing ones
+     look at the pane's shape; a key that says otherwise is a wasted solve */
+  let stretches = List.mem(Lab.mode^, ["current", "flow", "dependencies"]);
+  let packs = CanvasOptions.places(Lab.mode^) || Lab.mode^ == "compact";
   let key = {
-    k_experiment: experiment,
+    k_experiment: (
+      Lab.mode^,
+      Lab.wires^,
+      Lab.scene^,
+      Lab.generation^ + Lab.revision^,
+    ),
     k_graph: g,
-    k_x: x_scale,
-    k_y: y_scale,
+    k_x: stretches ? x_scale : 1.,
+    k_y: stretches ? y_scale : 1.,
     k_center: center_within,
     k_origin: origin_override,
     k_offsets: offsets,
     k_pins: pins,
     k_cards: cards,
+    k_aspect: packs ? CanvasOptions.aspect^ : 0.,
   };
-  let same = (k: layout_key) =>
-    k.k_experiment == experiment
-    && k.k_graph === g
-    && k.k_x == x_scale
-    && k.k_y == y_scale
-    && k.k_center == center_within
-    && k.k_origin == origin_override
-    && k.k_offsets == offsets
-    && k.k_pins == pins
-    && k.k_cards == cards;
-  switch (List.find_opt(((k, _)) => same(k), layout_memo^)) {
+  switch (List.find_opt(((k, _)) => same_key(k, key), layout_memo^)) {
   | Some((_, r)) =>
     incr(layout_memo_hits);
     r;
   | None =>
-    let now = () =>
-      Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now();
-    let t0 = now();
-    let r =
-      layout_impl(
-        ~experiment=Lab.mode^,
-        ~circuit=Lab.wires^ == "circuit",
-        ~ranking=
-          Lab.mode^ == "flow"
-            ? FunctionFlow
-            : Lab.mode^ == "dependencies" ? TypeDependencies : Combined,
-        ~x_scale,
-        ~y_scale,
-        ~center_within,
-        ~origin_override,
-        ~offsets,
-        ~pins,
-        ~cards,
-        g,
-      );
-    incr(layout_calls);
-    layout_ms := layout_ms^ +. (now() -. t0);
-    Util.PerfTimer.record("canvas-layout", now() -. t0);
+    let core_key = {
+      ...key,
+      k_center: None,
+      k_origin: None,
+    };
+    let core =
+      switch (List.find_opt(((k, _)) => same_key(k, core_key), core_memo^)) {
+      | Some((_, c)) => c
+      | None =>
+        let now = () =>
+          Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now();
+        let t0 = now();
+        let c =
+          layout_core(
+            ~experiment=Lab.mode^,
+            ~circuit=Lab.wires^ == "circuit",
+            ~ranking=
+              Lab.mode^ == "flow"
+                ? FunctionFlow
+                : Lab.mode^ == "dependencies" ? TypeDependencies : Combined,
+            ~x_scale,
+            ~y_scale,
+            ~offsets,
+            ~pins,
+            ~cards,
+            g,
+          );
+        incr(layout_calls);
+        layout_ms := layout_ms^ +. (now() -. t0);
+        Util.PerfTimer.record("canvas-layout", now() -. t0);
+        core_memo :=
+          [(core_key, c), ...List.filteri((i, _) => i < 3, core_memo^)];
+        c;
+      };
+    let r = layout_frame(~center_within, ~origin_override, core);
     layout_memo :=
       [(key, r), ...List.filteri((i, _) => i < 5, layout_memo^)];
     r;
