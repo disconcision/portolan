@@ -1,0 +1,724 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portolan Scope Notes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column (max 46rem) for prose; figures, tables and mock-ups break out to 68rem. */
+:root {
+  --bg: #F2F4F7; --surface: #FFFFFF; --ink: #17202B; --muted: #5A6676; --rule: #D3DAE2;
+  --accent: #2B55C8; --accent-soft: #E3EAFB; --mark: #B86A00; --mark-soft: #FBEFD9;
+  --v2: #8A3FB0; --v2-soft: #F2E6F8;
+  --sans: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #10141A; --surface: #181D26; --ink: #E6EAF0; --muted: #98A3B3; --rule: #2B3340;
+  --accent: #86A6FF; --accent-soft: #1D2740; --mark: #F0B45A; --mark-soft: #33291A;
+  --v2: #CC92EA; --v2-soft: #2C2036; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #10141A; --surface: #181D26; --ink: #E6EAF0; --muted: #98A3B3; --rule: #2B3340;
+  --accent: #86A6FF; --accent-soft: #1D2740; --mark: #F0B45A; --mark-soft: #33291A;
+  --v2: #CC92EA; --v2-soft: #2C2036; color-scheme: dark }
+
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 96px; }
+main { max-width: 68rem; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+section { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.col { max-width: 46rem; display: flex; flex-direction: column; gap: 14px; }
+h1 { font: 700 clamp(2rem, 5vw, 2.9rem)/1.08 var(--sans); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+h2 { font: 700 1.55rem/1.2 var(--sans); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+h3 { font: 600 1.05rem/1.3 var(--sans); margin: 0; }
+p, ul, ol { margin: 0; }
+ul, ol { padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.15rem; line-height: 1.5; color: var(--ink); }
+.muted { color: var(--muted); }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { background: var(--accent-soft); padding: 0.05em 0.35em; border-radius: 4px; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.verdict { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 22px 24px;
+  display: flex; flex-direction: column; gap: 12px; max-width: 54rem; }
+.verdict ol { gap: 10px; }
+.tag { display: inline-block; font: 500 0.72rem/1 var(--mono); letter-spacing: 0.04em; padding: 4px 7px; border-radius: 4px;
+  background: var(--accent-soft); color: var(--accent); vertical-align: 0.1em; white-space: nowrap; }
+.tag.v2 { background: var(--v2-soft); color: var(--v2); }
+.tag.pick { background: var(--mark-soft); color: var(--mark); }
+
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 20px; }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card ul { gap: 5px; font-size: 0.95rem; }
+
+figure { margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 46rem; }
+.scroll { overflow-x: auto; }
+.diagram { display: block; width: 100%; min-width: 640px; height: auto; color: var(--ink); font-family: var(--mono); }
+.diagram .box { fill: var(--surface); stroke: currentColor; stroke-width: 1.2; }
+.diagram .soft { fill: var(--bg); stroke: var(--rule); stroke-width: 1.2; }
+.diagram .v1 { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+.diagram .v2 { fill: var(--v2-soft); stroke: var(--v2); stroke-width: 1.4; }
+.diagram .wire { stroke: currentColor; stroke-width: 1.2; fill: none; }
+.diagram .wire.v1w { stroke: var(--accent); } .diagram .wire.v2w { stroke: var(--v2); }
+.diagram .dash { stroke-dasharray: 4 4; }
+.diagram text { fill: currentColor; font-size: 12px; }
+.diagram text.sm { font-size: 10.5px; fill: var(--muted); }
+.diagram text.hd { font-weight: 600; }
+.diagram text.av1 { fill: var(--accent); } .diagram text.av2 { fill: var(--v2); }
+.diagram .leak { stroke: var(--mark); stroke-width: 1.6; fill: none; }
+.diagram text.amk { fill: var(--mark); }
+.diagram .head.mkh { fill: var(--mark); }
+.diagram .mkfill { fill: var(--mark-soft); stroke: var(--mark); stroke-width: 1.6; }
+.diagram .dim { opacity: 0.45; }
+.diagram .hollow { fill: var(--bg); stroke: currentColor; stroke-width: 1.2; }
+.diagram .ghost { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 2 4; }
+.diagram .solid { fill: currentColor; }
+.diagram .head { fill: currentColor; } .diagram .head.v1h { fill: var(--accent); } .diagram .head.v2h { fill: var(--v2); }
+
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; min-width: 640px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+th { font: 500 0.72rem/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+td:first-child { font-weight: 600; white-space: nowrap; }
+tr.pick td { background: var(--mark-soft); }
+
+.schemes { display: flex; flex-direction: column; gap: 28px; }
+.scheme { display: flex; flex-direction: column; gap: 12px; }
+.scheme-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.scheme-head p { color: var(--muted); font-size: 0.95rem; flex: 1 1 22rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font: 400 0.72rem/1 var(--mono); color: var(--muted);
+  border: 1px solid var(--rule); border-radius: 999px; padding: 3px 8px 3px 4px; background: var(--surface); }
+.chip i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid rgba(128,128,128,.35); }
+.mocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: 16px; }
+.mock { border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; min-width: 0; }
+.mock svg { display: block; width: 100%; height: auto; }
+.mock-label { font: 500 0.7rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 0 0 6px; }
+.turn { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.turn-head { font: 500 0.72rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.turn .ref { font: 500 0.82em/1 var(--mono); background: var(--mark-soft); color: var(--mark); padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.turn-sent { font: 400 0.8rem/1.5 var(--mono); color: var(--muted); border-top: 1px dashed var(--rule); padding-top: 8px; }
+.steps { counter-reset: s; list-style: none; padding: 0; gap: 8px; }
+.steps li { counter-increment: s; position: relative; padding-left: 1.8rem; font-size: 0.95rem; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; font: 500 0.8rem/1.9 var(--mono); color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="https://andrewblinn.com/portolan/">Portolan notebook</a> · living scope notes · updated 10 November 2026</span>
+  <h1>An agent canvas for OCaml code bases</h1>
+  <p class="lede">A way of working with a code base at a level above the text, with the text always one step down. The starting point is Hazel's Constellation canvas, pointed at ordinary OCaml and Reason projects. What it is for is still being worked out. This page fixes a small first build and sketches where it could go.</p>
+</header>
+
+<section>
+  <div class="verdict">
+    <span class="eyebrow">In short</span>
+    <ul>
+      <li><strong>First build.</strong> The parts of Hazel's canvas that translate, for a dune project: types as nodes, functions as arrows, modules as hulls, tests as pips, Trine, replay, and a click through to the code. It works on a repository at rest, on a recorded run, and live beside Claude Code.</li>
+      <li><strong>How.</strong> A native OCaml sidecar turns the project into the graph record Hazel's canvas already draws. The canvas code is copied behind that record, free to be shared with Hazel or to diverge later.</li>
+      <li><strong>Directions, sketched and not in the first build.</strong> Interfaces as the map, change sets as pictures, several agents at once, voice and ink, editing by definition, properties on the diagram.</li>
+      <li><strong>This page is kept current.</strong> It records the scope as it is talked through: your directions, and ones proposed here, marked as such.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <span class="eyebrow">Purpose, unsettled</span>
+    <h2>Orders of reading</h2>
+    <p>A working statement, to be revised: the canvas gives a code base several levels, and lets you stay at the highest one that answers your question. Each level shows the one below folded, and opens it on demand, down to the code. It could turn out to be a main way of engaging with code, and the first build should not close that off.</p>
+  </div>
+  <figure>
+    <div class="scroll">
+    <svg class="diagram" viewBox="0 0 960 200" role="img" aria-label="Four levels: project, library, module and definition. Each opens into the next, and a change marked at one level shows at the levels above it.">
+      <defs>
+        <marker id="f0a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head"/></marker>
+        <marker id="f0m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head mkh"/></marker>
+      </defs>
+      <rect class="soft" x="20" y="16" width="200" height="110" rx="8"/>
+      <rect class="v1" x="36" y="32" width="72" height="34" rx="17"/><rect class="mkfill" x="122" y="44" width="82" height="30" rx="15"/><rect class="v1" x="58" y="84" width="112" height="28" rx="14"/>
+      <path class="wire" d="M222 71 H256" marker-end="url(#f0a)"/>
+      <rect class="soft" x="260" y="16" width="200" height="110" rx="8"/>
+      <rect class="v1" x="276" y="34" width="78" height="74" rx="30"/><circle class="solid" cx="354" cy="71" r="6"/>
+      <rect class="v1" x="384" y="40" width="62" height="62" rx="28"/><circle class="mkfill" cx="384" cy="71" r="6"/><path class="wire" d="M360 71 H378"/>
+      <path class="wire" d="M462 71 H496" marker-end="url(#f0a)"/>
+      <rect class="soft" x="500" y="16" width="200" height="110" rx="8"/>
+      <circle class="hollow" cx="540" cy="48" r="9"/><circle class="hollow" cx="650" cy="48" r="9"/><circle class="mkfill" cx="596" cy="100" r="9"/>
+      <path class="wire" d="M549 48 H639" marker-end="url(#f0a)"/><path class="leak" d="M645 56 L606 93" marker-end="url(#f0m)"/>
+      <path class="wire" d="M702 71 H736" marker-end="url(#f0a)"/>
+      <rect class="soft" x="740" y="16" width="200" height="110" rx="8"/>
+      <text class="sm" x="754" y="46">let rec mk ctx t =</text><text class="sm" x="754" y="64">  match t.term with</text><text class="sm amk" x="754" y="82">  | Var x -> lookup ctx x</text><text class="sm" x="754" y="100">  | Let (p, d, b) -> …</text>
+      <text class="hd" x="20" y="152">Project</text><text class="sm" x="20" y="172">where is work happening?</text>
+      <text class="hd" x="260" y="152">Library</text><text class="sm" x="260" y="172">which interfaces changed?</text>
+      <text class="hd" x="500" y="152">Module</text><text class="sm" x="500" y="172">what shape is forming?</text>
+      <text class="hd" x="740" y="152">Definition</text><text class="sm" x="740" y="172">what does the code say?</text>
+    </svg>
+    </div>
+    <figcaption>One change (amber) seen at four levels. A mark made at the bottom shows at every level above it, so you can stop at the first level that tells you enough.</figcaption>
+  </figure>
+  <div class="col">
+    <p>Three things this should not shrink to:</p>
+    <ul>
+      <li><strong>Only a first glance.</strong> The demo framed it as a first-order alternative to the transcript. The emphasis is better put on having orders at all, and moving between them.</li>
+      <li><strong>Only live.</strong> Watching the agent work is the fun part. As a tool it matters as much afterwards: what did yesterday's session do, what is in this branch, what is this code base.</li>
+      <li><strong>Only one agent.</strong> The broader subject is people and agents cooperating in one code base, including a few agents at once.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <span class="eyebrow">First build</span>
+    <h2>What Hazel has now, for a dune project</h2>
+    <p>Hazel's canvas is about 27,000 lines, of which roughly 15,000 have no Hazel dependencies: layout, score, player, camera, Trine, bubbles, traces, CSS. Everything downstream of one function, <code>CanvasGraph.extract</code>, reads a plain record of type nodes, function arrows, tests, module paths and error flags. The canvas never reads edit operations. Each step it gets a new snapshot of that record with a cause and a site, and derives the choreography from the difference. So the port is a new producer for that record, plus a copy of the Hazel-free code.</p>
+  </div>
+  <figure>
+    <div class="scroll">
+    <svg class="diagram" viewBox="0 0 980 400" role="img" aria-label="The sidecar sits between any agent harness and the browser views. The first build has the activity log, program model and canvas. Editing by definition adds the kernel, outline and view as agent later.">
+      <defs>
+        <marker id="f1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head"/></marker>
+        <marker id="f1b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head v1h"/></marker>
+        <marker id="f1c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head v2h"/></marker>
+      </defs>
+      <rect class="box" x="20" y="40" width="200" height="70" rx="6"/>
+      <text class="hd" x="32" y="68">Agent harness</text><text class="sm" x="32" y="90">Claude Code · Codex · others</text>
+      <rect class="box" x="20" y="230" width="200" height="70" rx="6"/>
+      <text class="hd" x="32" y="258">Project on disk</text><text class="sm" x="32" y="280">.ml · .mli · .re · dune</text>
+      <path class="wire" d="M70 110 V230" marker-end="url(#f1a)"/><text class="sm" x="78" y="160">edits by any tool,</text><text class="sm" x="78" y="174">bash included</text>
+      <rect class="soft" x="340" y="16" width="310" height="372" rx="10"/>
+      <text class="sm" x="352" y="36">SIDECAR · native OCaml</text>
+      <rect class="v1" x="360" y="48" width="270" height="60" rx="6"/>
+      <text class="hd" x="372" y="73">Activity log, per agent</text><text class="sm" x="372" y="94">which definitions were read, changed</text>
+      <rect class="v2" x="360" y="132" width="270" height="60" rx="6"/>
+      <text class="hd" x="372" y="157">Edit kernel + checks</text><text class="sm" x="372" y="178">insert · replace · move · rename</text>
+      <rect class="v1" x="360" y="216" width="270" height="66" rx="6"/>
+      <text class="hd" x="372" y="243">Program model</text><text class="sm" x="372" y="264">items · types · uses · errors · tests</text>
+      <rect class="box" x="360" y="312" width="270" height="60" rx="6"/>
+      <text class="hd" x="372" y="337">Project's own ocamllsp + dune</text><text class="sm" x="372" y="358">outline · types · errors · index</text>
+      <path class="wire" d="M495 282 V312" marker-end="url(#f1a)"/><text class="sm" x="503" y="302">asks</text>
+      <path class="wire v1w" d="M220 70 H360" marker-end="url(#f1b)"/><text class="sm av1" x="232" y="62">hooks · SSE · ACP</text>
+      <path class="wire v2w" d="M220 96 H290 V162 H360" marker-end="url(#f1c)"/><text class="sm av2" x="296" y="130">MCP tools</text>
+      <path class="wire v2w" d="M360 182 H150 V230" marker-end="url(#f1c)"/><text class="sm av2" x="160" y="200">writes splices</text>
+      <path class="wire v1w" d="M220 262 H360" marker-end="url(#f1b)"/><text class="sm av1" x="262" y="254">file watch</text>
+      <rect class="v1" x="770" y="48" width="190" height="60" rx="6"/>
+      <text class="hd" x="782" y="73">Canvas</text><text class="sm" x="782" y="94">a page in any browser</text>
+      <rect class="v2" x="770" y="132" width="190" height="60" rx="6"/>
+      <text class="hd" x="782" y="157">Outline + definitions</text><text class="sm" x="782" y="178">stacked cells, chat</text>
+      <rect class="v2" x="770" y="216" width="190" height="66" rx="6"/>
+      <text class="hd" x="782" y="243">View as agent</text><text class="sm" x="782" y="264">map + open set, as sent</text>
+      <path class="wire v1w" d="M650 78 H770" marker-end="url(#f1b)"/><text class="sm av1" x="660" y="70">graph + causes</text>
+      <path class="wire v2w" d="M650 162 H770" marker-end="url(#f1c)"/><text class="sm av2" x="660" y="154">items + errors</text>
+      <path class="wire v2w" d="M650 249 H770" marker-end="url(#f1c)"/><text class="sm av2" x="660" y="241">recorded views</text>
+      <rect class="v1" x="20" y="340" width="14" height="14" rx="3"/><text class="sm" x="42" y="351">first build</text>
+      <rect class="v2" x="20" y="364" width="14" height="14" rx="3"/><text class="sm" x="42" y="375">later: editing by definition</text>
+    </svg>
+    </div>
+    <figcaption>The first build is the blue path: watch files, listen to hooks, draw. Files on disk are the store. The sidecar re-derives its model from them after every change, whoever made it. Changing harness, or later embedding one, changes only the top-left box.</figcaption>
+  </figure>
+  <div class="col">
+    <p><strong>Where the graph comes from.</strong> The sidecar asks the project's own <code>ocamllsp</code>, which vendors Merlin. It reads <code>.re</code> through the Reason reader, so Hazel works on day one. It recovers from errors one item at a time, so a half-edited file still yields its other definitions. And it is whatever version the project's switch has, so our binary is not tied to a compiler version. <code>dune describe</code> gives libraries. A watch build beside it keeps cross-module types and the occurrence index fresh.</p>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>On the canvas</th><th>In Hazel</th><th>In OCaml</th></tr></thead>
+    <tbody>
+      <tr><td>Type node</td><td>type alias</td><td>type declaration; records and variants are nominal, so nodes are sharper than in Hazel</td></tr>
+      <tr><td>Arrow, orbit</td><td>top-level function, endofunction</td><td>top-level <code>let</code> of arrow type; <code>t -> … -> t</code> makes orbits common</td></tr>
+      <tr><td>Hull</td><td>module literal</td><td>library, then file module, then submodule; functors later</td></tr>
+      <tr><td>Test pips</td><td>test forms</td><td><code>let%test</code>, expect tests, Alcotest cases, attached to the functions they mention</td></tr>
+      <tr><td>Dashed arrow, error tint</td><td>hole-bodied binding, statics</td><td>typed hole <code>_</code> or <code>failwith "TODO"</code>; Merlin errors by span</td></tr>
+      <tr><td>Thick arrow, dependency lines</td><td>use counts</td><td>the occurrence index (Hazel is on OCaml 5.2.0 with <code>ocaml-index</code> installed)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="col">
+    <p><strong>How it hears about the agent.</strong> Two signals, joined by time and path. The file watcher is ground truth and is enough alone: any change by any tool produces a new snapshot. Claude Code's tool-call hooks post to the sidecar and say which agent did it, where, and what it read. Codex hooks have nearly the same shape, and OpenCode has an event stream. A trace records snapshots and causes, so a run replays in a browser with no OCaml toolchain.</p>
+    <p><strong>Scale.</strong> Hazel is 552 modules and about 158,000 lines, so the first build opens at the library level with hulls collapsed, and frames what was touched.</p>
+    <ol class="steps">
+      <li>Index one Hazel library to graph JSON. Check three modules by hand.</li>
+      <li>Copy the Hazel-free canvas files into a new repository behind the graph record. Render that JSON on a static page.</li>
+      <li>Watch files: a hand edit re-indexes the touched module and the existing score plays. Selecting a node shows its code.</li>
+      <li>Claude Code hook adapter: cause labels and Trine's site, keyed by session. Record and replay a trace.</li>
+      <li>Run a real task on Hazel and look at it together, live and then from the trace.</li>
+    </ol>
+    <p class="muted">Not measured yet: how fast <code>ocamllsp</code> answers on a 2,000-line Reason file mid-edit. If too slow, a parse-only reader goes in front of it.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <span class="eyebrow">Directions</span>
+    <h2>Where it could go</h2>
+    <p>None of this is in the first build. Several are not built in Hazel either, so each is a chance to design once for both.</p>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Direction</th><th>Where it came from</th><th>Touches the first build</th></tr></thead>
+    <tbody>
+      <tr><td>Levels and drill-down</td><td>you</td><td>yes: opens at library level, click through to code</td></tr>
+      <tr><td>Interfaces as the map</td><td>you, with Anil's writing; the used interface and empty rims are proposed here</td><td>no</td></tr>
+      <tr><td>Change sets as pictures</td><td>you; the three kinds of mark are proposed here</td><td>no</td></tr>
+      <tr><td>Several agents</td><td>you; body, history and relations is proposed here</td><td>the log is keyed by agent</td></tr>
+      <tr><td>Who knows what, and what you are shown</td><td>you; the four kinds of edit and the visible-trace rule are proposed here</td><td>lightly: collapsed hulls by default</td></tr>
+      <tr><td>Voice and ink</td><td>you, from Spall</td><td>no</td></tr>
+      <tr><td>Editing by definition</td><td>you, from modular editors</td><td>no</td></tr>
+      <tr><td>Properties on the diagram</td><td>you; the evidence ladder and reading existing property tests are proposed here</td><td>no</td></tr>
+      <tr><td>Slices of a definition</td><td>you; the four kinds of slice and coverage as a cheap dynamic slice are proposed here</td><td>no</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="col">
+    <h3>Interfaces as the map</h3>
+    <p>A module is drawn by its signature. The implementation is folded inside the hull and opens on demand. The reason is review: if the signatures a change touches are right and the tests behind them pass, the implementations often need no reading. </p>
+    <p>Anil Madhavapeddy makes the matching argument from the agent's side in <a href="https://anil.recoil.org/notes/ocaml-modules-agentic">a post from October</a> and an <a href="https://www.cl.cam.ac.uk/~avsm2/2025-ocaml-ai-draft1.pdf">OCaml Workshop paper</a>. Write and type-check the <code>.mli</code> files for a whole system first, then hand an agent one module at a time, since it fills a small well-specified hole better than it handles a large code base. Abstract types then enforce the design: an agent that reaches around an interface is stopped by the compiler. On the canvas that workflow has a natural picture: a system designed interface-first is a set of rims with empty interiors, drawn like Hazel's hole-bodied arrows, and implementation fills them in. His post says interfaces for this kind of work are only beginning, and points to Hazel.</p>
+    <p>Hazel has 52 interface files for 552 modules. For a module without one, the sidecar can derive the used interface: the members other modules reference. That is a draft <code>.rei</code>, which makes the tool a way of moving Hazel toward interfaces as well as reading them.</p>
+  </div>
+  <figure>
+    <div class="scroll">
+    <svg class="diagram" viewBox="0 0 960 250" role="img" aria-label="A sealed module is used only through its abstract type at the rim. An open module has a client wire reaching past the rim to an inner type.">
+      <defs>
+        <marker id="f3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head"/></marker>
+        <marker id="f3m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head mkh"/></marker>
+      </defs>
+      <text class="hd" x="40" y="24">Sealed: table.mli, type t abstract</text>
+      <rect class="v1" x="40" y="40" width="330" height="180" rx="90"/>
+      <circle class="hollow dim" cx="130" cy="100" r="11"/><text class="sm" x="148" y="104">bucket</text>
+      <circle class="hollow dim" cx="130" cy="160" r="11"/><text class="sm" x="148" y="164">hash</text>
+      <path class="wire dash dim" d="M141 104 L352 126"/><path class="wire dash dim" d="M141 156 L352 134"/>
+      <circle class="solid" cx="370" cy="130" r="17"/>
+      <text class="sm" x="344" y="164" text-anchor="middle">t</text>
+      <text class="sm" x="96" y="204">private: 2 types, 9 functions</text>
+      <rect class="box" x="452" y="100" width="100" height="60" rx="6"/><text class="hd" x="502" y="126" text-anchor="middle">Client</text><text class="sm" x="502" y="146" text-anchor="middle">run</text>
+      <path class="wire" d="M452 130 H389" marker-end="url(#f3a)"/><text class="sm" x="421" y="118" text-anchor="middle">add · find</text>
+      <text class="hd" x="590" y="24">Open: no .mli, t is a record</text>
+      <rect class="soft dash" x="590" y="40" width="330" height="180" rx="90" stroke-dasharray="5 5"/>
+      <circle class="hollow" cx="650" cy="130" r="17"/><text class="sm" x="650" y="170" text-anchor="middle">t</text>
+      <circle class="hollow" cx="800" cy="100" r="11"/><text class="sm" x="818" y="104">bucket</text>
+      <circle class="hollow" cx="800" cy="160" r="11"/><text class="sm" x="818" y="164">hash</text>
+      <path class="wire dash" d="M667 126 L789 102"/><path class="wire dash" d="M667 134 L789 158"/>
+      <path class="wire" d="M552 122 H630" marker-end="url(#f3a)"/>
+      <path class="leak" d="M552 146 C 630 200, 720 196, 791 166" marker-end="url(#f3m)"/>
+      <text class="sm amk" x="604" y="212">reads t.buckets, matches on hash</text>
+    </svg>
+    </div>
+    <figcaption>A proposal for the drawing. Exported members sit at the rim, private ones inside. An abstract type is solid, a manifest one hollow. A module with no interface gets a dashed hull, and a use of its representation from outside is a wire past the rim.</figcaption>
+  </figure>
+  <div class="col">
+    <h3>Change sets as pictures</h3>
+    <p>The canvas already works by comparing snapshots. Compare against a fixed base and it is a diff view: a session, a branch, a pull request, last week. It is a diff of definitions and interfaces, with the text diff one step down on any marked node. The same marks serve live and afterwards, sorted by how much reading they ask for.</p>
+  </div>
+  <figure>
+    <div class="scroll">
+    <svg class="diagram" viewBox="0 0 960 215" role="img" aria-label="Three kinds of change to a module: interior only, interface grew, and interface changed with dependents edited.">
+      <text class="hd" x="30" y="24">Interior only</text>
+      <rect class="v1" x="30" y="40" width="260" height="120" rx="60"/>
+      <circle class="hollow dim" cx="110" cy="78" r="10"/>
+      <circle class="mkfill" cx="110" cy="124" r="10"/><circle class="leak" cx="110" cy="124" r="16"/>
+      <path class="wire dash dim" d="M120 80 L278 98"/><path class="wire dash dim" d="M126 122 L278 102"/>
+      <circle class="solid" cx="290" cy="100" r="12"/>
+      <text class="sm" x="30" y="184">Signature unchanged. Tests decide.</text>
+      <text class="hd" x="350" y="24">Interface grew</text>
+      <rect class="v1" x="350" y="40" width="260" height="120" rx="60"/>
+      <circle class="hollow dim" cx="430" cy="100" r="10"/>
+      <path class="wire dash dim" d="M440 98 L598 82"/><path class="wire dash dim" d="M440 102 L596 120"/>
+      <circle class="solid" cx="608" cy="78" r="12"/>
+      <circle class="mkfill" cx="608" cy="122" r="12"/><circle class="leak" cx="608" cy="122" r="18"/>
+      <text class="sm" x="350" y="184">One new signature to read.</text>
+      <text class="hd" x="670" y="24">Interface changed</text>
+      <rect class="v1" x="670" y="40" width="190" height="120" rx="60"/>
+      <circle class="hollow dim" cx="740" cy="100" r="10"/><path class="wire dash dim" d="M750 100 L846 100"/>
+      <circle class="mkfill" cx="860" cy="100" r="12"/><circle class="leak" cx="860" cy="100" r="18"/>
+      <path class="leak" d="M876 92 L910 72"/><path class="leak" d="M876 108 L910 128"/>
+      <circle class="mkfill" cx="920" cy="66" r="8"/><circle class="mkfill" cx="920" cy="134" r="8"/>
+      <text class="sm" x="670" y="184">Read the signature. Two dependents</text>
+      <text class="sm" x="670" y="200">were edited to follow it.</text>
+    </svg>
+    </div>
+    <figcaption>Amber marks what changed. A summary line reads the picture back: 3 interfaces changed, 11 interior changes behind unchanged signatures, 4 dependents edited, 2 tests red.</figcaption>
+  </figure>
+  <div class="col">
+    <h3>Several agents</h3>
+    <p>On the canvas an agent has three parts. A body: its own Trine, showing where it is and what it is doing. A history: the change set it has made. And relations to other agents: who started whom, who is messaging whom. How to draw the relations is open. The history is the part that can be compared. Agents usually work in separate worktrees, so each history is a diff against a common base, and the canvas can overlay a few of them, with a colour and a sidebar lane each. What the overlay should surface is where they meet: two agents inside the same hull, or one changing a signature another's work depends on, before the merge finds it. Start with two or three. Hook events already carry a session id, so the first build keys its activity log by agent. That is the only part of this that touches the first build.</p>
+    <h3>Who knows what, and what you are shown</h3>
+    <p>Two questions share the canvas. What does the agent have? Each definition is unseen, listed, read or edited for a given agent, raised by what its tool calls returned. The canvas should be faithful about that, because it is how you understand an agent's context. What should you be shown? Much less, by default. An agent holds far more in its head than a person can, so your view is an edited one, and you can switch between the two.</p>
+    <p>The edits come in kinds. Omit: show a sub-diagram. Fold: show a hull for its contents. Rank: show only the arrows that carry weight. Merge: draw several types as one node where their differences do not matter to the question, a quotient of the diagram. Merging is the strongest and can wait. The rule for all four is that a simplification leaves a visible trace, a count or a seam, and opens in place. The picture is edited and still honest.</p>
+    <h3>Talking back without typing</h3>
+    <p>Voice, pointer and ink on one clock, as <span class="mono">spall-multimodal</span> already has. Pointing words bind to whatever was selected when each was spoken; the Stratum voice gateway does this today with local whisper.cpp and could run unchanged beside the sidecar. Ink anchors to graph entities and follows them as the layout moves: an arrow between two nodes, a loop around several, a line across a hull, a strike. A turn lands in the sidebar and reaches the agent as text with every reference resolved, through a hook at its next tool call.</p>
+    <div class="turn">
+      <div class="turn-head">you · 14:02:11 · voice + ink</div>
+      <p>“<span class="ref">this → Outline.of_term</span> should take <span class="ref">that → Statics.Map.t</span> as well, and <span class="ref">these two → loop A</span> belong in one module”</p>
+      <div class="turn-sent">sent to the agent: Outline.of_term should take Statics.Map.t as well. Ink loop A encloses Zipper.t and Segment.t: these belong in one module.</div>
+    </div>
+    <h3>Editing by definition</h3>
+    <p>The verbs from editing-in-the-large (<code>insert</code>, <code>replace</code>, <code>delete</code>, <code>move</code>, <code>rename</code>, <code>open</code>, <code>close</code>, a folded <code>map</code>) served by the same sidecar over MCP, so they run inside the harness already in use. Files stay the store, and the structure is what edits go through: the kernel turns a verb into checked text splices. Bash and plain edits stay legal and reach the model the same way. In October's A/B on Hazel's agent these verbs used about 22% fewer input tokens and 30% fewer calls. OCaml adds real work: every edit has an <code>.mli</code> side, moves cross files, and the dependents check costs a build. A shell with outline, stacked definitions and chat comes after that. Whether it embeds OpenCode or runs a small loop of ours turns on whether we need to control exactly what the model sees.</p>
+    <h3>Properties on the diagram</h3>
+    <p>The canvas is close to a categorical diagram, so an equation between functions has a picture: two paths between the same nodes that are claimed to agree. You would state one by selecting the two paths and marking the face between them. It is stored as a property test that names both paths, so the canvas can equally draw the property tests a code base already has; Hazel's QCheck tests are a ready supply. An agent writes the generator and the test, and the mark then carries the evidence, the way a pip does for a unit test. Round trips, idempotent orbits and invariants are the same idea in smaller shapes. Proof tools would attach at the top of the ladder. The canvas only has to show that a property exists and how well supported it is. Laws between exported functions belong at the rim, where a reviewer reads them, and a change set that breaks one shows as a refuted mark.</p>
+  </div>
+  <figure>
+    <div class="scroll">
+    <svg class="diagram" viewBox="0 0 960 195" role="img" aria-label="A round trip that holds under test, a commuting square that tests refuted, and the four states of a law mark: stated, tested, refuted, proved.">
+      <defs><marker id="f5a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head"/></marker></defs>
+      <circle class="hollow" cx="70" cy="85" r="11"/><text class="sm" x="70" y="116" text-anchor="middle">string</text>
+      <circle class="hollow" cx="290" cy="85" r="11"/><text class="sm" x="290" y="116" text-anchor="middle">Term.t</text>
+      <path class="wire" d="M80 78 C 140 38, 220 38, 280 78" marker-end="url(#f5a)"/><text class="sm" x="180" y="38" text-anchor="middle">parse</text>
+      <path class="wire" d="M280 92 C 220 132, 140 132, 80 92" marker-end="url(#f5a)"/><text class="sm" x="180" y="142" text-anchor="middle">print</text>
+      <rect class="v1" x="165" y="77" width="30" height="16" rx="8"/><text class="av1" x="180" y="89" text-anchor="middle">≡</text>
+      <text class="sm" x="180" y="180" text-anchor="middle">print ∘ parse = id · 1,000 cases</text>
+
+      <text class="sm" x="400" y="27" text-anchor="middle">Doc.t</text><text class="sm" x="600" y="27" text-anchor="middle">Doc.t</text>
+      <circle class="hollow" cx="400" cy="45" r="11"/><circle class="hollow" cx="600" cy="45" r="11"/>
+      <circle class="hollow" cx="400" cy="135" r="11"/><circle class="hollow" cx="600" cy="135" r="11"/>
+      <text class="sm" x="372" y="139" text-anchor="end">Ast.t</text><text class="sm" x="628" y="139">Ast.t</text>
+      <path class="wire" d="M411 45 H589" marker-end="url(#f5a)"/><text class="sm" x="500" y="37" text-anchor="middle">edit</text>
+      <path class="wire" d="M411 135 H589" marker-end="url(#f5a)"/><text class="sm" x="500" y="153" text-anchor="middle">apply</text>
+      <path class="wire" d="M400 56 V124" marker-end="url(#f5a)"/><text class="sm" x="392" y="93" text-anchor="end">parse</text>
+      <path class="wire" d="M600 56 V124" marker-end="url(#f5a)"/><text class="sm" x="608" y="93">parse</text>
+      <rect class="mkfill" x="485" y="82" width="30" height="16" rx="8"/><text class="amk" x="500" y="94" text-anchor="middle">≢</text>
+      <text class="sm amk" x="500" y="180" text-anchor="middle">parse ∘ edit ≠ apply ∘ parse on 1 input</text>
+
+      <rect class="ghost" x="720" y="30" width="30" height="16" rx="8"/><text class="sm" x="762" y="42">stated, no evidence yet</text>
+      <rect class="v1" x="720" y="64" width="30" height="16" rx="8"/><text class="sm" x="762" y="76">tested, property passes</text>
+      <rect class="mkfill" x="720" y="98" width="30" height="16" rx="8"/><text class="sm" x="762" y="110">refuted, counterexample kept</text>
+      <rect class="solid" x="720" y="132" width="30" height="16" rx="8"/><text class="sm" x="762" y="144">proved, by an outside tool</text>
+    </svg>
+    </div>
+    <figcaption>Left: a round trip that holds under test. Middle: a square the tests refuted. Right: the four states of a law mark.</figcaption>
+  </figure>
+  <div class="col">
+    <h3>Slices of a definition</h3>
+    <p>A side note for when drilling down reaches code. The stance is to be selective about what is surfaced: opening a definition should not put a multi-page <code>match</code> in front of you. Folding to definitions is already a coarse slice, and the same folding can go one level finer, to the arms that matter, with the rest shown as a count. What matters depends on why you opened it. For a change: the arms that changed. For a selected type: the arms that mention its constructors. For an error: the parts that contribute to it, which is what type slicing computes. For a run: the arms a test actually took. That last one is dynamic, and a full version means work in the runtime, but coverage data per test gives arm-level answers cheaply. The agent's map could use the same slices to save tokens.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <span class="eyebrow">Tandem</span>
+    <h2>Keeping in line with Hazel</h2>
+    <p>The shared thing is a contract: the graph record, the trace format, the principles document and the CSS token names. Code starts as a copy in the new repository, with <span class="mono">agent-canvas</span> untouched. If both sides want the same change twice it can become a shared library, and if this app pulls ahead Hazel can mount its canvas. Entry identity here is path plus content hash, definition-level in the spirit of Arbor. This table is where the two are kept in line.</p>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Feature</th><th>Hazel</th><th>OCaml app</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>Graph, layout, score, camera, Trine</td><td>built</td><td>first build, copied</td><td>keep the record identical</td></tr>
+      <tr><td>Traces and replay</td><td>built, replays tool calls</td><td>first build, snapshots</td><td>Hazel could adopt snapshot traces</td></tr>
+      <tr><td>Click through to code</td><td>built: info panel, constellation mode</td><td>first build, read-only</td><td></td></tr>
+      <tr><td>Module collapse and levels</td><td>partial: root collapse only</td><td>first build needs it</td><td>design once</td></tr>
+      <tr><td>Picking up and redirecting the agent</td><td>built</td><td>later</td><td>needs a pause signal to the harness</td></tr>
+      <tr><td>Interfaces on hulls</td><td>not built; sealed modules exist</td><td>direction</td><td>design once</td></tr>
+      <tr><td>Change sets</td><td>not built</td><td>direction</td><td>design once</td></tr>
+      <tr><td>Several agents</td><td>not built</td><td>direction</td><td>log keyed by agent from the start</td></tr>
+      <tr><td>Fog of war</td><td>not built; agent gets the whole outline</td><td>direction</td><td>Hazel needs discovery first</td></tr>
+      <tr><td>Edited view: omit, fold, rank, merge</td><td>partial: built-ins folded into arrows, main arrows thicker</td><td>fold and rank in the first build; merge later</td><td>design once; every edit leaves a trace</td></tr>
+      <tr><td>Voice and ink</td><td>not built</td><td>direction</td><td>exists in Spall and the Stratum gateway</td></tr>
+      <tr><td>Properties and laws</td><td>not built; test pips only</td><td>direction</td><td>design once; draw existing property tests first</td></tr>
+      <tr><td>Slices of a definition</td><td>not built; folds exist</td><td>direction</td><td>static first; dynamic needs runtime work</td></tr>
+      <tr><td>Outline, definition verbs, agent map</td><td>built</td><td>direction, over MCP</td><td>same verbs, paths and map format</td></tr>
+      <tr><td>Authoring on the canvas</td><td>built</td><td>later</td><td>through the kernel's templates</td></tr>
+      <tr><td>Probes, livelits, type cards</td><td>built</td><td>out of scope</td><td>test pips first; values on request from a toplevel later</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="schemes">
+  <div class="col">
+    <span class="eyebrow">Look</span>
+    <h2>Four colour schemes that break from Hazel's cream</h2>
+    <p>All four keep the parts of the Hazel design language that carry meaning on the canvas: the dot-grid board, soft merged hulls for modules, small circular type nodes, pill-labelled arrows for functions, one border per thing, monospace everywhere code appears, and the breadcrumb tab in the top-left. What changes is ground, ink and the hue families. Each row shows the canvas alone and a fuller shell with outline, code and agent steps, the second being a direction and not the first build.</p>
+    <p class="muted">The graph is an illustration drawn on Hazel's own pipeline, with an agent adding an <code>Outline</code> module. It was not extracted from the code. Faint dashed regions are modules the agent has not looked at.</p>
+  </div>
+  <div class="schemes" id="scheme-list"></div>
+</section>
+
+<section>
+  <div class="col">
+    <span class="eyebrow">Names</span>
+    <h2>Portolan, for now</h2>
+    <p>A portolan is a sailor's chart: coasts drawn in detail from the routes actually sailed, interiors left blank. It reads two ways here. The routes sailed are the agent's footprint. The drawn coast with a blank interior is a module shown by its interface. The name is already in use by a geospatial data project, a small code-atlas repository and an AI consultancy, so it may need to change. The rest of the list is kept for that case.</p>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>From</th><th>Names</th><th>Why they fit</th></tr></thead>
+    <tbody>
+      <tr><td>Charts</td><td><strong>Portolan</strong>, Atlas, Gazetteer, Planisphere</td><td>An atlas is a book of maps at several scales. A gazetteer is the index of places that goes with one.</td></tr>
+      <tr><td>Growing things</td><td><strong>Trellis</strong>, <strong>Coppice</strong>, Espalier, Catkin</td><td>A trellis is the frame growth follows, and sits well beside Arbor. A coppice is a hazel wood cut so each base sends up many stems. An espalier is a tree trained flat against a frame.</td></tr>
+      <tr><td>Edges and seals</td><td>Selvage, Signet, Rim, Façade</td><td>For an interface-first tool. A selvage is the finished edge that keeps cloth from unravelling.</td></tr>
+      <tr><td>Instruments</td><td>Orrery, Armillary, Asterism, Theodolite</td><td>An asterism is a star pattern people recognise that is not an official constellation. A theodolite is what a surveyor measures structure with.</td></tr>
+      <tr><td>The stage</td><td>Promptbook, Blocking, Proscenium</td><td>A promptbook is the stage manager's annotated script of who moves where and when.</td></tr>
+      <tr><td>Making</td><td>Armature, Maquette, Loom, Lattice</td><td>A maquette is the small model built to judge the large work.</td></tr>
+      <tr><td>Camels and glass</td><td>Caravan, Caravanserai, Vitrine, Loupe</td><td>A caravanserai is where caravans stop and are looked over. A vitrine shows the workings without letting you touch them.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <span class="eyebrow">Related work</span>
+    <h2>Who else is near this</h2>
+    <p>A first search, done today. Items marked † were cited from memory by the search and their links were not re-opened.</p>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Area</th><th>Closest work</th><th>How this differs</th></tr></thead>
+    <tbody>
+      <tr><td>OCaml and agents</td><td>Madhavapeddy and colleagues: the <a href="https://anil.recoil.org/notes/ocaml-modules-agentic">modules post</a>, the <a href="https://www.cl.cam.ac.uk/~avsm2/2025-ocaml-ai-draft1.pdf">workshop paper</a>, a <a href="https://github.com/avsm/ocaml-claude-marketplace">Claude plugin marketplace</a> for OCaml, <a href="https://github.com/sadiqj/odoc-llm">odoc-llm</a></td><td>Workflow and tooling for the agent. No visual tool and no interface-level diff. In one write-up he checks the interface files in a diff by hand to confirm only implementations changed, which is the interior-only mark above.</td></tr>
+      <tr><td>Symbol-level edit tools</td><td><a href="https://pypi.org/project/serena-agent/">Serena</a> (symbol tools over language servers); <a href="https://www.unison-lang.org/docs/usage-topics/mcp-setup">Unison's MCP server</a> (search, view, typecheck and add definitions); <a href="https://discuss.ocaml.org/t/building-ocaml-mcp-what-features-would-you-want/16914">ocaml-mcp</a>; <a href="https://aider.chat/docs/repomap.html">Aider's repo map</a>†</td><td>Serena has no type-checked accept or reject. Unison has it, inside its own code-base format only. Nothing found offers path-addressed, checked edits for a file-based ML language.</td></tr>
+      <tr><td>Types as feedback</td><td>Your <a href="https://arxiv.org/abs/2409.00921">typed holes paper</a>; <a href="https://arxiv.org/abs/2606.01522">Type-Error Ablation and AI Coding Agents</a> (2026: richer type errors help agents repair, and types beat tests alone); <a href="https://arxiv.org/abs/2605.28617">LACUNA</a>; <a href="https://pypi.org/project/lean-lsp-mcp/">lean-lsp-mcp</a></td><td>Completion or single-action scale. The ablation paper supports checking every reply.</td></tr>
+      <tr><td>Interface-level review</td><td><a href="https://ocaml.org/p/api-watch">api-watch</a> for OCaml; cargo-semver-checks†; <a href="https://api-extractor.com/pages/overview/demo_api_report/">API Extractor reports</a></td><td>Text, at release time or library boundary. No study found tests whether reviewing signatures alone is enough. This tool could run that study.</td></tr>
+      <tr><td>Diffs that are not text</td><td><a href="https://www.zora.uzh.ch/entities/publication/7e55e778-46a1-4a5c-8aca-b776ce1523dd/full">ReviewVis</a> (a merge request as a graph of changed classes and methods, evaluated with developers); <a href="https://unison-lang.org/docs/tooling/project-workflows/reviewing-prs">Unison's namespace diff</a>; <a href="https://github.com/Ataraxy-Labs/weave">sem / weave</a></td><td>ReviewVis is the nearest precedent for a diff on a graph: object-oriented and after the fact. Unison's is definition-level but a list.</td></tr>
+      <tr><td>Live views of agent work</td><td><a href="https://github.com/AlgoNoRhythm/Flare">Flare</a> (file and import graph that updates as an agent edits); <a href="https://codeatlas.live">Code Atlas Live</a> (vendor claims)</td><td>File, class or call level, untyped. None draws types as nodes and functions as arrows, or marks changed signatures.</td></tr>
+      <tr><td>Definition-level code bases</td><td><a href="https://www.unison-lang.org/docs/the-big-idea/">Unison</a>; the lab's <a href="https://popl25.sigplan.org/details/POPL-2025-popl-research-papers/73/Grove-A-Bidirectionally-Typed-Collaborative-Structure-Editor-Calculus">Grove</a>; Ink &amp; Switch's <a href="https://www.inkandswitch.com/universal-version-control/">universal version control</a></td><td>The neighbourhood Arbor lives in. This tool stays on files and borrows the definition-level view.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="col">
+    <p><strong>Apparently open:</strong> the typed graph itself; an interface-level change set drawn on it; checked definition-level edits for a file-based ML language; and evidence on signature-only review.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <span class="eyebrow">Next</span>
+    <h2>Decisions that are yours</h2>
+    <ul>
+      <li><strong>Go on the first build.</strong> The five steps above, against the Hazel repository, in a new repository.</li>
+      <li><strong>Scheme.</strong> My picks are Observatory for a canvas beside a terminal and Tidepool for anything with code panels. One scheme throughout is also reasonable; then Tidepool.</li>
+      <li><strong>First harness to watch.</strong> I assumed Claude Code.</li>
+    </ul>
+    <p class="muted">Sources: the <span class="mono">agent-canvas</span> and <span class="mono">modular-editors</span> worktrees and their plan documents; your September demo; Spall and the Stratum voice gateway; documentation for the harnesses and OCaml tooling, read today. Not verified: toolchain latency on Hazel-sized files, exact hook payload shapes, and whether a Claude Code pane can host the page. The blog posts were read through a summarising fetch, so their details here are paraphrase.</p>
+  </div>
+</section>
+
+</main>
+
+<script>
+(function () {
+  var P = [
+    { id: "tide", name: "Tidepool", pick: "My pick with code panels",
+      note: "Cool grey-blue paper, navy ink, sea-glass hulls, a coral agent. The closest in temperament to Hazel (light, calm, low contrast chrome) with the temperature flipped, so the two apps never read as the same window.",
+      bg: "#EDF2F4", grid: "#C2CDD4", ink: "#16242E", muted: "#617380", panel: "#DFE7EB", panelInk: "#16242E", line: "#B7C5CD", surface: "#F8FBFC",
+      hulls: ["#8CC9C1", "#A8B7EA", "#E9C88F"], hullOp: 0.55, typ: "#3A4DB5", fn: "#0E6B75", agent: "#E4572E", ok: "#2E8B57", err: "#C8324B", sel: "#CFE0F7", brand: "#0E6B75", brandInk: "#F8FBFC", str: "#9A5600" },
+    { id: "obs", name: "Observatory", pick: "My pick beside a terminal",
+      note: "Blue-black ground, hulls as dim nebulae, bright nodes, an amber agent. A dark canvas sits naturally beside a terminal, makes the fog of war literal (unseen code is simply dark), and is the furthest break from Hazel.",
+      bg: "#0E121B", grid: "#283044", ink: "#E7ECF5", muted: "#8A96AB", panel: "#161B27", panelInk: "#E7ECF5", line: "#2C3548", surface: "#131926",
+      hulls: ["#2F7D9C", "#7355B0", "#9A6230"], hullOp: 0.5, typ: "#BBA8FF", fn: "#7FD6E8", agent: "#FFC24B", ok: "#6FD08C", err: "#FF6B81", sel: "#22345A", brand: "#FFC24B", brandInk: "#0E121B", str: "#F2B872" },
+    { id: "vel", name: "Vellum", pick: "",
+      note: "Green-grey drafting paper, graphite lines, hulls in highlighter yellow, pink and blue, a red-pencil agent. The loudest hulls of the four, which suits the module-quality view where hull membership is the thing being read.",
+      bg: "#E7EBE2", grid: "#BCC6B5", ink: "#20261F", muted: "#667062", panel: "#DAE0D3", panelInk: "#20261F", line: "#B1BBAA", surface: "#F3F6EF",
+      hulls: ["#F0DF62", "#F2A3B6", "#98C9EA"], hullOp: 0.6, typ: "#6A3FA0", fn: "#1F5F3A", agent: "#D5382B", ok: "#2F7D4F", err: "#B3261E", sel: "#D3DFF5", brand: "#20261F", brandInk: "#F3F6EF", str: "#8A5A00" },
+    { id: "cam", name: "Camel", pick: "",
+      note: "Bone-white board under charcoal chrome, with the OCaml orange reserved for the agent and for function ink. Reads as an OCaml tool at a glance. The dark chrome frames the canvas the way a terminal frame would.",
+      bg: "#F6F5F2", grid: "#D2CFC8", ink: "#1D1B19", muted: "#6C6861", panel: "#27241F", panelInk: "#EDEAE4", line: "#CECAC2", surface: "#FFFFFF",
+      hulls: ["#F2B47E", "#B8B1D6", "#B6C7A2"], hullOp: 0.55, typ: "#5B4BB5", fn: "#AD4C0C", agent: "#EC6813", ok: "#3C8A4E", err: "#C22F3D", sel: "#FBE3CF", brand: "#EC6813", brandInk: "#1D1B19", str: "#7A6A1E" }
+  ];
+
+  function e(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  var MONO = 'font-family="IBM Plex Mono, ui-monospace, Menlo, monospace"';
+
+  function defs(p, k) {
+    return '<defs>' +
+      '<pattern id="dots-' + k + '" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="8" cy="8" r="0.9" fill="' + p.grid + '"/></pattern>' +
+      '<filter id="goo-' + k + '" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur in="SourceGraphic" stdDeviation="11"/>' +
+      '<feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -10"/></filter></defs>';
+  }
+  function hull(p, k, color, pts, r, op) {
+    var s = '<g filter="url(#goo-' + k + ')" opacity="' + (op == null ? p.hullOp : op) + '" fill="' + color + '">';
+    pts.forEach(function (q) { s += '<circle cx="' + q[0] + '" cy="' + q[1] + '" r="' + (q[2] || r) + '"/>'; });
+    return s + '</g>';
+  }
+  function node(p, x, y, label, o) {
+    o = o || {};
+    var stroke = o.ghost ? p.muted : (o.fresh ? p.agent : p.typ), r = o.r || 10;
+    var s = '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + (o.ghost ? "none" : p.surface) + '" stroke="' + stroke + '" stroke-width="1.5"' + (o.ghost ? ' stroke-dasharray="2 3" opacity="0.6"' : '') + '/>';
+    if (!o.ghost) s += '<text x="' + x + '" y="' + (y + 3.2) + '" text-anchor="middle" font-size="9" font-weight="600" fill="' + stroke + '" ' + MONO + '>' + e(o.glyph || "τ") + '</text>';
+    if (label) s += '<text x="' + x + '" y="' + (y + r + 11) + '" text-anchor="middle" font-size="8.5" fill="' + (o.ghost ? p.muted : p.ink) + '"' + (o.ghost ? ' opacity="0.7"' : '') + ' ' + MONO + '>' + e(label) + '</text>';
+    return s;
+  }
+  function edge(p, a, b, label, o) {
+    o = o || {};
+    var dx = b[0] - a[0], dy = b[1] - a[1], L = Math.sqrt(dx * dx + dy * dy), ux = dx / L, uy = dy / L;
+    var x1 = a[0] + ux * 12, y1 = a[1] + uy * 12, x2 = b[0] - ux * (o.open ? 30 : 13), y2 = b[1] - uy * (o.open ? 30 : 13);
+    var col = o.fresh ? p.agent : p.fn;
+    var s = '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + col + '" stroke-width="1.5"' + (o.fresh ? ' stroke-dasharray="5 4"' : '') + '/>';
+    if (!o.open) {
+      var px = -uy, py = ux;
+      s += '<polygon fill="' + col + '" points="' + x2 + ',' + y2 + ' ' + (x2 - ux * 7 + px * 3.4) + ',' + (y2 - uy * 7 + py * 3.4) + ' ' + (x2 - ux * 7 - px * 3.4) + ',' + (y2 - uy * 7 - py * 3.4) + '"/>';
+    }
+    var mx = (x1 + x2) / 2, my = (y1 + y2) / 2, w = label.length * 5.4 + 12;
+    s += '<rect x="' + (mx - w / 2) + '" y="' + (my - 7.5) + '" width="' + w + '" height="15" rx="7.5" fill="' + p.surface + '" stroke="' + col + '" stroke-width="1"/>' +
+      '<text x="' + mx + '" y="' + (my + 3) + '" text-anchor="middle" font-size="8.5" fill="' + col + '" ' + MONO + '>' + e(label) + '</text>';
+    if (o.pips) o.pips.forEach(function (ok, i) {
+      s += '<circle cx="' + (mx - w / 2 + 5 + i * 7) + '" cy="' + (my + 13) + '" r="2.3" fill="' + (ok ? p.ok : p.err) + '"/>';
+    });
+    return s;
+  }
+  function orbit(p, x, y, label) {
+    var w = label.length * 5.4 + 12;
+    return '<path d="M ' + (x - 9) + ' ' + (y + 8) + ' C ' + (x - 44) + ' ' + (y + 40) + ', ' + (x + 44) + ' ' + (y + 40) + ', ' + (x + 9) + ' ' + (y + 9) + '" fill="none" stroke="' + p.fn + '" stroke-width="1.5"/>' +
+      '<polygon fill="' + p.fn + '" points="' + (x + 9) + ',' + (y + 9) + ' ' + (x + 17) + ',' + (y + 11) + ' ' + (x + 13) + ',' + (y + 17) + '"/>' +
+      '<rect x="' + (x - w / 2) + '" y="' + (y + 24) + '" width="' + w + '" height="15" rx="7.5" fill="' + p.surface + '" stroke="' + p.fn + '"/>' +
+      '<text x="' + x + '" y="' + (y + 34.5) + '" text-anchor="middle" font-size="8.5" fill="' + p.fn + '" ' + MONO + '>' + e(label) + '</text>';
+  }
+  function hullName(p, x, y, t, o) {
+    return '<text x="' + x + '" y="' + y + '" font-size="8.5" font-weight="600" letter-spacing="0.6" fill="' + (o && o.dim ? p.muted : p.ink) + '"' + (o && o.dim ? ' opacity="0.7"' : '') + ' ' + MONO + '>' + e(t) + '</text>';
+  }
+  function trine(p, x, y, say) {
+    var a = [x, y], b = [x - 15, y - 9], c = [x - 13, y + 10];
+    var s = '<polygon points="' + x + ',' + y + ' ' + (x + 46) + ',' + (y - 15) + ' ' + (x + 46) + ',' + (y + 15) + '" fill="' + p.agent + '" opacity="0.16"/>';
+    s += '<polygon points="' + a + ' ' + b + ' ' + c + '" fill="none" stroke="' + p.ink + '" stroke-width="1.3"/>';
+    [a, b, c].forEach(function (q) { s += '<circle cx="' + q[0] + '" cy="' + q[1] + '" r="3.2" fill="' + p.agent + '" stroke="' + p.ink + '" stroke-width="1"/>'; });
+    if (say) {
+      var w = say.length * 5.2 + 14;
+      s += '<rect x="' + (x - w + 4) + '" y="' + (y - 40) + '" width="' + w + '" height="18" rx="6" fill="' + p.surface + '" stroke="' + p.ink + '" stroke-width="1"/>' +
+        '<polygon points="' + (x - 22) + ',' + (y - 22.5) + ' ' + (x - 12) + ',' + (y - 22.5) + ' ' + (x - 13) + ',' + (y - 14) + '" fill="' + p.surface + '" stroke="' + p.ink + '" stroke-width="1"/>' +
+        '<rect x="' + (x - 23) + '" y="' + (y - 24.5) + '" width="13" height="2.6" fill="' + p.surface + '"/>' +
+        '<text x="' + (x - w / 2 + 4) + '" y="' + (y - 27.5) + '" text-anchor="middle" font-size="8.5" fill="' + p.ink + '" ' + MONO + '>' + e(say) + '</text>';
+    }
+    return s;
+  }
+
+  // The illustrative graph, in a 520 x 330 board (ox, oy shift it; sc scales it).
+  function graph(p, k, full) {
+    var Z = [86, 96], S = [86, 208], T = [246, 152], M = [404, 84], O = [412, 236];
+    var s = "";
+    s += hull(p, k, p.hulls[0], [[Z[0], Z[1], 44], [86, 152, 34], [S[0], S[1], 46], [86, 246, 34]]);
+    s += hull(p, k, p.hulls[1], [[T[0], T[1], 42], [196, 170, 26]]);
+    s += hull(p, k, p.hulls[2], [[M[0], M[1], 42], [352, 104, 28]]);
+    s += hull(p, k, p.agent, [[O[0], O[1], 36]], 36, 0.2);
+    if (full) {
+      s += hull(p, k, p.muted, [[262, 286, 26], [306, 290, 24]], 24, 0.13);
+      s += hull(p, k, p.muted, [[246, 44, 24], [288, 40, 22]], 22, 0.13);
+      s += node(p, 262, 284, "", { ghost: true, r: 7 }) + node(p, 304, 290, "", { ghost: true, r: 7 });
+      s += node(p, 250, 44, "", { ghost: true, r: 7 });
+      s += hullName(p, 330, 44, "ELABORATOR", { dim: true }) + hullName(p, 196, 318, "EVALUATOR", { dim: true });
+    }
+    s += hullName(p, 30, 50, "ZIPPER") + hullName(p, 226, 106, "TERM") + hullName(p, 420, 40, "STATICS");
+    s += '<text x="' + (O[0] + 26) + '" y="' + (O[1] + 44) + '" text-anchor="end" font-size="8.5" font-weight="600" letter-spacing="0.6" fill="' + p.agent + '" ' + MONO + '>OUTLINE</text>';
+    s += edge(p, Z, S, "unzip") + orbit(p, S[0], S[1], "remold");
+    s += edge(p, S, T, "go") + edge(p, T, M, "mk", { pips: [1, 1, 1, 0] });
+    s += edge(p, T, O, "of_term", { fresh: true, open: true });
+    s += node(p, Z[0], Z[1], "") + node(p, S[0], S[1], "") + node(p, T[0], T[1], "") + node(p, M[0], M[1], "") + node(p, O[0], O[1], "", { fresh: true });
+    s += '<text x="' + (Z[0] + 16) + '" y="' + (Z[1] - 8) + '" font-size="8.5" fill="' + p.ink + '" ' + MONO + '>Zipper.t</text>';
+    s += '<text x="' + (S[0] - 15) + '" y="' + (S[1] + 3) + '" text-anchor="end" font-size="8.5" fill="' + p.ink + '" ' + MONO + '>Segment.t</text>';
+    s += '<text x="' + T[0] + '" y="' + (T[1] - 17) + '" text-anchor="middle" font-size="8.5" fill="' + p.ink + '" ' + MONO + '>Term.t</text>';
+    s += '<text x="' + (M[0] + 15) + '" y="' + (M[1] + 20) + '" font-size="8.5" fill="' + p.ink + '" ' + MONO + '>Map.t</text>';
+    s += '<text x="' + (O[0] + 15) + '" y="' + (O[1] + 4) + '" font-size="8.5" fill="' + p.agent + '" ' + MONO + '>Outline.t</text>';
+    s += trine(p, O[0] - 34, O[1] - 18, full ? "insert Outline.of_term" : "");
+    return s;
+  }
+
+  function canvasMock(p, k) {
+    var s = '<svg viewBox="0 0 520 330" role="img" aria-label="' + p.name + ' scheme: canvas with module hulls, type nodes, function arrows and the agent drawing a new arrow">' + defs(p, k);
+    s += '<rect width="520" height="330" fill="' + p.bg + '"/><rect width="520" height="330" fill="url(#dots-' + k + ')"/>';
+    s += graph(p, k, true);
+    // header strip: the only chrome the sidecar has
+    s += '<rect x="0" y="0" width="520" height="22" fill="' + p.panel + '"/><line x1="0" y1="22" x2="520" y2="22" stroke="' + p.line + '"/>';
+    s += '<path d="M0 0 H78 Q88 0 88 10 V22 H0 Z" fill="' + p.brand + '"/><text x="12" y="15" font-size="10" font-weight="600" fill="' + p.brandInk + '" ' + MONO + '>portolan</text>';
+    s += '<text x="100" y="15" font-size="9" fill="' + p.panelInk + '" opacity="0.75" ' + MONO + '>/ hazel / haz3lcore</text>';
+    s += '<text x="508" y="15" text-anchor="end" font-size="9" fill="' + p.panelInk + '" opacity="0.75" ' + MONO + '>follow · fit · ● rec 2:41</text>';
+    return s + '</svg>';
+  }
+
+  function tok(x, y, parts, p, size) {
+    var s = '<text x="' + x + '" y="' + y + '" font-size="' + (size || 8.6) + '" xml:space="preserve" ' + MONO + '>';
+    parts.forEach(function (t) {
+      var col = { k: p.ink, t: p.typ, f: p.fn, s: p.str, c: p.muted, a: p.agent, n: p.ink }[t[0]];
+      s += '<tspan fill="' + col + '"' + (t[0] === "k" ? ' font-weight="600"' : '') + '>' + e(t[1]) + '</tspan>';
+    });
+    return s + '</text>';
+  }
+  function row(p, y, indent, glyph, text, o) {
+    o = o || {};
+    var x = 10 + indent * 10, s = "";
+    if (o.sel) s += '<rect x="4" y="' + (y - 9.5) + '" width="116" height="13.5" rx="3" fill="' + p.agent + '" opacity="0.28"/>';
+    var col = o.fresh ? p.agent : p.panelInk, op = o.dim ? (o.dim === 2 ? 0.34 : 0.55) : 1;
+    var gcol = o.fresh ? p.agent : (glyph === "τ" ? p.typ : glyph === "ƒ" ? p.fn : glyph === "✓" ? p.ok : p.panelInk);
+    if (p.panel !== p.bg && lum(p.panel) < 0.35 && !o.fresh) gcol = glyph === "τ" || glyph === "ƒ" ? p.panelInk : gcol;
+    s += '<text x="' + x + '" y="' + y + '" font-size="8.6" fill="' + gcol + '" opacity="' + op + '" ' + MONO + '>' + e(glyph) + '</text>';
+    s += '<text x="' + (x + 11) + '" y="' + y + '" font-size="8.6" fill="' + col + '" opacity="' + op + '"' + (o.bold ? ' font-weight="600"' : '') + ' ' + MONO + '>' + e(text) + '</text>';
+    return s;
+  }
+  function lum(hex) { var n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; }
+
+  function shellMock(p, k) {
+    k = k + "s";
+    var s = '<svg viewBox="0 0 520 330" role="img" aria-label="' + p.name + ' scheme: workbench with outline, stacked definition cells, small canvas and agent steps">' + defs(p, k);
+    s += '<rect width="520" height="330" fill="' + p.bg + '"/>';
+    // top bar
+    s += '<rect x="0" y="0" width="520" height="22" fill="' + p.panel + '"/>';
+    s += '<path d="M0 0 H78 Q88 0 88 10 V22 H0 Z" fill="' + p.brand + '"/><text x="12" y="15" font-size="10" font-weight="600" fill="' + p.brandInk + '" ' + MONO + '>portolan</text>';
+    s += '<text x="100" y="15" font-size="9" fill="' + p.panelInk + '" opacity="0.75" ' + MONO + '>/ hazel / haz3lcore / Statics</text>';
+    s += '<text x="508" y="15" text-anchor="end" font-size="9" fill="' + p.panelInk + '" opacity="0.75" ' + MONO + '>view as agent</text>';
+    // outline
+    s += '<rect x="0" y="22" width="124" height="308" fill="' + p.panel + '"/>';
+    var y = 40, R = [
+      [0, "▾", "haz3lcore", { bold: true }], [1, "▾", "Zipper", {}], [2, "τ", "t", {}], [2, "ƒ", "unzip", {}],
+      [1, "▾", "MakeTerm", {}], [2, "ƒ", "go", {}],
+      [1, "▾", "Statics", { bold: true }], [2, "τ", "Map.t", {}], [2, "ƒ", "mk", { sel: true, bold: true }], [2, "✓", "3 of 4 tests", {}],
+      [1, "▾", "Outline", { fresh: true, bold: true }], [2, "τ", "t", { fresh: true }], [2, "ƒ", "of_term", { fresh: true }],
+      [1, "▸", "Elaborator", { dim: 1 }], [1, "▸", "Evaluator", { dim: 2 }], [1, "▸", "Stepper", { dim: 2 }],
+      [0, "▸", "haz3lweb", { dim: 2 }]
+    ];
+    R.forEach(function (r) { s += row(p, y, r[0], r[1], r[2], r[3]); y += 15.5; });
+    // cells
+    function cell(yy, h, path, chip, chipCol, lines) {
+      var c = '<rect x="134" y="' + yy + '" width="206" height="' + h + '" rx="5" fill="' + p.surface + '" stroke="' + p.line + '"/>';
+      c += '<text x="143" y="' + (yy + 14) + '" font-size="8.6" font-weight="600" fill="' + p.ink + '" ' + MONO + '>' + e(path) + '</text>';
+      c += '<text x="331" y="' + (yy + 14) + '" text-anchor="end" font-size="8" fill="' + chipCol + '" ' + MONO + '>' + e(chip) + '</text>';
+      c += '<line x1="134" y1="' + (yy + 21) + '" x2="340" y2="' + (yy + 21) + '" stroke="' + p.line + '"/>';
+      lines.forEach(function (ln, i) { c += tok(143, yy + 36 + i * 13.5, ln, p); });
+      return c;
+    }
+    s += cell(32, 150, "Statics.mk", "read · 3 of 4 ✓", p.muted, [
+      [["k", "let rec "], ["f", "mk"], ["n", " (ctx : "], ["t", "Ctx.t"], ["n", ")"]],
+      [["n", "    (t : "], ["t", "Term.t"], ["n", ") : "], ["t", "Map.t"], ["n", " ="]],
+      [["k", "  match "], ["n", "t.term "], ["k", "with"]],
+      [["n", "  | Var x -> "], ["f", "lookup"], ["n", " ctx x"]],
+      [["n", "  | Let (p, d, b) ->"]],
+      [["n", "    "], ["f", "mk"], ["n", " ("], ["f", "extend"], ["n", " ctx p d) b"]],
+      [["n", "  | Hole -> "], ["f", "Map.empty"]],
+      [["c", "  (* … 14 more arms *)"]]
+    ]);
+    s += cell(192, 86, "Outline.of_term", "new · agent", p.agent, [
+      [["k", "let "], ["f", "of_term"], ["n", " (t : "], ["t", "Term.t"], ["n", ")"]],
+      [["n", "    : "], ["t", "Outline.t"], ["n", " ="]],
+      [["a", "  _"], ["c", "   (* hole : Outline.t *)"]]
+    ]);
+    s += '<rect x="134" y="288" width="206" height="32" rx="5" fill="none" stroke="' + p.line + '" stroke-dasharray="3 3"/>';
+    s += '<text x="143" y="307" font-size="8.6" fill="' + p.muted + '" ' + MONO + '>⋯ 41 definitions folded in Statics</text>';
+    // right column: mini canvas + steps
+    s += '<line x1="350" y1="22" x2="350" y2="330" stroke="' + p.line + '"/>';
+    s += '<svg x="350" y="22" width="170" height="150" viewBox="20 30 480 270"><rect x="20" y="30" width="480" height="270" fill="' + p.bg + '"/><rect x="20" y="30" width="480" height="270" fill="url(#dots-' + k + ')"/>' + graph(p, k, false) + '</svg>';
+    s += '<line x1="350" y1="172" x2="520" y2="172" stroke="' + p.line + '"/><rect x="351" y="173" width="169" height="157" fill="' + p.surface + '"/>';
+    var L = [
+      ["●", p.muted, "open Statics.mk"], ["●", p.muted, "map Outline  (depth 1)"], ["●", p.agent, "insert Outline.of_term"],
+      ["", p.muted, "  after Outline.t"], ["✓", p.ok, "check  0 new errors"], ["", p.muted, "  1 hole : Outline.t"], ["○", p.agent, "thinking…"]
+    ];
+    L.forEach(function (l, i) {
+      s += '<text x="360" y="' + (192 + i * 15) + '" font-size="8.6" fill="' + l[1] + '" ' + MONO + '>' + e(l[0]) + '</text>';
+      s += '<text x="372" y="' + (192 + i * 15) + '" font-size="8.6" fill="' + (l[0] === "" ? p.muted : p.ink) + '" xml:space="preserve" ' + MONO + '>' + e(l[2]) + '</text>';
+    });
+    s += '<rect x="358" y="302" width="154" height="20" rx="5" fill="' + p.bg + '" stroke="' + p.line + '"/><text x="366" y="315.5" font-size="8.6" fill="' + p.muted + '" ' + MONO + '>message the agent</text>';
+    return s + '</svg>';
+  }
+
+  var host = document.getElementById("scheme-list");
+  P.forEach(function (p, i) {
+    var chips = [["ground", p.bg], ["ink", p.ink], ["types", p.typ], ["functions", p.fn], ["agent", p.agent], ["hull", p.hulls[0]], ["hull", p.hulls[1]], ["hull", p.hulls[2]]]
+      .map(function (c) { return '<span class="chip"><i style="background:' + c[1] + '"></i>' + c[0] + ' ' + c[1] + '</span>'; }).join("");
+    var d = document.createElement("div");
+    d.className = "scheme";
+    d.innerHTML = '<div class="scheme-head"><h3>' + p.name + '</h3>' + (p.pick ? '<span class="tag pick">' + p.pick + '</span>' : '') + '<p>' + p.note + '</p></div>' +
+      '<div class="chips">' + chips + '</div>' +
+      '<div class="mocks"><div><div class="mock-label">Canvas: first build</div><div class="mock">' + canvasMock(p, p.id) + '</div></div>' +
+      '<div><div class="mock-label">With outline and code: a direction</div><div class="mock">' + shellMock(p, p.id) + '</div></div></div>';
+    host.appendChild(d);
+  });
+})();
+</script>

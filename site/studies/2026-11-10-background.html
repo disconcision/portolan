@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portolan Background Research</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · study · 10 November 2026</span>
+  <h1>Background research</h1>
+  <p class="lede">The findings behind the first scope notes: what carries over from Hazel, how an outside process can watch a coding agent, what OCaml tooling gives, and who else is near this.</p>
+  <p class="note">Gathered in one day by research agents reading source and public documentation. Nothing here was built or measured. Version numbers, licences and feature claims are as reported on that day and were not checked a second time. The last section lists what could not be confirmed.</p>
+</header>
+
+<section>
+  <div class="col">
+    <h2>Hazel's canvas</h2>
+    <p>The Constellation canvas lives on Hazel's <span class="mono">agent-canvas</span> branch, in <span class="mono">src/web/app/canvas/</span>. It is about 27,300 lines including CSS.</p>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Depends on</th><th>Lines</th><th>Files</th></tr></thead>
+    <tbody>
+      <tr><td>Hazel internals</td><td>9,464</td><td><span class="mono">CanvasGraph</span> (extraction, 1,606), <span class="mono">CanvasSidebar</span> (orchestrator, 5,576), <span class="mono">CanvasBuffer</span> (beat queue and pacing), <span class="mono">CanvasFocus</span>, <span class="mono">CanvasProbe</span>, <span class="mono">CanvasPresentation</span></td></tr>
+      <tr><td>Browser only</td><td>10,611</td><td><span class="mono">Animation</span>, <span class="mono">CanvasView</span>, <span class="mono">CanvasEnact</span> (score player), <span class="mono">CanvasAvatar</span> (Trine), <span class="mono">CanvasBubble</span>, <span class="mono">CanvasCamera</span>, <span class="mono">CanvasRipple</span>, <span class="mono">CanvasJelly</span>, <span class="mono">CanvasLog</span>, <span class="mono">CanvasTrajectory</span>, <span class="mono">CanvasReplayView</span></td></tr>
+      <tr><td>Pure OCaml</td><td>4,609</td><td><span class="mono">GraphLayout</span> (layered layout), <span class="mono">CanvasScore</span> (staging language), <span class="mono">CanvasLayout</span> (geometry)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="col">
+    <p><strong>Input.</strong> One function, <code>CanvasGraph.extract</code>, is the boundary between Hazel's statics and the graph. Everything after it reads a record of type nodes, function edges, values and tests. To build that record you need: ordered top-level and module-member items with their module path; each type alias with its body and constructors; each binding's name and type, flattened to arguments and result; doc comments; an error flag and a hole flag per definition; references to other top-level names; tests with status and the functions they mention; and a stable handle per definition.</p>
+    <p><strong>Events.</strong> Per agent step the canvas needs a snapshot of that record, a cause label, and optionally a site and an ok or error state. It never reads edit operations. Each released beat is diffed against the previous layout, planned into a score of acts (appear, form, draw, pill, reveal, vanish, erase, change, drift, ripple, say), validated, then played. Traces today store tool calls and replay them through the real handler, so they hold no snapshots.</p>
+    <p><strong>What lifts.</strong> Nearly verbatim: layout engine, score, camera, Trine, bubbles, ripple, jelly, animation, CSS. With a thin adapter: geometry, view and player, once the graph record's types are split from extraction and its id and term fields made opaque. To rewrite around the same shape: trajectories, the beat buffer, and the diff-to-score block of about 500 lines inside the sidebar. Rendering is virtual_dom plus direct DOM and Web Animations; Bonsai appears in three calls.</p>
+    <p><strong>Not built there:</strong> fog of war, columnar module sub-layouts, per-submodule collapse, agent-sourced selection, and the exploded string-diagram view of a function.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Hazel's editing core</h2>
+    <p>On the <span class="mono">modular-editors</span> branch. One kernel serves the outline sidebar and the agent's tools.</p>
+    <ul>
+      <li><strong>Operations.</strong> Insert, replace, delete and move, in one all-or-nothing transaction. Sources are text, a template, a copy, or a single token with its id kept. Duplicate, rename and change of kind are derived. A refusal names a reason and the failing operation.</li>
+      <li><strong>Paths.</strong> <code>M/parse</code>, <code>M/"hint"</code> for a hinted test, <code>test#2</code> for the second of a kind, <code>f/=></code> for a block's result, and parts <code>:pattern</code>, <code>:definition</code>, <code>:head</code>. The resolver works on syntax alone.</li>
+      <li><strong>Agent tools.</strong> <code>insert</code>, <code>replace</code>, <code>delete</code>, <code>move</code>, <code>rename</code>, <code>open</code>, <code>close</code>. Results name changes by path, then list static errors and tests whose status changed.</li>
+      <li><strong>Checks, once per reply.</strong> Dangling uses of a deleted entry, rename capture, rebinding on replace, and no new errors. Any failure restores the start of the reply.</li>
+      <li><strong>Agent view.</strong> A code map with bodies folded and notes as comments (uses, errors, test status), with open entries in full below it. The exact text of each request is recorded, and View as agent replays it.</li>
+      <li><strong>A/B, October.</strong> Six tasks, old tools against new. Opus finished all six either way, with about 22% fewer input tokens and 30% fewer calls on the new verbs. Lessons: show example code fenced, drop the <code>:body</code> part, make refusals say what went wrong, stop repeated identical failures, prefer hints to index paths.</li>
+    </ul>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Piece</th><th>Leans on in Hazel</th><th>OCaml analogue</th></tr></thead>
+    <tbody>
+      <tr><td>Kernel</td><td>tile ids that survive splices, item spans, holes so a program always parses</td><td>structure items with locations, byte-range splices, comments from the lexer</td></tr>
+      <tr><td>Paths</td><td>syntax pieces</td><td>the parse tree, plus a file or library prefix</td></tr>
+      <tr><td>Outline and map</td><td>item spans, facts from statics</td><td>Merlin outline; inferred types for unannotated definitions</td></tr>
+      <tr><td>Checks</td><td>per-item statics, about 100 to 300 ms</td><td>Merlin errors, then a build for dependents: seconds</td></tr>
+      <tr><td>Rollback</td><td>a persistent value, one undo step</td><td>an overlay of buffers, or write then revert</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="col">
+    <p><strong>Harder in OCaml:</strong> every edit has an <code>.mli</code> side; moves across files change qualified names and can create cycles; functor and <code>include</code> members are not visible in syntax; ppx-generated names are not in the source; <code>let rec … and …</code> binds several names in one item; there are no ids that survive an outside text edit; files can be unparseable; ocamlformat is whole-file; the check costs a build.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Watching a coding agent from outside</h2>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Harness</th><th>How an outside process sees tool calls</th><th>Custom tools</th><th>Licence</th></tr></thead>
+    <tbody>
+      <tr><td>Claude Code</td><td>hooks with command, HTTP or MCP handlers; a streaming JSON output mode; transcript files (format internal)</td><td>MCP; in-process tools through the Agent SDK</td><td>proprietary</td></tr>
+      <tr><td>OpenCode</td><td>a local HTTP server with a server-sent event stream and an OpenAPI spec; plugin hooks before and after each tool</td><td>plugin tools, MCP</td><td>MIT</td></tr>
+      <tr><td>Codex CLI</td><td>hooks with nearly the same schema as Claude Code; an app-server speaking JSON-RPC</td><td>MCP</td><td>Apache-2.0</td></tr>
+      <tr><td>pi</td><td>in-process extension events; an RPC mode over stdio</td><td>registered by extensions; no built-in MCP</td><td>MIT</td></tr>
+      <tr><td>Hermes Agent</td><td>Python plugin hooks; an HTTP API with event stream</td><td>Python plugins, MCP</td><td>MIT</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="col">
+    <p>The Agent Client Protocol carries tool calls with locations and diffs, and many agents speak it directly or through an adapter, so a client or proxy on it covers the long tail.</p>
+    <p><strong>For an observer that does not care which harness:</strong> a file watcher plus a native analysis process as ground truth; a thin hook adapter for attribution; an ACP client later. Ship definition-level tools as an MCP server, which every harness above accepts except pi.</p>
+    <p><strong>For embedding a harness later:</strong> OpenCode fits custom tools plus a custom web UI best. pi is the smallest core to build on. The Claude Agent SDK is the least work if Claude-only is acceptable.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>OCaml tooling</h2>
+    <ul>
+      <li><strong>Merlin and ocaml-lsp.</strong> Merlin takes the buffer on stdin, so unsaved and broken files work. Recovery is by design: a recovering parser, and a typer that catches errors per structure item. Commands include outline, type-enclosing, occurrences, holes, construct, errors and locate. ocaml-lsp vendors Merlin and can pass any Merlin command through. <code>_</code> is a typed hole. Cross-module information reflects the last build.</li>
+      <li><strong>Reason.</strong> Merlin reads <code>.re</code> through the Reason reader. The tree-sitter grammars for Reason are stale; the one for OCaml is current.</li>
+      <li><strong>Project-wide occurrences.</strong> Need OCaml 5.2 or later and an index built by dune, kept fresh in watch mode.</li>
+      <li><strong>Compiled annotations.</strong> A <code>.cmt</code> file is written even on a type error, holding what was inferred. Reading them ties a tool to one compiler version.</li>
+      <li><strong>dune.</strong> Watch mode, an RPC interface for diagnostics (documented as experimental), and <code>dune describe</code> for libraries and module dependencies.</li>
+      <li><strong>Existing MCP servers.</strong> ocaml-mcp (build status, diagnostics, evaluation; several tools unfinished in 2025) and Tarides' topup (a persistent toplevel). No official dune or Merlin server was found.</li>
+      <li><strong>Values.</strong> Lowest effort is expect and inline tests under a watch build. Next is a toplevel loaded with the library.</li>
+      <li><strong>In the browser.</strong> merlin-js exists for small playgrounds. For a real dune project with ppx and many libraries, analysis belongs in a native process.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Madhavapeddy on modules and agents</h2>
+    <ul>
+      <li><a href="https://anil.recoil.org/notes/ocaml-modules-agentic">OCaml's module language is the perfect fit for agentic programming</a> (October 2026). An agent fills a small well-specified hole better than it handles a large code base. Write and type-check the <code>.mli</code> files for a whole system first, then hand over one module at a time. Abstract types enforce the design: an agent that treats money as a raw integer inside another module is stopped by the compiler. A missing piece of an interface is a signal to revisit the design.</li>
+      <li><a href="https://www.cl.cam.ac.uk/~avsm2/2025-ocaml-ai-draft1.pdf">Three steps for OCaml to crest the AI humps</a> (OCaml Workshop 2025, with Jaffer, Ludlam and Gibb). The same workflow in three phases: interfaces first and rendered as documentation for human review, then tests that type-check, then implementations one module at a time.</li>
+      <li>In a <a href="https://anil.recoil.org/notes/aoah-2025-15">write-up of porting an HTML5 parser</a> he checks the interface files in a diff separately, to confirm only implementations changed.</li>
+      <li>Tooling from the group: a <a href="https://github.com/avsm/ocaml-claude-marketplace">Claude plugin marketplace for OCaml</a>, <a href="https://github.com/sadiqj/odoc-llm">odoc-llm</a> module summaries, a devcontainer for sandboxed runs, and monorepo tools so agents can read dependencies locally.</li>
+      <li>Stated pain points: models omit <code>rec</code>, mix integer and float operators, and invent functions; OCaml is a tiny share of training data; ppx needs explaining.</li>
+    </ul>
+    <p class="muted">No post was found arguing for functors, or describing signature-level diff review as a tool.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Related work</h2>
+    <p>The <a href="../notes/scope.html">scope notes</a> hold the main table. Further items the search returned:</p>
+    <ul>
+      <li><strong>Edits and benchmarks.</strong> <a href="https://arxiv.org/abs/2309.12499">CodePlan</a> (repository-level edits planned over a dependency graph); <a href="https://arxiv.org/abs/2503.07832">RefactorBench</a> (multi-file refactoring tasks where baseline agents solve 22%); <a href="https://arxiv.org/abs/2510.12487">Diff-XYZ</a> (a benchmark of textual edit formats).</li>
+      <li><strong>Types and proofs.</strong> <a href="https://arxiv.org/abs/2504.09246">Type-constrained code generation</a>; <a href="https://arxiv.org/abs/2306.10763">monitor-guided decoding</a>; agent interfaces for Agda and Rocq built on goals and holes.</li>
+      <li><strong>Review.</strong> Kleppmann's argument that people should review specifications while machines check implementations; spec-driven tools such as Kiro and spec-kit, where the reviewed artefact is prose.</li>
+      <li><strong>Change views.</strong> difftastic, GumTree and SemanticDiff (syntax-tree diffs shown as text); Softagram (dependency-change diagrams on pull requests); Gource, CodeCity and software cartography (history replays).</li>
+      <li><strong>Definition-level code.</strong> Darklang, Lamdu, Pijul.</li>
+      <li><strong>Typed views.</strong> GeckoGraph, calligraphy, dune-deps, codept, Glamorous Toolkit, the active Sourcetrail forks.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Not confirmed</h2>
+    <ul>
+      <li>How fast Merlin or ocaml-lsp answers on a large Reason file mid-edit. No published numbers were found.</li>
+      <li>Exact hook and event payload shapes for each harness.</li>
+      <li>Whether a pane inside Claude Code can host an arbitrary web page.</li>
+      <li>Whether Serena supports OCaml, and whether ocaml-mcp's module-signature tool has shipped.</li>
+      <li>Claims taken from vendor pages for live code-graph tools.</li>
+      <li>The blog posts above were read through a summarising fetch, so their details are paraphrase.</li>
+      <li>Nothing in Hazel was compiled for this; the claims about what lifts rest on reading module references.</li>
+    </ul>
+  </div>
+</section>
+</main>
+</body>
+</html>

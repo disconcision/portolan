@@ -1,0 +1,8 @@
+# Not in git. Everything else in this folder is committed.
+node_modules/
+_build/
+_site/
+*.install
+.DS_Store
+# big or throwaway files go in a folder named local/ anywhere in the tree
+local/
