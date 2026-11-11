@@ -118,9 +118,9 @@ tr.pick td { background: var(--mark-soft); }
   <div class="verdict">
     <span class="eyebrow">In short</span>
     <ul>
-      <li><strong>First build.</strong> The parts of Hazel's canvas that translate, for a dune project: types as nodes, functions as arrows, modules as hulls, tests as pips, Trine, replay, and a click through to the code. It works on a repository at rest, on a recorded run, and live beside Claude Code. The first target is small greenfield projects from the Hazel demo prompts; the Hazel repository comes second.</li>
-      <li><strong>How.</strong> A native OCaml sidecar turns the project into the graph record Hazel's canvas already draws. The canvas code is copied behind that record, free to be shared with Hazel or to diverge later.</li>
-      <li><strong>Directions, sketched and not in the first build.</strong> Interfaces as the map, change sets as pictures, several agents at once, voice and ink, editing by definition, properties on the diagram.</li>
+      <li><strong>First build.</strong> The parts of Hazel's canvas that translate, for a dune project, with the chat in the same page. First target: small greenfield projects from the Hazel demo prompts. Second: the Hazel repository.</li>
+      <li><strong>How.</strong> A native OCaml sidecar turns the project into the graph record Hazel's canvas already draws, and runs the agent. The canvas code is copied behind that record, free to be shared with Hazel or to diverge.</li>
+      <li><strong>Directions, in a proposed order.</strong> Next: something valid to draw, the edited view, layout. Main bets: interfaces, change sets, history, what each agent has seen, several agents. Further out: voice and ink, editing by definition, properties, slices.</li>
       <li><strong>This page is kept current.</strong> It records the scope as it is talked through: your directions, and ones proposed here, marked as such.</li>
     </ul>
   </div>
@@ -174,7 +174,7 @@ tr.pick td { background: var(--mark-soft); }
   <div class="col">
     <span class="eyebrow">First build</span>
     <h2>What Hazel has now, for a dune project</h2>
-    <p>Hazel's canvas is about 27,000 lines, of which roughly 15,000 have no Hazel dependencies: layout, score, player, camera, Trine, bubbles, traces, CSS. Everything downstream of one function, <code>CanvasGraph.extract</code>, reads a plain record of type nodes, function arrows, tests, module paths and error flags. The canvas never reads edit operations. Each step it gets a new snapshot of that record with a cause and a site, and derives the choreography from the difference. So the port is a new producer for that record, plus a copy of the Hazel-free code.</p>
+    <p>Types as nodes, functions as arrows, modules as hulls, tests as pips, Trine, replay, and a click through to the code. Hazel's canvas is about 27,000 lines, of which roughly 15,000 have no Hazel dependencies. Everything downstream of one function, <code>CanvasGraph.extract</code>, reads a plain record, and each step the canvas gets a new snapshot of it with a cause and a site. It never reads edit operations. So the port is a new producer for that record, plus a copy of the Hazel-free code.</p>
   </div>
   <figure>
     <div class="scroll">
@@ -200,12 +200,12 @@ tr.pick td { background: var(--mark-soft); }
       <rect class="box" x="360" y="312" width="270" height="60" rx="6"/>
       <text class="hd" x="372" y="337">Project's own ocamllsp + dune</text><text class="sm" x="372" y="358">outline · types · errors · index</text>
       <path class="wire" d="M495 282 V312" marker-end="url(#f1a)"/><text class="sm" x="503" y="302">asks</text>
-      <path class="wire v1w" d="M220 70 H360" marker-end="url(#f1b)"/><text class="sm av1" x="232" y="62">hooks · SSE · ACP</text>
+      <path class="wire v1w" d="M220 70 H360" marker-end="url(#f1b)"/><text class="sm av1" x="232" y="62">tool-call stream</text>
       <path class="wire v2w" d="M220 96 H290 V162 H360" marker-end="url(#f1c)"/><text class="sm av2" x="296" y="130">MCP tools</text>
       <path class="wire v2w" d="M360 182 H150 V230" marker-end="url(#f1c)"/><text class="sm av2" x="160" y="200">writes splices</text>
       <path class="wire v1w" d="M220 262 H360" marker-end="url(#f1b)"/><text class="sm av1" x="262" y="254">file watch</text>
       <rect class="v1" x="770" y="48" width="190" height="60" rx="6"/>
-      <text class="hd" x="782" y="73">Canvas</text><text class="sm" x="782" y="94">a page in any browser</text>
+      <text class="hd" x="782" y="73">Canvas + chat</text><text class="sm" x="782" y="94">one page, any browser</text>
       <rect class="v2" x="770" y="132" width="190" height="60" rx="6"/>
       <text class="hd" x="782" y="157">Outline + definitions</text><text class="sm" x="782" y="178">stacked cells, chat</text>
       <rect class="v2" x="770" y="216" width="190" height="66" rx="6"/>
@@ -217,7 +217,7 @@ tr.pick td { background: var(--mark-soft); }
       <rect class="v2" x="20" y="364" width="14" height="14" rx="3"/><text class="sm" x="42" y="375">later: editing by definition</text>
     </svg>
     </div>
-    <figcaption>The first build is the blue path: watch files, listen to hooks, draw. Files on disk are the store. The sidecar re-derives its model from them after every change, whoever made it. Changing harness, or later embedding one, changes only the top-left box.</figcaption>
+    <figcaption>The first build is the blue path: run the agent, watch files, draw. Files on disk are the store. The sidecar re-derives its model from them after every change, whoever made it. Changing harness, or later embedding one, changes only the top-left box.</figcaption>
   </figure>
   <div class="col">
     <p><strong>Where the graph comes from.</strong> The sidecar asks the project's own <code>ocamllsp</code>, which vendors Merlin. It reads <code>.re</code> through the Reason reader, so Hazel works on day one. It recovers from errors one item at a time, so a half-edited file still yields its other definitions. And it is whatever version the project's switch has, so our binary is not tied to a compiler version. <code>dune describe</code> gives libraries. A watch build beside it keeps cross-module types and the occurrence index fresh.</p>
@@ -236,15 +236,15 @@ tr.pick td { background: var(--mark-soft); }
   </table>
   </div>
   <div class="col">
-    <p><strong>How it hears about the agent.</strong> Two signals, joined by time and path. The file watcher is ground truth and is enough alone: any change by any tool produces a new snapshot. Claude Code's tool-call hooks post to the sidecar and say which agent did it, where, and what it read. Codex hooks have nearly the same shape, and OpenCode has an event stream. A trace records snapshots and causes, so a run replays in a browser with no OCaml toolchain.</p>
-    <p><strong>Two targets, in order.</strong> First, small greenfield projects: give a coding agent the prompts used for the Hazel demos (the vector scene, the turn-based game, the crafting system, the dungeon with modules) in an empty dune project, and watch. This is the like-for-like comparison with Hazel, and small enough that scale is not in the way. Then the Hazel repository, 552 modules and about 158,000 lines, which needs the library-level view with hulls collapsed.</p>
-    <p><strong>What the first runs answer.</strong> Whether an agent editing OCaml as text gives a picture like Hazel's, or whether the code arrives in one chunk and is only replayed. My guess is in between: a first file written whole, then smaller edits. The canvas turns a whole-file write into one beat per definition in program order, so it will still read, but as a staged replay. The Hazel prompts already ask for incremental work with tests throughout, so the same wording can be run plain and with a nudge toward small steps and inline tests. That is the lowest rung of shaping, tried before anything heavier.</p>
+    <p><strong>Chat in the same page.</strong> The sidecar starts Claude Code in its headless streaming mode and relays it, so the prompt box, the replies and the tool calls sit beside the canvas, as in Hazel. The same stream carries every tool call, so it also gives each beat its cause, Trine its site and the thought bubble its text. Runs started from the page need no hooks. Hooks remain the way to watch a session started in a terminal, later. The installed Claude Code has the flags for this. It is untested.</p>
+    <p><strong>Two targets, in order.</strong> First, small greenfield projects: the prompts used for the Hazel demos (the vector scene, the turn-based game, the crafting system, the dungeon with modules) in an empty dune project. This is the like-for-like comparison with Hazel. Then the Hazel repository, 552 modules and about 158,000 lines.</p>
+    <p><strong>What the first runs answer.</strong> Whether an agent editing OCaml as text gives a picture like Hazel's, or whether code arrives in one chunk and is only replayed. My guess is in between: a first file written whole, then smaller edits. Each prompt is run plain and with a nudge toward small steps and inline tests.</p>
     <ol class="steps">
       <li>Index a small hand-written OCaml project, the vector scene ported, to graph JSON. Check it by hand.</li>
       <li>Copy the Hazel-free canvas files into this repository behind the graph record. Render that JSON on a static page.</li>
-      <li>Watch files: a hand edit re-indexes the touched module and the existing score plays. A broken file keeps its last good picture. Selecting a node shows its code.</li>
-      <li>Claude Code hook adapter: cause labels and Trine's site, keyed by session. Record and replay a trace.</li>
-      <li>Run the vector prompt in an empty project and watch, then the other demo prompts. Compare with the Hazel recordings of the same prompts.</li>
+      <li>Watch files: a hand edit re-indexes and the existing score plays. A broken file keeps its last good picture. Selecting a node shows its code.</li>
+      <li>Chat pane: the sidecar runs Claude Code headless and relays it; the stream labels each beat. Record and replay a trace.</li>
+      <li>Run the vector prompt in an empty project and watch, then the other demo prompts. Compare with the Hazel recordings.</li>
       <li>Point it at the Hazel repository.</li>
     </ol>
     <p class="muted">Not measured yet: how fast <code>ocamllsp</code> answers on a 2,000-line Reason file mid-edit. If too slow, a parse-only reader goes in front of it.</p>
@@ -254,33 +254,37 @@ tr.pick td { background: var(--mark-soft); }
 <section>
   <div class="col">
     <span class="eyebrow">Directions</span>
-    <h2>Where it could go</h2>
-    <p>None of this is in the first build. Several are not built in Hazel either, so each is a chance to design once for both.</p>
+    <h2>Where it could go, in order</h2>
+    <p>None of this is in the first build. The order is my proposal; move rows as you see fit. Most are not built in Hazel either, so each is a chance to design once for both.</p>
   </div>
   <div class="scroll">
   <table>
-    <thead><tr><th>Direction</th><th>Where it came from</th><th>Touches the first build</th></tr></thead>
+    <thead><tr><th>Direction</th><th>When</th><th>Came from</th><th>In Hazel today</th></tr></thead>
     <tbody>
-      <tr><td>Levels and drill-down</td><td>you</td><td>yes: opens at library level, click through to code</td></tr>
-      <tr><td>Interfaces as the map</td><td>you, with Anil's writing; the used interface and empty rims are proposed here</td><td>no</td></tr>
-      <tr><td>Change sets as pictures</td><td>you; the three kinds of mark are proposed here</td><td>no</td></tr>
-      <tr><td>Several agents</td><td>you; body, history and relations is proposed here</td><td>the log is keyed by agent</td></tr>
-      <tr><td>Who knows what, and what you are shown</td><td>you; the four kinds of edit and the visible-trace rule are proposed here</td><td>lightly: collapsed hulls by default</td></tr>
-      <tr><td>Voice and ink</td><td>you, from Spall</td><td>no</td></tr>
-      <tr><td>Editing by definition</td><td>you, from modular editors</td><td>no</td></tr>
-      <tr><td>How much to shape the agent</td><td>you; last-good display and measuring broken states first are proposed here</td><td>yes: the canvas must survive broken states</td></tr>
-      <tr><td>Properties on the diagram</td><td>you; the evidence ladder and reading existing property tests are proposed here</td><td>no</td></tr>
-      <tr><td>Slices of a definition</td><td>you; the four kinds of slice and coverage as a cheap dynamic slice are proposed here</td><td>no</td></tr>
-      <tr><td>History as material</td><td>you; importing transcripts as traces is proposed here</td><td>maybe: a ready source of test runs</td></tr>
-      <tr><td>Layout from square one</td><td>you; the candidates and the comparison corpus are proposed here</td><td>no: the port keeps the current engine</td></tr>
+      <tr><td>Something valid to draw</td><td>next</td><td>you; last-good display and measuring first are proposed here</td><td>always valid, by construction</td></tr>
+      <tr><td>The edited view</td><td>next</td><td>you; the four kinds and the trace rule are proposed here</td><td>partial: built-ins folded, main arrows thicker</td></tr>
+      <tr><td>Layout from square one</td><td>next</td><td>you; the candidates are proposed here</td><td>layered engine, a survey, a layout lab</td></tr>
+      <tr><td>Interfaces as the map</td><td>main bet</td><td>you, with Anil's writing; used interfaces and empty rims are proposed here</td><td>not built; sealed modules exist</td></tr>
+      <tr><td>Change sets as pictures</td><td>main bet</td><td>you; the three marks are proposed here</td><td>not built</td></tr>
+      <tr><td>History as material</td><td>main bet</td><td>you; logs replayed as traces is proposed here</td><td>traces of its own agent only</td></tr>
+      <tr><td>What each agent has seen</td><td>main bet</td><td>you</td><td>not built; the agent gets the whole outline</td></tr>
+      <tr><td>Several agents</td><td>main bet</td><td>you; body, history and relations is proposed here</td><td>not built</td></tr>
+      <tr><td>Voice and ink</td><td>further out</td><td>you, from Spall</td><td>not built</td></tr>
+      <tr><td>Editing by definition</td><td>further out</td><td>you, from modular editors</td><td>built: outline, verbs, agent map</td></tr>
+      <tr><td>Properties on the diagram</td><td>further out</td><td>you; the evidence ladder is proposed here</td><td>test pips only</td></tr>
+      <tr><td>Slices of a definition</td><td>further out</td><td>you; the kinds of slice are proposed here</td><td>folds exist</td></tr>
     </tbody>
   </table>
   </div>
+
   <div class="col">
-    <h3>Interfaces as the map</h3>
-    <p>A module is drawn by its signature. The implementation is folded inside the hull and opens on demand. The reason is review: if the signatures a change touches are right and the tests behind them pass, the implementations often need no reading. </p>
-    <p>Anil Madhavapeddy makes the matching argument from the agent's side in <a href="https://anil.recoil.org/notes/ocaml-modules-agentic">a post from October</a> and an <a href="https://www.cl.cam.ac.uk/~avsm2/2025-ocaml-ai-draft1.pdf">OCaml Workshop paper</a>. Write and type-check the <code>.mli</code> files for a whole system first, then hand an agent one module at a time, since it fills a small well-specified hole better than it handles a large code base. Abstract types then enforce the design: an agent that reaches around an interface is stopped by the compiler. On the canvas that workflow has a natural picture: a system designed interface-first is a set of rims with empty interiors, drawn like Hazel's hole-bodied arrows, and implementation fills them in. His post says interfaces for this kind of work are only beginning, and points to Hazel.</p>
-    <p>Hazel has 52 interface files for 552 modules. For a module without one, the sidecar can derive the used interface: the members other modules reference. That is a draft <code>.rei</code>, which makes the tool a way of moving Hazel toward interfaces as well as reading them.</p>
+    <h3>Next: what the first runs will ask for</h3>
+    <p><strong>Something valid to draw.</strong> Hazel always has a well-formed program to draw. An agent editing OCaml as text can leave files broken for long stretches. The first build holds the last good state of each definition and marks what is in flux. Beyond that there is a ladder of influence over the agent: a prompt suggesting small steps and holes, tools it is encouraged to use, tools it must use, our own harness. Each rung buys more valid states and costs generality. The first runs, and your session logs, will say how far up is needed.</p>
+    <p><strong>The edited view.</strong> An agent holds far more in its head than a person, so what you are shown is an edit of what is there. Four kinds: omit (show a sub-diagram), fold (a hull for its contents), rank (only the arrows that carry weight), and merge (several types as one node where their differences do not matter, a quotient). Merge is the strongest and can wait. Every edit leaves a visible trace, a count or a seam, and opens in place, so the picture is edited and still honest. The Hazel repository needs fold and rank at once.</p>
+    <p><strong>Layout from square one.</strong> The port keeps Hazel's layered layout. It tangles too often, so layout is the first thing to rethink, possibly with different methods for different situations. To try: module regions placed first and nodes inside them; a template per module with its main type in the middle; a method per level; a budget, so a view folds until it fits. Hazel's history is a corpus to compare them on. Hazel's own layout survey argued for refining the layered engine, so it should be reread first.</p>
+
+    <h3>The main bets</h3>
+    <p><strong>Interfaces as the map.</strong> A module is drawn by its signature, with the implementation folded inside. The reason is review: if the signatures a change touches are right and the tests behind them pass, the implementations often need no reading. Anil Madhavapeddy argues the agent's side in <a href="https://anil.recoil.org/notes/ocaml-modules-agentic">a post</a> and an <a href="https://www.cl.cam.ac.uk/~avsm2/2025-ocaml-ai-draft1.pdf">OCaml Workshop paper</a>: type-check the <code>.mli</code> files for a whole system first, then hand an agent one module at a time, and let abstract types enforce the design. On the canvas that is a set of rims with empty interiors that fill in. Hazel has 52 interface files for 552 modules. For the rest the sidecar can derive the used interface, the members other modules reference, as a draft <code>.rei</code>.</p>
   </div>
   <figure>
     <div class="scroll">
@@ -313,8 +317,7 @@ tr.pick td { background: var(--mark-soft); }
     <figcaption>A proposal for the drawing. Exported members sit at the rim, private ones inside. An abstract type is solid, a manifest one hollow. A module with no interface gets a dashed hull, and a use of its representation from outside is a wire past the rim.</figcaption>
   </figure>
   <div class="col">
-    <h3>Change sets as pictures</h3>
-    <p>The canvas already works by comparing snapshots. Compare against a fixed base and it is a diff view: a session, a branch, a pull request, last week. It is a diff of definitions and interfaces, with the text diff one step down on any marked node. The same marks serve live and afterwards, sorted by how much reading they ask for.</p>
+    <p><strong>Change sets as pictures.</strong> The canvas works by comparing snapshots. Compare against a fixed base and it is a diff view: a session, a branch, a pull request, last week. It is a diff of definitions and interfaces, with the text diff one step down. The same marks serve live and afterwards, sorted by how much reading they ask for.</p>
   </div>
   <figure>
     <div class="scroll">
@@ -346,24 +349,14 @@ tr.pick td { background: var(--mark-soft); }
     <figcaption>Amber marks what changed. A summary line reads the picture back: 3 interfaces changed, 11 interior changes behind unchanged signatures, 4 dependents edited, 2 tests red.</figcaption>
   </figure>
   <div class="col">
-    <h3>Several agents</h3>
-    <p>On the canvas an agent has three parts. A body: its own Trine, showing where it is and what it is doing. A history: the change set it has made. And relations to other agents: who started whom, who is messaging whom. How to draw the relations is open. The history is the part that can be compared. Agents usually work in separate worktrees, so each history is a diff against a common base, and the canvas can overlay a few of them, with a colour and a sidebar lane each. What the overlay should surface is where they meet: two agents inside the same hull, or one changing a signature another's work depends on, before the merge finds it. Start with two or three. Hook events already carry a session id, so the first build keys its activity log by agent. That is the only part of this that touches the first build.</p>
-    <h3>Who knows what, and what you are shown</h3>
-    <p>Two questions share the canvas. What does the agent have? Each definition is unseen, listed, read or edited for a given agent, raised by what its tool calls returned. The canvas should be faithful about that, because it is how you understand an agent's context. What should you be shown? Much less, by default. An agent holds far more in its head than a person can, so your view is an edited one, and you can switch between the two.</p>
-    <p>The edits come in kinds. Omit: show a sub-diagram. Fold: show a hull for its contents. Rank: show only the arrows that carry weight. Merge: draw several types as one node where their differences do not matter to the question, a quotient of the diagram. Merging is the strongest and can wait. The rule for all four is that a simplification leaves a visible trace, a count or a seam, and opens in place. The picture is edited and still honest.</p>
-    <h3>Talking back without typing</h3>
-    <p>Voice, pointer and ink on one clock, as <span class="mono">spall-multimodal</span> already has. Pointing words bind to whatever was selected when each was spoken; the Stratum voice gateway does this today with local whisper.cpp and could run unchanged beside the sidecar. Ink anchors to graph entities and follows them as the layout moves: an arrow between two nodes, a loop around several, a line across a hull, a strike. A turn lands in the sidebar and reaches the agent as text with every reference resolved, through a hook at its next tool call.</p>
-    <div class="turn">
-      <div class="turn-head">you · 14:02:11 · voice + ink</div>
-      <p>“<span class="ref">this → Outline.of_term</span> should take <span class="ref">that → Statics.Map.t</span> as well, and <span class="ref">these two → loop A</span> belong in one module”</p>
-      <div class="turn-sent">sent to the agent: Outline.of_term should take Statics.Map.t as well. Ink loop A encloses Zipper.t and Segment.t: these belong in one module.</div>
-    </div>
-    <h3>Editing by definition</h3>
-    <p>The verbs from editing-in-the-large (<code>insert</code>, <code>replace</code>, <code>delete</code>, <code>move</code>, <code>rename</code>, <code>open</code>, <code>close</code>, a folded <code>map</code>) served by the same sidecar over MCP, so they run inside the harness already in use. Files stay the store, and the structure is what edits go through: the kernel turns a verb into checked text splices. Bash and plain edits stay legal and reach the model the same way. In October's A/B on Hazel's agent these verbs used about 22% fewer input tokens and 30% fewer calls. OCaml adds real work: every edit has an <code>.mli</code> side, moves cross files, and the dependents check costs a build. A shell with outline, stacked definitions and chat comes after that. Whether it embeds OpenCode or runs a small loop of ours turns on whether we need to control exactly what the model sees.</p>
-    <h3>How much to shape the agent</h3>
-    <p>The canvas is not independent of how the agent works. Hazel's trick is that the program is always well-formed enough to type-check and run, so there is always something to draw. A harness editing OCaml as text can leave files unparseable or ill-typed for long stretches, and a canvas that goes blank or jumps during those is useless. There is a ladder of influence: nothing; a prompt or skill suggesting small steps and sketching with holes, interfaces first; tools the agent is encouraged to use; tools it must use; our own harness. Each rung buys more valid intermediate states and costs generality. Two things come before climbing it. The canvas holds the last good state of each definition and marks what is in flux, so it never breaks and never pretends. And the session logs can tell us how often, and for how long, past sessions actually left Hazel broken. Drawing a repository at rest, change sets and interfaces do not depend on any of this. Live quality, attribution per definition and exact knowledge of what the agent has seen do.</p>
-    <h3>Properties on the diagram</h3>
-    <p>The canvas is close to a categorical diagram, so an equation between functions has a picture: two paths between the same nodes that are claimed to agree. You would state one by selecting the two paths and marking the face between them. It is stored as a property test that names both paths, so the canvas can equally draw the property tests a code base already has; Hazel's QCheck tests are a ready supply. An agent writes the generator and the test, and the mark then carries the evidence, the way a pip does for a unit test. Round trips, idempotent orbits and invariants are the same idea in smaller shapes. Proof tools would attach at the top of the ladder. The canvas only has to show that a property exists and how well supported it is. Laws between exported functions belong at the rim, where a reviewer reads them, and a change set that breaks one shows as a refuted mark.</p>
+    <p><strong>History as material.</strong> Git history and merged pull requests are coarse and complete: any commit is a snapshot. Claude Code session logs are fine-grained and chronological. Replaying a log's edits onto its base commit turns a past session into a trace without running an agent again. Open: what to keep from now on, and whose logs. A trace needs only graph snapshots, tool names and paths, so it can leave the conversation out.</p>
+    <p><strong>What each agent has seen.</strong> For a given agent each definition is unseen, listed, read or edited, raised by what its tool calls returned. The canvas should be faithful about this, because it is how you understand an agent's context. You switch between that and your own edited view.</p>
+    <p><strong>Several agents.</strong> On the canvas an agent has a body (its Trine), a history (its change set) and relations to other agents, which are open how to draw. Histories can be compared: agents usually work in separate worktrees, so each is a diff against a common base, overlaid with a colour each. What to surface is where they meet: two inside the same hull, or one changing a signature another depends on. The first build keys its log by agent so this stays open.</p>
+
+    <h3>Further out</h3>
+    <p><strong>Voice and ink.</strong> Voice, pointer and ink on one clock, as <span class="mono">spall-multimodal</span> has. Pointing words bind to what was selected when each was spoken; the Stratum voice gateway does this today. Ink anchors to nodes and follows them as the layout moves: an arrow between two nodes, a loop around several, a line across a hull, a strike. A turn reaches the agent as text with every reference resolved.</p>
+    <p><strong>Editing by definition.</strong> The verbs from editing-in-the-large (<code>insert</code>, <code>replace</code>, <code>delete</code>, <code>move</code>, <code>rename</code>, <code>open</code>, <code>close</code>, a folded <code>map</code>) served by the sidecar over MCP. Files stay the store, and the structure is what edits go through: the kernel turns a verb into checked text splices, while bash and plain edits stay legal. On Hazel's agent in October these verbs used about 22% fewer input tokens and 30% fewer calls. OCaml adds work: every edit has an <code>.mli</code> side, moves cross files, and the check costs a build. This is the top of the ladder of influence above.</p>
+    <p><strong>Properties on the diagram.</strong> The canvas is close to a categorical diagram, so an equation between functions is two paths between the same nodes that are claimed to agree. You mark the face between them. It is stored as a property test that names both paths, so existing property tests can be drawn too; Hazel's QCheck tests are a ready supply. An agent writes the generator and the test, and the mark carries the evidence the way a pip does.</p>
   </div>
   <figure>
     <div class="scroll">
@@ -396,12 +389,7 @@ tr.pick td { background: var(--mark-soft); }
     <figcaption>Left: a round trip that holds under test. Middle: a square the tests refuted. Right: the four states of a law mark.</figcaption>
   </figure>
   <div class="col">
-    <h3>Slices of a definition</h3>
-    <p>A side note for when drilling down reaches code. The stance is to be selective about what is surfaced: opening a definition should not put a multi-page <code>match</code> in front of you. Folding to definitions is already a coarse slice, and the same folding can go one level finer, to the arms that matter, with the rest shown as a count. What matters depends on why you opened it. For a change: the arms that changed. For a selected type: the arms that mention its constructors. For an error: the parts that contribute to it, which is what type slicing computes. For a run: the arms a test actually took. That last one is dynamic, and a full version means work in the runtime, but coverage data per test gives arm-level answers cheaply. The agent's map could use the same slices to save tokens.</p>
-    <h3>History as material</h3>
-    <p>Once an OCaml code base can be drawn, Hazel's past becomes data. There are two sources, with different grain. Git history and merged pull requests are coarse and complete: any commit is a snapshot, any pull request a change set. Claude Code session logs on your machine are fine-grained and chronological: each read and edit in order, which is enough to rebuild what an agent saw and did. Replaying a log's edits onto its base commit would turn a past session into a trace, with no agent run again. That gives after-the-fact viewing early, and test material for the first build. Open questions: what to keep from now on, and whose logs. A trace needs only graph snapshots, tool names and paths, so it can leave the conversation out.</p>
-    <h3>Layout from square one</h3>
-    <p>The port keeps Hazel's layered layout so that the first build is a port. After that, layout is the first thing to rethink, because the current engine ends in a tangle too often. There may be several algorithms, each used where it suits. Candidates to try: place module regions first and nodes inside them, where today hulls are drawn around nodes placed without them; a fixed template per module, its main type in the middle with orbits and exported arrows at the rim; a different method per level of the ladder; and a budget, so a view never holds more than it can lay out cleanly and folds or ranks until it fits. Hazel's own history gives a corpus to compare them on, with crossings and hull overlaps counted. Hazel already has a layout research survey and a layout lab to start from.</p>
+    <p><strong>Slices of a definition.</strong> When drilling down reaches code, show only the arms that matter and count the rest. Which arms depends on why you opened it: the ones a change touched, the ones that mention a selected type, the ones that contribute to an error, the ones a test actually took. The last is dynamic; coverage data gives it cheaply.</p>
   </div>
 </section>
 
@@ -409,33 +397,7 @@ tr.pick td { background: var(--mark-soft); }
   <div class="col">
     <span class="eyebrow">Tandem</span>
     <h2>Keeping in line with Hazel</h2>
-    <p>The shared thing is a contract: the graph record, the trace format, the principles document and the CSS token names. Code starts as a copy in the new repository, with <span class="mono">agent-canvas</span> untouched. If both sides want the same change twice it can become a shared library, and if this app pulls ahead Hazel can mount its canvas. Entry identity here is path plus content hash, definition-level in the spirit of Arbor. This table is where the two are kept in line.</p>
-  </div>
-  <div class="scroll">
-  <table>
-    <thead><tr><th>Feature</th><th>Hazel</th><th>OCaml app</th><th>Note</th></tr></thead>
-    <tbody>
-      <tr><td>Graph, layout, score, camera, Trine</td><td>built</td><td>first build, copied</td><td>keep the record identical</td></tr>
-      <tr><td>Traces and replay</td><td>built, replays tool calls</td><td>first build, snapshots</td><td>Hazel could adopt snapshot traces</td></tr>
-      <tr><td>Click through to code</td><td>built: info panel, constellation mode</td><td>first build, read-only</td><td></td></tr>
-      <tr><td>Module collapse and levels</td><td>partial: root collapse only</td><td>first build needs it</td><td>design once</td></tr>
-      <tr><td>Picking up and redirecting the agent</td><td>built</td><td>later</td><td>needs a pause signal to the harness</td></tr>
-      <tr><td>Interfaces on hulls</td><td>not built; sealed modules exist</td><td>direction</td><td>design once</td></tr>
-      <tr><td>Change sets</td><td>not built</td><td>direction</td><td>design once</td></tr>
-      <tr><td>Several agents</td><td>not built</td><td>direction</td><td>log keyed by agent from the start</td></tr>
-      <tr><td>Fog of war</td><td>not built; agent gets the whole outline</td><td>direction</td><td>Hazel needs discovery first</td></tr>
-      <tr><td>Edited view: omit, fold, rank, merge</td><td>partial: built-ins folded into arrows, main arrows thicker</td><td>fold and rank in the first build; merge later</td><td>design once; every edit leaves a trace</td></tr>
-      <tr><td>Voice and ink</td><td>not built</td><td>direction</td><td>exists in Spall and the Stratum gateway</td></tr>
-      <tr><td>Properties and laws</td><td>not built; test pips only</td><td>direction</td><td>design once; draw existing property tests first</td></tr>
-      <tr><td>Slices of a definition</td><td>not built; folds exist</td><td>direction</td><td>static first; dynamic needs runtime work</td></tr>
-      <tr><td>Past sessions and history as traces</td><td>traces of its own agent only</td><td>direction, possibly early</td><td>snapshots make old runs replayable</td></tr>
-      <tr><td>Layout</td><td>layered engine, plus a survey and a layout lab</td><td>first build copies the engine; new approaches after</td><td>the first thing to rethink; try it here, port back what works</td></tr>
-      <tr><td>Always something valid to draw</td><td>by construction: holes keep every state well-formed</td><td>first build: last good state per definition, in-flux mark</td><td>shaping the agent's process comes after measuring</td></tr>
-      <tr><td>Outline, definition verbs, agent map</td><td>built</td><td>direction, over MCP</td><td>same verbs, paths and map format</td></tr>
-      <tr><td>Authoring on the canvas</td><td>built</td><td>later</td><td>through the kernel's templates</td></tr>
-      <tr><td>Probes, livelits, type cards</td><td>built</td><td>out of scope</td><td>test pips first; values on request from a toplevel later</td></tr>
-    </tbody>
-  </table>
+    <p>What is shared is a contract: the graph record, the trace format, the principles document and the CSS token names. Code starts as a copy here, with <span class="mono">agent-canvas</span> untouched. If both sides want the same change twice it can become a shared library, and if this app pulls ahead Hazel can mount its canvas. The table above is where the two are kept in line: a direction is designed once before either side builds it. Entry identity here is path plus content hash, definition-level in the spirit of Arbor.</p>
   </div>
 </section>
 
@@ -451,23 +413,9 @@ tr.pick td { background: var(--mark-soft); }
 
 <section>
   <div class="col">
-    <span class="eyebrow">Names</span>
+    <span class="eyebrow">Name</span>
     <h2>Portolan, for now</h2>
-    <p>A portolan is a sailor's chart: coasts drawn in detail from the routes actually sailed, interiors left blank. It reads two ways here. The routes sailed are the agent's footprint. The drawn coast with a blank interior is a module shown by its interface. The name is already in use by a geospatial data project, a small code-atlas repository and an AI consultancy, so it may need to change. The rest of the list is kept for that case.</p>
-  </div>
-  <div class="scroll">
-  <table>
-    <thead><tr><th>From</th><th>Names</th><th>Why they fit</th></tr></thead>
-    <tbody>
-      <tr><td>Charts</td><td><strong>Portolan</strong>, Atlas, Gazetteer, Planisphere</td><td>An atlas is a book of maps at several scales. A gazetteer is the index of places that goes with one.</td></tr>
-      <tr><td>Growing things</td><td><strong>Trellis</strong>, <strong>Coppice</strong>, Espalier, Catkin</td><td>A trellis is the frame growth follows, and sits well beside Arbor. A coppice is a hazel wood cut so each base sends up many stems. An espalier is a tree trained flat against a frame.</td></tr>
-      <tr><td>Edges and seals</td><td>Selvage, Signet, Rim, Façade</td><td>For an interface-first tool. A selvage is the finished edge that keeps cloth from unravelling.</td></tr>
-      <tr><td>Instruments</td><td>Orrery, Armillary, Asterism, Theodolite</td><td>An asterism is a star pattern people recognise that is not an official constellation. A theodolite is what a surveyor measures structure with.</td></tr>
-      <tr><td>The stage</td><td>Promptbook, Blocking, Proscenium</td><td>A promptbook is the stage manager's annotated script of who moves where and when.</td></tr>
-      <tr><td>Making</td><td>Armature, Maquette, Loom, Lattice</td><td>A maquette is the small model built to judge the large work.</td></tr>
-      <tr><td>Camels and glass</td><td>Caravan, Caravanserai, Vitrine, Loupe</td><td>A caravanserai is where caravans stop and are looked over. A vitrine shows the workings without letting you touch them.</td></tr>
-    </tbody>
-  </table>
+    <p>A portolan is a sailor's chart: coasts drawn in detail from the routes actually sailed, interiors left blank. It reads two ways here. The routes sailed are the agent's footprint. The drawn coast with a blank interior is a module shown by its interface. The name is already used by a geospatial data project, a small code-atlas repository and an AI consultancy, so it may need to change. In reserve: Trellis, Coppice, Atlas, Selvage, Signet, Asterism, Promptbook, Armature, Maquette, Caravanserai, Vitrine.</p>
   </div>
 </section>
 
@@ -501,7 +449,8 @@ tr.pick td { background: var(--mark-soft); }
     <span class="eyebrow">Next</span>
     <h2>Decisions that are yours</h2>
     <ul>
-      <li><strong>Go on the first build.</strong> The five steps above, against the Hazel repository, in a new repository.</li>
+      <li><strong>Go on the first build.</strong> The six steps above, in this repository.</li>
+      <li><strong>The order of directions.</strong> The table is my proposal.</li>
       <li><strong>Scheme.</strong> My picks are Observatory for a canvas beside a terminal and Tidepool for anything with code panels. One scheme throughout is also reasonable; then Tidepool.</li>
       <li><strong>First harness to watch.</strong> I assumed Claude Code.</li>
     </ul>
