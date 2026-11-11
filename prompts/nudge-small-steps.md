@@ -1,0 +1,1 @@
+Work in small steps. Add one type or one function at a time, with its tests, and run `dune build` and `dune test` after each before moving on. Keep the project compiling between steps: if something is not written yet, give it a body of `failwith "TODO"` and come back to it.

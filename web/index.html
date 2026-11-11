@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portolan</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="canvas/canvas.css">
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <span class="brand">portolan</span>
+    <span class="crumb" id="project">/</span>
+    <span class="chip" id="mode"></span>
+    <span class="spacer"></span>
+    <span class="chip" id="agent">agent: idle</span>
+    <span class="chip" id="build">no build yet</span>
+    <span class="chip" id="tests"></span>
+    <button class="plain" id="which" title="Switch between the ported Hazel canvas and the plain view">view: plain</button>
+    <a class="plain" href="trace" target="_blank" rel="noopener">trace</a>
+  </header>
+
+  <main id="stage">
+    <div id="canvas-host"><div id="canvas"></div><div id="flux" hidden></div></div>
+    <section id="info">
+      <div id="info-head"><span id="info-path">Select a type or a function to see its code.</span><span id="info-type"></span></div>
+      <pre id="info-code"></pre>
+    </section>
+  </main>
+
+  <aside id="chat">
+    <div id="feed" aria-live="polite"></div>
+    <form id="ask">
+      <textarea id="prompt" rows="3" placeholder="Message the agent. Enter sends, Shift+Enter makes a new line."></textarea>
+      <div class="ask-row">
+        <button type="button" class="plain" id="stop">Stop</button>
+        <button type="submit" id="send">Send</button>
+      </div>
+    </form>
+  </aside>
+</div>
+<script src="view.js"></script>
+<script src="canvas/portolan_canvas.js" onerror="window.PortolanCanvasMissing = true"></script>
+<script src="app.js"></script>
+</body>
+</html>

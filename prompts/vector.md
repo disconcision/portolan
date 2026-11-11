@@ -1,0 +1,3 @@
+Vector scene: sum-of-tuples plus an orbit pile-up. Shape as a sum whose variants carry tuple payloads.
+
+Please build a small vector-graphics scene model incrementally with tests throughout. First: `type point = int * int`, `type shape = Circle of point * int`, `type scene = shape list`, and `area : shape -> int`. Then add `Rect of point * point` and `Line of point * point` to `shape`, updating every function. Then add three scene transforms `translate`, `flip_x`, and `scale`, each `scene -> scene`. Then `bbox : scene -> point * point` with tests. Finally refactor: introduce `type style = int * bool` and change `shape` so every variant carries a `style`, fixing everything that breaks.

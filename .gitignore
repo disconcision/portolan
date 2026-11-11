@@ -1,6 +1,7 @@
 # Not in git. Everything else in this folder is committed.
 node_modules/
-_build/
+_build*/
+.portolan/
 _site/
 *.install
 .DS_Store

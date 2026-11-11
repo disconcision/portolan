@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Launcher. Builds the sidecar and the extractor, then runs the sidecar.
+#   ./portolan new <name> [flags]     start a fresh project under local/runs/<name> and serve it
+#   ./portolan serve <dir> [flags]    serve an existing dune project
+#   ./portolan replay <trace.jsonl> [--speed X]
+# Flags: --port N (default 8791), --agent claude|script:FILE, --model NAME
+# The OCaml switch is taken from PORTOLAN_SWITCH (default: editor-output).
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+eval "$(opam env --switch="${PORTOLAN_SWITCH:-editor-output}" --set-switch)"
+(cd "$HERE" && dune build ./sidecar ./extract 2>&1) || { echo "build failed" >&2; exit 1; }
+BIN="$HERE/_build/default/sidecar/main.exe"
+case "${1:-}" in
+  new) name="${2:?name}"; shift 2; exec "$BIN" serve "$HERE/local/runs/$name" --home "$HERE" "$@" ;;
+  serve|replay) exec "$BIN" "$@" --home "$HERE" ;;
+  *) sed -n '2,7p' "$0"; exit 2 ;;
+esac

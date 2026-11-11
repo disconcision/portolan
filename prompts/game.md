@@ -1,0 +1,3 @@
+Turn-based game: several feedback loops on one state hub.
+
+Please build a tiny turn-based game incrementally, testing each step. Start: `type pos = int * int`, `type player = pos * int`, `type world = player * int` where the int is a turn counter, and `tick : world -> world` that increments the turn. Next: `type cmd = Move of int * int | Rest`, and `step : cmd -> world -> world` with tests. Next: add monsters — `type monster = pos * int`, extend `world` to `player * monster list * int`, fix everything, and add `spawn : pos -> world -> world` and combat inside `step`. Finally add `describe : world -> string` for display.

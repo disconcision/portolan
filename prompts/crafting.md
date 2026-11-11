@@ -1,0 +1,3 @@
+Crafting system: formers everywhere and a two-hub economy. `recipe = item list * item` puts a list former inside a tuple former.
+
+Create a crafting/inventory system step by step, testing as you go. Step 1: `type item = Wood | Stone | Plank | House`, `type inventory = item list`, with `count : inventory -> item -> int`. Step 2: `type recipe = item list * item` and `can_craft : recipe -> inventory -> bool`. Step 3: `craft : recipe -> inventory -> inventory` that consumes inputs and adds the output, with tests for success and failure. Step 4: refactor `item` into `type resource = Wood | Stone` and `type product = Plank | House`, then `type item = R of resource | P of product`, repairing all functions and recipes.

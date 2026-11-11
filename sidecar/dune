@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (public_name portolan)
+ (package portolan)
+ (libraries unix threads.posix str yojson))
