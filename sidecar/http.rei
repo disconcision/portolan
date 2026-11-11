@@ -26,7 +26,8 @@
                             "deny" | "answered"}`: the user's answer to
                             an `ask` event; "always" takes `patterns`,
                             "answered" takes `answers` (question: label)
-     POST /stop             stop the agent's turn */
+     POST /stop             stop the agent's turn
+     POST /new              start a new conversation (see [Conversation]) */
 
 /** What the server shows. */
 type source =

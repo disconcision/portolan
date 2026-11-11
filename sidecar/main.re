@@ -23,6 +23,7 @@
      Watcher   file changes -> build -> graph -> tests
      Permissions  what the user chose to always allow the agent
      Agent     Claude Code or a scripted stand-in, and what it last did
+     Conversation  starting a new one, keeping the old trace
      Syntax    OCaml <-> Reason conversion of a slice of a file
      Http      the page, the event stream, the routes
    This file reads the arguments and starts them.

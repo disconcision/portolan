@@ -354,6 +354,9 @@ let route = (oc, ~home, source, {meth, path, query, body}) =>
     | None
     | exception _ => respond(oc, ~status="400 Bad Request", "no")
     }
+  | ("POST", "/new", Live(project, agent)) =>
+    Conversation.start_new(project, agent);
+    ok(oc);
   | ("POST", "/types", Live(_)) =>
     let texts =
       try(
