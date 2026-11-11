@@ -239,6 +239,17 @@ let () = {
         ),
       ),
       (
+        "repaint",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() =>
+            guard("repaint", () => {
+              CanvasRipple.request_repaint();
+              CanvasDirector.request_render();
+            })
+          ),
+        ),
+      ),
+      (
         "select",
         Js.Unsafe.inject(
           Js.wrap_callback((name: Js.Unsafe.any, is_type: Js.Unsafe.any) =>

@@ -289,7 +289,7 @@
     chooser('contour', 'contour', PC.contours(), id => PC.setContour(id));
     chooser('pull', 'pull', PC.pulls(), id => PC.setPull(id));
   }
-  const redraw = () => window.dispatchEvent(new Event('resize')); // the canvas sizes and paints its dot grid by script
+  const redraw = () => { window.dispatchEvent(new Event('resize')); if (PC && PC.repaint) PC.repaint(); }; // the canvas sizes and paints its dot grid by script
 
   // ---- light / dark, and the corner variation ----
   function chrome() {

@@ -165,6 +165,9 @@ let origin_x: ref(float) = ref(0.);
 let origin_y: ref(float) = ref(0.);
 let sim_active: ref(bool) = ref(false);
 let frame_parity: ref(bool) = ref(false);
+/* PORTOLAN: set by [request_repaint]: the next frame draws even though
+   nothing moved, so a changed dot colour is taken up. */
+let repaint_wanted: ref(bool) = ref(false);
 /* the screen region drawn with live displacement last frame: with
    the viewport still, only the union of that and the current live
    region is cleared and redrawn (the lattice at rest is unchanged
@@ -795,7 +798,8 @@ let rec draw = (): unit => {
     /* the medium runs at half rate: a wave field at 30 Hz reads the
        same, and the full redraw of every dot is the expensive part */
     frame_parity := ! frame_parity^;
-    let skip = frame_parity^ && geom_unchanged(cw, ch, sl, st, z);
+    let skip =
+      frame_parity^ && geom_unchanged(cw, ch, sl, st, z) && ! repaint_wanted^;
     if (skip) {
       incr(n_skip);
     };
@@ -810,8 +814,13 @@ let rec draw = (): unit => {
     let geom = (cw, ch, sl, st, z);
     if (!skip
         && (
-          sim_active^ || pulses^ != [] || suctions^ != [] || geom != last_geom^
+          sim_active^
+          || pulses^ != []
+          || suctions^ != []
+          || geom != last_geom^
+          || repaint_wanted^
         )) {
+      repaint_wanted := false;
       let geom_changed = geom != last_geom^;
       last_geom := geom;
       let ctx =
@@ -1149,6 +1158,12 @@ let request_draw = (): unit =>
       );
     ();
   };
+
+/* PORTOLAN: draw the field again in the colours now in force. */
+let request_repaint = (): unit => {
+  repaint_wanted := true;
+  request_draw();
+};
 
 /* launch a pulse along an edge's bezier (model-space control points) */
 let pulse_edge =

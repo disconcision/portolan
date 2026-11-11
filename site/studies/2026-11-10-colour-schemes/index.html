@@ -470,7 +470,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
     clearInterval(blink);
     blink = setInterval(() => {
       paint(stage, n % 2 ? c : { ...c, [role]: alt });
-      if (role === 'dots' || role === 'board') window.dispatchEvent(new Event('resize'));
+      if (role === 'dots' || role === 'board') repaint();
       if (++n >= 6) { clearInterval(blink); blink = 0; paintSelected(); }
     }, 170);
   }
@@ -513,11 +513,13 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
     const cut = x => ({ ...x, m_path: (x.m_path || []).slice(1) });
     return { ...g, nodes: g.nodes.map(cut), edges: g.edges.map(cut), values: (g.values || []).map(cut) };
   }
+  // The dot grid is drawn by script and keeps its colour until asked to draw again.
+  const repaint = () => { window.dispatchEvent(new Event('resize')); if (PC && PC.repaint) PC.repaint(); };
   function paintSelected() {
     paint(stage, colours(selected));
     const card = document.querySelector('.card[data-id="' + selected + '"] .thumb');
     if (card) paint(card, colours(selected));
-    window.dispatchEvent(new Event('resize')); // the dot grid is drawn by script: ask it to redraw in the new colour
+    repaint();
   }
   function drawFoot(id) {
     const card = document.querySelector('.card[data-id="' + id + '"]');
