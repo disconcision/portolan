@@ -93,6 +93,18 @@ let one_line = text => {
     ? String.sub(s, 2, String.length(s) - 2) : s;
 };
 
+let split_types = (~count, converted) => {
+  let bodies =
+    Str.full_split(Str.regexp("^type p[0-9]+ ="), converted)
+    |> List.filter_map(
+         fun
+         | Str.Text(body) when String.trim(body) != "" =>
+           Some(one_line(body))
+         | _ => None,
+       );
+  List.length(bodies) == count ? Some(bodies) : None;
+};
+
 /* One `refmt` run over all the texts, each as the body of a type
    definition; [None] if `refmt` rejects any of them. */
 let batch = texts => {
@@ -117,16 +129,7 @@ let batch = texts => {
           Filename.quote(tmp),
         );
       switch (Run.cmd(~timeout=30., ~cwd=Filename.dirname(tmp), command)) {
-      | (0, out) =>
-        let bodies =
-          Str.full_split(Str.regexp("^type p[0-9]+ ="), out)
-          |> List.filter_map(
-               fun
-               | Str.Text(body) when String.trim(body) != "" =>
-                 Some(one_line(body))
-               | _ => None,
-             );
-        List.length(bodies) == List.length(texts) ? Some(bodies) : None;
+      | (0, out) => split_types(~count=List.length(texts), out)
       | _ => None
       };
     },

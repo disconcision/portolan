@@ -10,6 +10,13 @@ let slice = (first, last, expected) =>
     Syntax.slice(~first, ~last, text),
   );
 
+let split = (name, ~count, converted, expected) =>
+  Alcotest.(check(option(strings)))(
+    name,
+    expected,
+    Syntax.split_types(~count, converted),
+  );
+
 let tests = [
   case("a slice is its first to its last line, both included", () => {
     slice(2, Some(3), "two\nthree");
@@ -35,4 +42,33 @@ let tests = [
       && Syntax.of_string("rei") == None,
     )
   ),
+  case("each converted type comes back on one line, in order", () =>
+    split(
+      "three",
+      ~count=3,
+      "type p0 = (int, int);\ntype p1 =\n  | Circle(point, int)\n  | Rect(point, point);\ntype p2 = {\n  name: string,\n  where: option((string, int, int)),\n};\n",
+      Some([
+        "(int, int)",
+        "Circle(point, int) | Rect(point, point)",
+        "{name: string, where: option((string, int, int))}",
+      ]),
+    )
+  ),
+  case("a function type broken over lines is joined", () =>
+    split(
+      "one",
+      ~count=1,
+      "type p0 =\n  (\n    ~first: int,\n    ~last: option(int),\n    string,\n  ) =>\n  string;\n",
+      Some(["(~first: int, ~last: option(int), string) => string"]),
+    )
+  ),
+  case("a batch that came back with a type missing is rejected", () => {
+    split(
+      "two of three",
+      ~count=3,
+      "type p0 = int;\ntype p1 = string;\n",
+      None,
+    );
+    split("nothing", ~count=1, "", None);
+  }),
 ];

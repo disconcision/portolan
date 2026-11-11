@@ -24,6 +24,12 @@ let convert:
   (~path: string, ~first: int, ~last: option(int), ~target: t) =>
   (string, bool);
 
+/** [split_types(~count, converted)] reads what `refmt` printed for
+    [count] type definitions named `p0`, `p1`, …: the right-hand side of
+    each, in order, on one line, as a type is shown on the canvas. [None]
+    unless there are [count] of them. */
+let split_types: (~count: int, string) => option(list(string));
+
 /** [types(texts)] is each printed OCaml type (a type expression, or the
     right-hand side of a type definition) in Reason syntax, on one line;
     [None] for a text `refmt` cannot read. Answers are remembered. */
