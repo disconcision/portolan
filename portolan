@@ -1,23 +1,57 @@
 #!/usr/bin/env bash
 # Launcher. Builds the sidecar and the extractor, then runs the sidecar.
-#   ./portolan new <name> [flags]     start a fresh project under local/runs/<name> and serve it
-#   ./portolan serve <dir> [flags]    serve an existing dune project
-#   ./portolan replay <trace.jsonl> [--speed X]
-#   ./portolan build-canvas           rebuild canvas/dist after changing canvas/
-# Flags: --port N (default 8791), --agent claude|script:FILE, --model NAME
-# The OCaml switch is taken from PORTOLAN_SWITCH (default: editor-output).
+# `./portolan help` prints the usage below.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
+
+usage() {
+  cat <<'EOF'
+usage:
+  ./portolan new <name> [flags]      start a fresh project under local/runs/<name> and serve it
+  ./portolan serve <dir> [flags]     serve an existing dune project
+  ./portolan replay <trace.jsonl> [--port N] [--speed X]   play back a recorded trace
+  ./portolan build-canvas            rebuild canvas/dist after changing canvas/
+  ./portolan help
+
+flags for new and serve:
+  --port N                      port to serve on (default 8791)
+  --agent claude|script:FILE    Claude Code (the default), or a scripted stand-in
+  --model NAME                  the model Claude Code uses
+  --nudge FILE                  text added to the agent's instructions
+  --allow PATTERN               let the agent use one more tool without asking: a Claude Code
+                                allowed-tool pattern such as 'Bash(make:*)'. Repeatable.
+  --project-switch NAME_OR_DIR  the opam switch the project's builds, tests and the agent's
+                                shell run in. Default: the project's own _opam folder if it
+                                has one, otherwise the switch Portolan itself runs in.
+
+Portolan itself builds and runs in the opam switch named by PORTOLAN_SWITCH (default: editor-output).
+The project's compiler must be OCaml 5.2.x for now: the extractor reads compiled annotations.
+Without asking, the agent may edit files, run any dune command, and run ls, cat, head, tail,
+wc, grep, rg, find, mkdir, git status, git diff, git log, opam list and ocamlfind list.
+The trace of a project is .portolan/trace.jsonl in its folder; it carries on across restarts,
+so the page shows the earlier conversation, and Claude Code continues it.
+EOF
+}
+
+case "${1:-}" in
+  new|serve|replay|build-canvas) ;;
+  help|--help|-h) usage; exit 0 ;;
+  *) usage >&2; exit 2 ;;
+esac
+
 eval "$(opam env --switch="${PORTOLAN_SWITCH:-editor-output}" --set-switch)"
+
+if [ "$1" = build-canvas ]; then
+  # Rebuild the canvas bundle the page loads (canvas/dist/ is committed, so this is only needed after changing canvas/).
+  (cd "$HERE" && dune build --profile release --build-dir _build_release ./canvas) \
+    && cp -f "$HERE/_build_release/default/canvas/portolan_canvas_js.bc.js" "$HERE/canvas/dist/portolan_canvas.js" \
+    && cp -f "$HERE/canvas/canvas.css" "$HERE/canvas/dist/canvas.css" && echo "canvas/dist updated"
+  exit
+fi
+
 (cd "$HERE" && dune build ./sidecar ./extract 2>&1) || { echo "build failed" >&2; exit 1; }
 BIN="$HERE/_build/default/sidecar/main.exe"
-case "${1:-}" in
+case "$1" in
   new) name="${2:?name}"; shift 2; exec "$BIN" serve "$HERE/local/runs/$name" --home "$HERE" "$@" ;;
   serve|replay) exec "$BIN" "$@" --home "$HERE" ;;
-  build-canvas)
-    # Rebuild the canvas bundle the page loads (canvas/dist/ is committed, so this is only needed after changing canvas/).
-    (cd "$HERE" && dune build --profile release --build-dir _build_release ./canvas) \
-      && cp -f "$HERE/_build_release/default/canvas/portolan_canvas_js.bc.js" "$HERE/canvas/dist/portolan_canvas.js" \
-      && cp -f "$HERE/canvas/canvas.css" "$HERE/canvas/dist/canvas.css" && echo "canvas/dist updated" ;;
-  *) sed -n '2,8p' "$0"; exit 2 ;;
 esac

@@ -30,6 +30,14 @@ The file has no `<html>`, `<head>` or `<body>` tags on purpose, so the same file
 - **The front page:** add every new page to `ENTRIES` in `site/index.html`, with a one-line plain description (what it is, no pitch). Link only pages in the repo or public URLs, never claude.ai artifacts: those are private.
 - **Big or throwaway files:** a `local/` folder. Git ignores it.
 
+## Code
+
+- **ReasonML syntax** for all of Portolan's own code (`.re`, `.rei`), formatted with `refmt`.
+- **One module per job, each with an interface.** Every module outside an executable's `main.re` has a `.rei` that documents what each value does. Keep types abstract where the callers do not need the shape.
+- **The graph record is the boundary.** `graph/graph.re` is the only thing the extractor writes and the canvas reads.
+- `canvas/upstream/` is Hazel's code, byte for byte; change files in `canvas/edited/` or `canvas/shim/` and note it in `canvas/UPSTREAM.md`.
+- The opam switch is used read-only. Do not install or remove packages in it.
+
 ## Pages
 
 - Standalone HTML, no build step. Fonts from Google Fonts; everything else in the repo.

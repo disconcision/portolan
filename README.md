@@ -8,7 +8,7 @@ The first build runs from source. The notebook is at https://andrewblinn.com/por
 
 ## Run it
 
-Needs an opam switch with OCaml 5.2, dune, yojson and ppx_inline_test (set `PORTOLAN_SWITCH`; the default is `editor-output`), and a signed-in `claude` command for the agent.
+Portolan itself needs an opam switch with OCaml 5.2, dune, yojson, reason and ppx_inline_test (set `PORTOLAN_SWITCH`; the default is `editor-output`), and a signed-in `claude` command for the agent.
 
 ```bash
 ./portolan new my-run
@@ -17,11 +17,20 @@ Needs an opam switch with OCaml 5.2, dune, yojson and ppx_inline_test (set `PORT
 Then open http://127.0.0.1:8791/ and type a prompt (the ones used so far are in `prompts/`). The agent works in `local/runs/my-run`. Other forms:
 
 ```bash
-./portolan serve path/to/a/dune/project      # watch an existing project
+./portolan serve path/to/a/dune/project      # an existing project; `./portolan serve .` is Portolan on itself
 ./portolan new my-run --nudge prompts/nudge-small-steps.md
 ./portolan new my-run --agent script:sidecar/scripts/vector.json   # a scripted stand-in, no login needed
-./portolan replay local/runs/my-run/.portolan/trace-….jsonl --speed 4
+./portolan replay path/to/project/.portolan/trace.jsonl --speed 4
+./portolan help                              # every flag
 ```
+
+What to expect:
+
+- **The project's own state.** Portolan keeps a `.portolan/` folder (the trace, the last graph) and a `_build_portolan/` build folder in the project. Both ignore themselves; the project's `.gitignore` is not touched.
+- **Restarts carry on.** The trace is one file per project, so stopping and starting again shows the earlier conversation, and Claude Code continues it.
+- **Broken builds.** The modules that still compile are redrawn; in the others the definitions holding an error are marked and the rest stay as they were.
+- **The project's switch.** Builds, tests and the agent's shell run in the project's own `_opam` if it has one, or the switch given with `--project-switch`. The compiler must be OCaml 5.2.x for now.
+- **What the agent may do without asking.** Edit files, run any dune command, and read-only shell commands. Add more with `--allow`, for example `--allow 'Bash(make:*)'`. Anything else is refused: there is no approve button yet.
 
 `tools/summarize_trace.py <trace>` prints what happened in a run. `tools/scrub_trace.py` makes a trace safe to publish under `site/runs/`.
 
@@ -39,7 +48,7 @@ Then open http://127.0.0.1:5191/.
 |---|---|
 | `graph/` | **The graph record.** The only thing the canvas reads: type nodes, function edges, values, tests. |
 | `extract/` | Reads a dune project's compiled annotations and produces the graph record. |
-| `sidecar/` | Watches a project, builds and tests it, runs the agent and relays its stream, serves the page, records a trace. |
+| `sidecar/` | Watches a project, builds and tests it, runs the agent and relays its stream, serves the page, records a trace. One small module per job, each with an interface (`.rei`) that says what it does. |
 | `web/` | The page: chat beside the canvas, styled after Hazel. `view.js` is a plain fallback used only if the canvas bundle is missing. |
 | `canvas/` | Hazel's Constellation canvas, ported. `UPSTREAM.md` lists every file against Hazel's. `dist/` is the built bundle the page loads; `./portolan build-canvas` rebuilds it. |
 | `prompts/` | The Hazel demo prompts in OCaml wording, and the small-steps nudge. |
