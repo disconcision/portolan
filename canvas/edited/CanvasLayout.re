@@ -479,6 +479,224 @@ let separate_docked_chords =
   );
 };
 
+/* PORTOLAN: the two passes above, to the same result, for large graphs.
+   Upstream's visit every node for every chord and look each one up by key
+   (six rounds of it in declutter): about three seconds of a 1800-node
+   layout. These keep the nodes in arrays, and give a terminal only the
+   chords that touch its anchor. The originals are kept above, unused, so
+   the copy still reads against Hazel's. */
+let declutter =
+    (
+      ~chords: list((string, string)),
+      ~fixed: list(string),
+      ~radius_of: string => float,
+      nodes: list(node_layout),
+    )
+    : list(node_layout) => {
+  let clear = 12.;
+  let ns = Array.of_list(nodes);
+  let n = Array.length(ns);
+  let index: Hashtbl.t(string, int) = Hashtbl.create(64);
+  Array.iteri(
+    (i, nl: node_layout) => Hashtbl.replace(index, nl.node.key, i),
+    ns,
+  );
+  let at = k =>
+    switch (Hashtbl.find_opt(index, k)) {
+    | Some(i) => i
+    | None => (-1)
+    };
+  /* a key that occurs twice is one place, as in upstream's table */
+  let slot = Array.map((nl: node_layout) => at(nl.node.key), ns);
+  let xs = Array.map((nl: node_layout) => nl.p.x, ns);
+  let ys = Array.map((nl: node_layout) => nl.p.y, ns);
+  Array.iteri(
+    (i, s) => {
+      xs[s] = ns[i].p.x;
+      ys[s] = ns[i].p.y;
+    },
+    slot,
+  );
+  let anchor =
+    Array.map(
+      (nl: node_layout) =>
+        switch (nl.node.sat) {
+        | Some((a, _)) => Some(a)
+        | None => None
+        },
+      ns,
+    );
+  let movable =
+    Array.mapi(
+      (i, nl: node_layout) =>
+        !List.mem(nl.node.key, fixed) && anchor[i] == None,
+      ns,
+    );
+  let radius = Array.map((nl: node_layout) => radius_of(nl.node.key), ns);
+  let parity = Array.make(n, 1.);
+  Array.iteri((i, s) => parity[s] = i mod 2 == 0 ? 1. : (-1.), slot);
+  let ends = List.map(((ka, kb)) => (at(ka), at(kb)), chords);
+  for (_ in 1 to 6) {
+    let ox = Array.make(n, 0.);
+    let oy = Array.make(n, 0.);
+    let moved = Array.make(n, false);
+    List.iter(
+      ((ia, ib)) =>
+        if (ia >= 0 && ib >= 0) {
+          let ax = xs[ia]
+          and ay = ys[ia];
+          let dx = xs[ib] -. ax
+          and dy = ys[ib] -. ay;
+          let len = sqrt(dx *. dx +. dy *. dy);
+          if (len > 1.) {
+            let (ux, uy) = (dx /. len, dy /. len);
+            let (nx, ny) = (-. uy, ux);
+            for (i in 0 to n - 1) {
+              let s = slot[i];
+              if (s != ia && s != ib && movable[i]) {
+                let r = radius[i];
+                let px = xs[s] -. ax
+                and py = ys[s] -. ay;
+                let along = px *. ux +. py *. uy;
+                let side = px *. nx +. py *. ny;
+                let need = r +. clear;
+                if (along > r && along < len -. r && abs_float(side) < need) {
+                  let dir =
+                    abs_float(side) < 0.5
+                      ? parity[s] : side >= 0. ? 1. : (-1.);
+                  let m = need -. abs_float(side);
+                  ox[s] = ox[s] +. dir *. nx *. m;
+                  oy[s] = oy[s] +. dir *. ny *. m;
+                  moved[s] = true;
+                };
+              };
+            };
+          };
+        },
+      ends,
+    );
+    for (s in 0 to n - 1) {
+      if (moved[s]) {
+        xs[s] = xs[s] +. ox[s];
+        ys[s] = ys[s] +. oy[s];
+      };
+    };
+    Array.iteri(
+      (i, a) =>
+        switch (a) {
+        | Some(a) =>
+          let ia = at(a);
+          if (ia >= 0 && moved[ia]) {
+            let s = slot[i];
+            xs[s] = xs[s] +. ox[ia];
+            ys[s] = ys[s] +. oy[ia];
+          };
+        | None => ()
+        },
+      anchor,
+    );
+  };
+  List.mapi(
+    (i, nl: node_layout) =>
+      {
+        ...nl,
+        p: {
+          x: xs[slot[i]],
+          y: ys[slot[i]],
+        },
+      },
+    nodes,
+  );
+};
+let separate_docked_chords =
+    (~chords: list((string, string)), nodes: list(node_layout)) => {
+  let touching: Hashtbl.t(string, list((string, string))) =
+    Hashtbl.create(64);
+  List.iter(
+    ((ka, kb) as chord) =>
+      List.iter(
+        k =>
+          Hashtbl.replace(
+            touching,
+            k,
+            [
+              chord,
+              ...Option.value(~default=[], Hashtbl.find_opt(touching, k)),
+            ],
+          ),
+        ka == kb ? [ka] : [ka, kb],
+      ),
+    List.rev(chords),
+  );
+  let positions = Hashtbl.create(64);
+  List.iter(
+    (nl: node_layout) => Hashtbl.replace(positions, nl.node.key, nl.p),
+    nodes,
+  );
+  List.map(
+    (nl: node_layout) =>
+      switch (nl.node.kind, nl.node.sat) {
+      | (Builtin, Some((anchor, _))) when Hashtbl.mem(touching, anchor) =>
+        let p =
+          List.fold_left(
+            (p: pos, (ka, kb)) =>
+              switch (
+                Hashtbl.find_opt(positions, ka),
+                Hashtbl.find_opt(positions, kb),
+              ) {
+              | (Some(a), Some(b)) when nl.node.key != ka && nl.node.key != kb =>
+                let length = sqrt((b.x -. a.x) ** 2. +. (b.y -. a.y) ** 2.);
+                let u = norm(a, b);
+                let along = (p.x -. a.x) *. u.x +. (p.y -. a.y) *. u.y;
+                let side = (p.y -. a.y) *. u.x -. (p.x -. a.x) *. u.y;
+                if (length > 1.
+                    && along > 0.
+                    && along < length
+                    && abs_float(side) < nl.r
+                    +. 12.) {
+                  let candidate = dir => {
+                    x: p.x -. u.y *. dir *. 42.,
+                    y: p.y +. u.x *. dir *. 42.,
+                  };
+                  let clearance = (q: pos) =>
+                    List.fold_left(
+                      (score, other: node_layout) =>
+                        other.node.key == nl.node.key
+                          ? score
+                          : min(
+                              score,
+                              sqrt(
+                                (q.x -. other.p.x)
+                                ** 2.
+                                +. (q.y -. other.p.y)
+                                ** 2.,
+                              )
+                              -. other.r,
+                            ),
+                      max_float,
+                      nodes,
+                    );
+                  let above = candidate(-1.)
+                  and below = candidate(1.);
+                  clearance(above) >= clearance(below) ? above : below;
+                } else {
+                  p;
+                };
+              | _ => p
+              },
+            nl.p,
+            Hashtbl.find(touching, anchor),
+          );
+        {
+          ...nl,
+          p,
+        };
+      | _ => nl
+      },
+    nodes,
+  );
+};
+
 /* Manual movement is applied after automatic layout. Docked satellites
    inherit their anchor's movement; an explicit satellite pin stays put. */
 let apply_manual_positions = (~offsets, ~pins, nodes: list(node_layout)) => {
@@ -1067,6 +1285,23 @@ let layout_core =
       List.find_opt((nl: node_layout) => nl.node.key == k, node_layouts)
       |> Option.map((nl: node_layout) => nl.r)
       |> Option.value(~default=base_radius);
+    /* PORTOLAN: the same, by table. declutter asks once per chord per
+       node per round; searching the list each time was most of a large
+       graph's layout. */
+    let circle_r = {
+      let radii: Hashtbl.t(string, float) = Hashtbl.create(64);
+      List.iter(
+        (nl: node_layout) =>
+          if (!Hashtbl.mem(radii, nl.node.key)) {
+            Hashtbl.add(radii, nl.node.key, nl.r);
+          },
+        node_layouts,
+      );
+      ignore(circle_r);
+      (k: string) => (
+        Option.value(~default=base_radius, Hashtbl.find_opt(radii, k)): float
+      );
+    };
     declutter(~chords, ~fixed=free_keys, ~radius_of=circle_r, node_layouts)
     |> separate_docked_chords(~chords);
   };
@@ -1181,7 +1416,11 @@ let layout_core =
                         ["packed", "stable", "grid", "relaxed"],
                       )
                  )) {
-        Lab.place("components", items, links, []);
+        /* PORTOLAN: the lab's packing, without its list searches */
+        CanvasOptions.components(
+          items,
+          links,
+        );
       } else if (old_scope == signature
                  && old_keys == keys
                  && old_links == topology) {

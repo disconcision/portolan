@@ -181,6 +181,261 @@ let shelves = (~aspect, ~gap, boxes) =>
   )
   |> List.map(((id, y, x)) => (id, x, y));
 
+/* ---------- the default's packing, without the list searches ---------- */
+
+/* `Lab.place("components", items, links, [])`, to the same result: a host
+   and what docks to it move as one unit, and the connected pieces are
+   shelf-packed. The lab finds roots, groups and members by searching lists
+   by key for every node, which at a thousand nodes was nearly all of a
+   layout's time; this keeps tables. The arithmetic is the lab's. */
+let components =
+    (items: list(Lab.item), links: list((string, string))): list(Lab.item) => {
+  let here: Hashtbl.t(string, Lab.item) = Hashtbl.create(256);
+  List.iter(
+    (n: Lab.item) =>
+      if (!Hashtbl.mem(here, n.key)) {
+        Hashtbl.add(here, n.key, n);
+      },
+    items,
+  );
+  let rec root = (seen, n: Lab.item) =>
+    switch (n.anchor) {
+    | Some(k) when !List.mem(k, seen) =>
+      switch (Hashtbl.find_opt(here, k)) {
+      | Some(host) => root([n.key, ...seen], host)
+      | None => n.key
+      }
+    | _ => n.key
+    };
+  let root_of: Hashtbl.t(string, string) = Hashtbl.create(256);
+  List.iter(
+    (n: Lab.item) =>
+      if (!Hashtbl.mem(root_of, n.key)) {
+        Hashtbl.add(root_of, n.key, root([], n));
+      },
+    items,
+  );
+  let members: Hashtbl.t(string, list(Lab.item)) = Hashtbl.create(256);
+  List.iter(
+    (n: Lab.item) => {
+      let r = root([], n);
+      Hashtbl.replace(
+        members,
+        r,
+        [n, ...Option.value(~default=[], Hashtbl.find_opt(members, r))],
+      );
+    },
+    List.rev(items),
+  );
+  let units =
+    List.filter_map(
+      (host: Lab.item) =>
+        if (root([], host) != host.key) {
+          None;
+        } else {
+          let (left, top, right, bottom) =
+            List.fold_left(
+              ((left, top, right, bottom), n: Lab.item) =>
+                (
+                  min(left, n.p.x -. n.w /. 2.),
+                  min(top, n.p.y -. n.h /. 2.),
+                  max(right, n.p.x +. n.w /. 2.),
+                  max(bottom, n.p.y +. n.h /. 2.),
+                ),
+              (infinity, infinity, neg_infinity, neg_infinity),
+              Option.value(~default=[], Hashtbl.find_opt(members, host.key)),
+            );
+          Some({
+            ...host,
+            p: {
+              x: (left +. right) /. 2.,
+              y: (top +. bottom) /. 2.,
+            },
+            w: right -. left,
+            h: bottom -. top,
+            anchor: None,
+          });
+        },
+      items,
+    );
+  let links =
+    Lab.links_of(items, links)
+    |> List.filter_map(((a, b)) =>
+         switch (Hashtbl.find_opt(root_of, a), Hashtbl.find_opt(root_of, b)) {
+         | (Some(a), Some(b)) when a != b => Some((a, b))
+         | _ => None
+         }
+       )
+    |> List.sort_uniq(compare);
+  /* the units' connected pieces, each in the units' order, the pieces in
+     the order of their first unit */
+  let piece: Hashtbl.t(string, string) = Hashtbl.create(256);
+  let rec find = k =>
+    switch (Hashtbl.find_opt(piece, k)) {
+    | Some(p) when p != k =>
+      let r = find(p);
+      Hashtbl.replace(piece, k, r);
+      r;
+    | _ => k
+    };
+  let is_unit: Hashtbl.t(string, unit) = Hashtbl.create(256);
+  List.iter((n: Lab.item) => Hashtbl.replace(is_unit, n.key, ()), units);
+  List.iter(
+    ((a, b)) =>
+      if (Hashtbl.mem(is_unit, a) && Hashtbl.mem(is_unit, b)) {
+        let ra = find(a)
+        and rb = find(b);
+        if (ra != rb) {
+          Hashtbl.replace(piece, ra, rb);
+        };
+      },
+    links,
+  );
+  let in_piece: Hashtbl.t(string, list(Lab.item)) = Hashtbl.create(64);
+  List.iter(
+    (n: Lab.item) => {
+      let r = find(n.key);
+      Hashtbl.replace(
+        in_piece,
+        r,
+        [n, ...Option.value(~default=[], Hashtbl.find_opt(in_piece, r))],
+      );
+    },
+    List.rev(units),
+  );
+  let seen: Hashtbl.t(string, unit) = Hashtbl.create(64);
+  let pieces =
+    List.filter_map(
+      (n: Lab.item) => {
+        let r = find(n.key);
+        if (Hashtbl.mem(seen, r)) {
+          None;
+        } else {
+          Hashtbl.replace(seen, r, ());
+          Hashtbl.find_opt(in_piece, r);
+        };
+      },
+      units,
+    );
+  /* from here on: Lab.packed, per piece */
+  let blocks =
+    List.map(
+      (ns: list(Lab.item)) => {
+        let minx =
+          List.fold_left(
+            (x, n: Lab.item) => min(x, n.p.x -. n.w /. 2.),
+            infinity,
+            ns,
+          );
+        let intervals =
+          List.map(
+            (n: Lab.item) => (n.p.y -. n.h /. 2., n.p.y +. n.h /. 2.),
+            ns,
+          )
+          |> List.sort(compare);
+        let (_, gaps) =
+          List.fold_left(
+            ((end_y, gaps), (lo, hi)) =>
+              (
+                max(end_y, hi),
+                lo -. end_y > 100. && end_y != neg_infinity
+                  ? gaps @ [(lo, lo -. end_y -. 100.)] : gaps,
+              ),
+            (neg_infinity, []),
+            intervals,
+          );
+        let miny =
+          List.fold_left(
+            (v, n: Lab.item) => min(v, n.p.y -. n.h /. 2.),
+            infinity,
+            ns,
+          );
+        let ns =
+          List.map(
+            (n: Lab.item) =>
+              {
+                ...n,
+                p: {
+                  x: n.p.x -. minx,
+                  y:
+                    n.p.y
+                    -. miny
+                    -. List.fold_left(
+                         (v, (at, amount)) => n.p.y >= at ? v +. amount : v,
+                         0.,
+                         gaps,
+                       ),
+                },
+              },
+            ns,
+          );
+        let w =
+          List.fold_left(
+            (v, n: Lab.item) => max(v, n.p.x +. n.w /. 2.),
+            0.,
+            ns,
+          );
+        let h =
+          List.fold_left(
+            (v, n: Lab.item) => max(v, n.p.y +. n.h /. 2.),
+            0.,
+            ns,
+          );
+        (ns, w, h);
+      },
+      pieces,
+    );
+  let area =
+    List.fold_left(
+      (a, (_, w, h)) => a +. (w +. 60.) *. (h +. 60.),
+      0.,
+      blocks,
+    );
+  let target = max(650., sqrt(area *. 1.5));
+  let after: Hashtbl.t(string, point) = Hashtbl.create(256);
+  let _ =
+    List.fold_left(
+      ((x, y, rowh), (ns, w, h)) => {
+        let (x, y, rowh) =
+          x > 70. && x +. w > target
+            ? (70., y +. rowh +. 70., 0.) : (x, y, rowh);
+        List.iter(
+          (n: Lab.item) =>
+            Hashtbl.replace(
+              after,
+              n.key,
+              Lab.{
+                x: Lab.snap(n.p.x +. x),
+                y: Lab.snap(n.p.y +. y),
+              },
+            ),
+          ns,
+        );
+        (x +. w +. 70., y, max(rowh, h));
+      },
+      (70., 70., 0.),
+      blocks,
+    );
+  let before: Hashtbl.t(string, point) = Hashtbl.create(256);
+  List.iter((n: Lab.item) => Hashtbl.replace(before, n.key, n.p), units);
+  List.map(
+    (n: Lab.item) => {
+      let k = root([], n);
+      switch (Hashtbl.find_opt(before, k), Hashtbl.find_opt(after, k)) {
+      | (Some(b), Some(a)) => {
+          ...n,
+          p: {
+            x: n.p.x +. a.x -. b.x,
+            y: n.p.y +. a.y -. b.y,
+          },
+        }
+      | _ => n
+      };
+    },
+    items,
+  );
+};
+
 /* ---------- compact: the layered arrangement, packed ---------- */
 
 let arrange = (g: CanvasGraph.t, items: list(Lab.item)): list(Lab.item) => {

@@ -24,6 +24,13 @@ let set_edges: string => bool;
 /* The pane's width over its height: what the packing layouts aim for. */
 let aspect: ref(float);
 
+/* What `CanvasLayoutExperiments.place("components", items, links, [])`
+   returns (the default layout's packing of separate pieces), computed with
+   tables instead of list searches. */
+let components:
+  (list(CanvasLayoutExperiments.item), list((string, string))) =>
+  list(CanvasLayoutExperiments.item);
+
 /* "compact": the layered arrangement with its separate pieces moved
    together, in source order, in rows that fill the pane's shape. Each
    piece keeps its inner arrangement. */
