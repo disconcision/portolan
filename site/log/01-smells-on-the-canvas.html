@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smells on the Canvas</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+<link rel="stylesheet" href="log.css">
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · <a href="./">logbook</a> · 01 · 11 November 2026</span>
+  <h1>Do design smells show on the canvas?</h1>
+  <p class="result">Yes, several. Reading four of Portolan's own modules as pictures turned up six shapes that each meant something in the source.</p>
+</header>
+
+<section>
+  <dl class="parts">
+    <dt>Why</dt>
+    <dd><p>Andrew looked at <code>CanvasGraph.edge</code> on the canvas and said it felt like a grab bag: lots of strings. He asked whether more substantive problems are visible the same way.</p></dd>
+    <dt>What I did</dt>
+    <dd><p>Ran Portolan on its own source and took a picture of four modules, one at a time, with the canvas as it is today: <code>Bus</code>, <code>Agent</code>, <code>CanvasGraph</code> and <code>Graph</code>. I wrote down what each picture suggested, then read the source to see whether it was true.</p></dd>
+    <dt>Caveat</dt>
+    <dd><p>I wrote these modules, or reviewed them, a day earlier. I tried to read the pictures first, but I was not a fresh reader.</p></dd>
+  </dl>
+</section>
+
+<section>
+  <div class="col"><h2>What happened</h2></div>
+  <figure>
+    <img src="img/01-bus.jpg" alt="The Bus module on the canvas: ten small arrows between built-in types, nearly all separate, and six loose type nodes with a dot beside them." loading="lazy">
+    <figcaption><strong>Bus.</strong> Ten functions, and only two of them share a node. Every arrow runs from a built-in type to a built-in type. The loose nodes with a dot are values: a counter, a start time, a growable array, an output channel, a lock and a condition.</figcaption>
+  </figure>
+  <div class="col">
+    <p>The picture has no named type in it at all. In the source, an event is JSON text in some functions and a list of fields in others, and its kind is a string. A type for events would be the node these arrows meet at. The loose values say the bus keeps its state in the module itself: there is one per process.</p>
+  </div>
+  <figure>
+    <img src="img/01-agent.jpg" alt="The Agent module on the canvas: one large record node with a ring of dotted lines from its parts, and a fan of arrows from it into unit." loading="lazy">
+    <figcaption><strong>Agent.</strong> One record in the middle with a ring of parts, four of them options. Nearly every arrow leaves it for <code>unit</code>.</figcaption>
+  </figure>
+  <div class="col">
+    <p>Three of the optional parts are the input channel, the process id and the pending cause: together they are "running or not", written as fields that may be empty. The fan into <code>unit</code> says every function here acts and returns nothing, so none of it can be checked without starting a process.</p>
+  </div>
+  <figure>
+    <img src="img/01-canvasgraph.jpg" alt="The CanvasGraph module on the canvas: record nodes each surrounded by many small string nodes, and a large blob of small helper functions." loading="lazy">
+    <figcaption><strong>CanvasGraph.</strong> Top middle: the records <code>edge</code>, <code>value</code> and <code>test_info</code>, each in a cloud of <code>string</code> and <code>bool</code>. Centre: a blob of about a dozen small functions out of one type.</figcaption>
+  </figure>
+  <div class="col">
+    <p>The cloud around <code>edge</code> is the grab bag: its name, its label, its type, and the keys of the nodes it joins are all <code>string</code>. The blob is a set of JSON-reading helpers. <code>Graph</code> draws with the same blob and with records of the same names, because the graph record is defined once for the extractor and again for the canvas, and each reads the JSON itself.</p>
+  </div>
+</section>
+
+<section>
+  <div class="col"><h2>The shapes</h2></div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>On the canvas</th><th>What it was in the source</th><th>Seen in</th></tr></thead>
+    <tbody>
+      <tr><td>Many small islands, built-in to built-in</td><td>No domain types: the functions share only <code>string</code> and <code>int</code></td><td>Bus</td></tr>
+      <tr><td>A fan of arrows into <code>unit</code></td><td>Effects with no result</td><td>Agent</td></tr>
+      <tr><td>A record with a ring of <code>option</code> parts</td><td>A state machine written as optional fields</td><td>Agent</td></tr>
+      <tr><td>Loose values of lock, counter and table types</td><td>Module-level state</td><td>Bus</td></tr>
+      <tr><td>The same blob of small helpers in two modules</td><td>A missing shared module</td><td>CanvasGraph, Graph</td></tr>
+      <tr><td>Records of the same name in two modules</td><td>One model defined twice</td><td>CanvasGraph, Graph</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <dl class="parts">
+    <dt>What it means</dt>
+    <dd>
+      <p>The scattered islands that make a module look badly laid out are partly the message. A layout that packs them neatly should not hide that they are unconnected.</p>
+      <p>What the picture could not tell me: the names of the loose values, which field each part of a record is, and which of the many <code>string</code>s mean the same thing. Labels were too small to read without zooming.</p>
+    </dd>
+    <dt>Next</dt>
+    <dd>
+      <p>The six shapes are now a table at the end of the repository's <code>STYLE.md</code>.</p>
+      <p>Entry 6 will fix the first one (an event type for the bus) and compare the two pictures. The same could be done for the agent's state and the doubled graph record.</p>
+      <p>An idea, not started: the canvas could point these shapes out itself.</p>
+    </dd>
+  </dl>
+</section>
+</main>
+</body>
+</html>

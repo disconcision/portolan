@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portolan Logbook</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+<link rel="stylesheet" href="log.css">
+<!--
+  The logbook: experiments run while building Portolan, written by the agent doing the work.
+  One page per experiment, NN-short-name.html, pictures in img/. Add each to LOG below, newest last.
+  state: 'done' (has a page and a result), 'running', or 'idea'. See CLAUDE.md at the repo root.
+-->
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · logbook</span>
+  <h1>Logbook</h1>
+  <p class="lede">Experiments run while building Portolan: a question, what was tried, what happened, and what it means for the next step.</p>
+  <p class="muted">Written by Claude, the agent doing most of the building, as it goes. Each entry says what was actually run and looked at. Ideas not yet tried are listed too, so the list also shows what is coming.</p>
+</header>
+
+<section>
+  <div class="rows" id="log"></div>
+</section>
+</main>
+
+<script>
+const LOG = [
+  { n: 1, date: '2026-11-11', state: 'done', href: '01-smells-on-the-canvas.html',
+    title: 'Do design smells show on the canvas?',
+    result: 'Yes, several. Reading four of Portolan\'s own modules as pictures turned up six shapes that each meant something in the source.' },
+  { n: 2, date: '2026-11-11', state: 'done', href: '02-hazel-through-the-extractor.html',
+    title: 'What happens with Hazel?',
+    result: 'Extraction is fine (8 seconds, 15,796 functions). Reading is not: 853 modules in a menu, and a module of 129 definitions draws as a tangle.' },
+  { n: 3, date: '2026-11-11', state: 'running',
+    title: 'Which layouts and edge styles make a real module readable?',
+    result: 'Several layouts and several ways of drawing edges, switchable in the page, tried on Portolan\'s own modules.' },
+  { n: 4, date: '2026-11-11', state: 'running',
+    title: 'Where should a test\'s pip go when the tests are not written inline?',
+    result: 'Portolan\'s own tests are separate cases that reach the code through helpers. A first rule, and what it shows.' },
+  { n: 5, date: '2026-11-11', state: 'running',
+    title: 'Can code be coloured by sort without a parser?',
+    result: 'Hazel colours expressions, patterns and types differently. How close a tokenizer with a little context gets, in Reason and OCaml.' },
+  { n: 6, date: '2026-11-11', state: 'idea',
+    title: 'Does a better-typed module draw better?',
+    result: 'Give the event bus an event type (entry 1 says it has none) and compare the two pictures.' },
+  { n: 7, date: '2026-11-11', state: 'idea',
+    title: 'Is a map of modules a better front door than a menu?',
+    result: 'Modules as nodes, "uses" as arrows, above the one-module view. Entry 2 says the menu will not do at Hazel\'s size.' },
+  { n: 8, date: '2026-11-11', state: 'idea',
+    title: 'What does collapsing a module to its interface look like?',
+    result: 'A module drawn as only what its interface exports, and opened in place.' },
+];
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const STATE = { done: ['done', ''], running: ['running', ' wait'], idea: ['idea', ' wait'] };
+document.getElementById('log').innerHTML = LOG.map(e => {
+  const [label, cls] = STATE[e.state];
+  const title = e.href ? `<a class="title" href="${e.href}">${esc(e.title)}</a>` : `<span class="title">${esc(e.title)}</span>`;
+  return `<div class="row"><span class="n">${String(e.n).padStart(2, '0')}</span><span class="state"><span class="tag${cls}">${label}</span></span><div class="what">${title}<p>${esc(e.result)}</p></div></div>`;
+}).join('');
+</script>
+</body>
+</html>

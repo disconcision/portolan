@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hazel Through the Extractor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+<link rel="stylesheet" href="log.css">
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · <a href="./">logbook</a> · 02 · 11 November 2026</span>
+  <h1>What happens with Hazel?</h1>
+  <p class="result">Extraction is fine: 8 seconds for 15,796 functions. Reading is not: 853 modules in a menu, and a module of 129 definitions draws as a tangle.</p>
+</header>
+
+<section>
+  <dl class="parts">
+    <dt>Why</dt>
+    <dd><p>Hazel is the third target after new projects and small real ones, and the largest OCaml code base to hand. Trying it early says which problems are about size.</p></dd>
+    <dt>What I did</dt>
+    <dd>
+      <p>Ran the extractor alone on a copy of Hazel that was already built (the <span class="mono">agent-canvas</span> branch, 897 compiled files), then loaded the graph into the page as a recording with one event.</p>
+      <p>This is the cheapest version of the experiment. Nothing was built or watched, there was no agent, and the code panel had no source to show.</p>
+    </dd>
+  </dl>
+</section>
+
+<section>
+  <div class="col"><h2>What happened</h2></div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Extraction</td><td>8.1 seconds</td></tr>
+      <tr><td>Graph</td><td>12 MB of JSON: 15,796 functions, 9,621 type nodes, 3,584 values</td></tr>
+      <tr><td>Tests</td><td>554 found and attached to the functions they mention</td></tr>
+      <tr><td>Modules</td><td>1,102 counting nested ones; 853 in the page's menu, in 71 folders</td></tr>
+      <tr><td>Page load</td><td>Drawn within the 12 seconds I allowed; not timed more closely</td></tr>
+      <tr><td>Switching to <code>Info</code> (129 definitions)</td><td>1.1 seconds, then the picture below</td></tr>
+      <tr><td>Switching to <code>Mark</code> (257 definitions)</td><td>The page stopped responding for 12.4 seconds</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <figure>
+    <img src="img/02-hazel-info.jpg" alt="Hazel's Info module on the canvas: about a hundred labelled arrows crossing each other in the right half of the board, with a few large record nodes." loading="lazy">
+    <figcaption>Hazel's <code>Info</code> module with today's layout. The records on the left of the tangle are the four kinds of info; almost every function runs between them and one node on the right.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <dl class="parts">
+    <dt>What it means</dt>
+    <dd>
+      <p>Reading the compiler's output scales. The limits are all on the page.</p>
+      <p>A menu of 853 names is not a way to find anything. Something above the one-module view is needed: a map of modules, a search, or both.</p>
+      <p>One module at a time is not small enough. Past a hundred definitions the layout gives a tangle, and it takes long enough to block the page.</p>
+    </dd>
+    <dt>Not tried</dt>
+    <dd><p>Watching Hazel live. That needs a second full build of Hazel in Portolan's own build folder, which takes several minutes and a few gigabytes. It is worth doing once the page can show the result.</p></dd>
+    <dt>Next</dt>
+    <dd><p>Entry 3 (layouts and their cost) and entry 7 (a map of modules) come straight out of this.</p></dd>
+  </dl>
+</section>
+</main>
+</body>
+</html>

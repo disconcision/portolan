@@ -9,6 +9,7 @@ Portolan (working name) is a canvas for reading OCaml code bases above the level
 - **Prototypes** are runnable things. A web app anyone can open gets a link; anything else links to its source.
 - **Living documents** (`site/notes/`) are kept current. `scope.html` is the scope of the project.
 - **Studies** (`site/studies/`) are written once and left as they were. Name them `YYYY-MM-DD-what.html`.
+- **The logbook** (`site/log/`) records experiments as they are run: one short page each (`NN-what.html`: the question, what was tried, what happened with pictures, what it means, what next), listed in `LOG` in `site/log/index.html` together with ideas not yet tried. Write the entry when the experiment is done, and say what was actually run.
 
 ## The scope notes
 

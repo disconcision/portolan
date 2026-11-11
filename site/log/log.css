@@ -1,0 +1,19 @@
+/* The logbook's own few styles, on top of ../assets/notebook.css. */
+.parts { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 10px 20px; max-width: 52rem; }
+.parts dt { font: 500 0.75rem/1.9 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.parts dd { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 620px) { .parts { grid-template-columns: 1fr; gap: 2px 0; } .parts dd { margin-bottom: 12px; } }
+figure { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+figure img { width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 6px; background: #FDFBF3; }
+figcaption { font-size: 0.88rem; color: var(--muted); max-width: 46rem; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: 16px; }
+.result { border-left: 3px solid var(--accent); padding: 2px 0 2px 14px; max-width: 46rem; font-size: 1.05rem; }
+.rows { display: flex; flex-direction: column; }
+.row { display: grid; grid-template-columns: 2.2rem 6.5rem minmax(0, 1fr); gap: 4px 16px; padding: 14px 0; border-top: 1px solid var(--rule); }
+.row:last-child { border-bottom: 1px solid var(--rule); }
+.row .n { font: 500 0.8rem/1.9 var(--mono); color: var(--muted); }
+.row .state { padding-top: 5px; }
+.row .what { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.row .what .title { font-weight: 600; font-size: 1.05rem; }
+.row .what p { font-size: 0.95rem; color: var(--muted); }
+@media (max-width: 560px) { .row { grid-template-columns: 2rem minmax(0, 1fr); } .row .state { grid-column: 2; padding: 0; } .row .what { grid-column: 2; } }
