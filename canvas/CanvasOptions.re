@@ -861,7 +861,8 @@ let place =
       let weight = (b: box) => max(1., (b.u +. b.d +. 6.) /. 40.);
       let total = List.fold_left((s, (_, b)) => s +. weight(b), 0., cs);
       let rings = List.length(cs) > 7 ? 2. : 1.;
-      let span = min(2.9, max(0.5, total *. 0.42 /. rings));
+      let span =
+        min(2.9, max(List.length(cs) < 2 ? 0.1 : 1.3, total *. 0.5 /. rings));
       let room = List.fold_left((s, (c, _)) => max(s, chip(c)), 0., cs);
       let rho = max(rad +. 40. +. room *. 0.8, total *. 40. /. rings /. span);
       let (at, _) =

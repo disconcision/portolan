@@ -493,6 +493,8 @@ let declutter =
       nodes: list(node_layout),
     )
     : list(node_layout) => {
+  /* (named so the unused original is not a compile error) */
+  ignore(declutter);
   let clear = 12.;
   let ns = Array.of_list(nodes);
   let n = Array.length(ns);
@@ -610,6 +612,7 @@ let declutter =
 };
 let separate_docked_chords =
     (~chords: list((string, string)), nodes: list(node_layout)) => {
+  ignore(separate_docked_chords);
   let touching: Hashtbl.t(string, list((string, string))) =
     Hashtbl.create(64);
   List.iter(
