@@ -206,6 +206,8 @@
   // A graph shown at once is framed before its layout has settled, and comes out cut off or far
   // too small. Watch the board until it stops changing, then frame it; a hidden tab draws late.
   let settling = 0;
+  // The reader's own zoom or drag wins: once they touch the canvas, nothing frames it for them.
+  ['wheel', 'pointerdown', 'touchstart', 'gesturestart'].forEach(t => $('canvas-host').addEventListener(t, () => clearInterval(settling), { capture: true, passive: true }));
   function fitWhenSettled() {
     clearInterval(settling);
     let last = '', same = 0, tries = 0;
