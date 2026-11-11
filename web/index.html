@@ -8,12 +8,13 @@
 <link rel="stylesheet" href="canvas/canvas.css">
 <link rel="stylesheet" href="style.css">
 <script>
-// Theme and corner style: from the address (?theme=dark, ?corners=square), else what was last chosen.
+// Theme and corner style: from the address (?theme=dark, ?corners=round), else what was last chosen.
+// Square bar tabs are the default.
 (function () {
   var q = new URLSearchParams(location.search), get = function (k) { try { return localStorage.getItem('portolan.' + k); } catch (e) { return null; } };
-  var theme = q.get('theme') || get('theme') || 'light', corners = q.get('corners') || get('corners') || 'round';
+  var theme = q.get('theme') || get('theme') || 'light', corners = q.get('corners') || get('corners') || 'square';
   if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
-  if (corners === 'square') document.documentElement.dataset.corners = 'square';
+  document.documentElement.dataset.corners = corners === 'round' ? 'round' : 'square';
 })();
 </script>
 </head>

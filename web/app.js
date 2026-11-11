@@ -23,7 +23,8 @@
     hazel: {
       mount: el => PC.mount(el),
       push: (g, c) => PC.push(g, { label: (c && c.label) || 'edit', ok: true }),
-      show: g => PC.show(g),
+      // Shown before the pane has settled, the canvas frames far too wide: fit again once it has.
+      show: g => { PC.show(g); setTimeout(() => PC.fit(), 500); },
       reset: () => PC.reset(),
       onSelect: cb => PC.onSelect((name, _kind, at) => {
         const g = graphs.length ? graphs[graphs.length - 1] : null;
@@ -70,8 +71,8 @@
     window.dispatchEvent(new Event('resize')); // the canvas draws its dot grid by script: have it redraw in the new colour
   };
   $('corners').onclick = () => {
-    if (root.dataset.corners === 'square') delete root.dataset.corners; else root.dataset.corners = 'square';
-    keep('corners', root.dataset.corners || 'round');
+    root.dataset.corners = root.dataset.corners === 'square' ? 'round' : 'square';
+    keep('corners', root.dataset.corners);
     chrome();
   };
   chrome();

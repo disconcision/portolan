@@ -2,7 +2,7 @@
    top bar with its tabs, bottom bar, and chat styling. The chrome is one colour
    family: Hazel's paper tones and its yellow highlight, no green.
    Light is Hazel's scheme. Dark (data-theme="dark" on the root) is a monochrome
-   close to the Graphite candidate. data-corners="square" squares the bar tabs. */
+   close to the Graphite candidate. The bar tabs are square by default; data-corners="round" rounds them. */
 :root {
   --ui-bkg: oklch(97% 0.025 90);
   --df-bg: oklch(99% 0.012 90);
