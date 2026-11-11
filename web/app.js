@@ -395,6 +395,7 @@
     if (edit) what = (name === 'Write' ? 'Write ' : 'Edit ') + rel(input.file_path);
     else if (name === 'Bash') what = '$ ' + String(input.command || '');
     else if (name === 'Read') what = 'Read ' + rel(input.file_path);
+    else if (name === 'AskUserQuestion') what = 'A question for you';
     else if (input && (input.pattern || input.path)) what = name + ' ' + (input.pattern || rel(input.path));
     const d = document.createElement('div');
     d.className = 'tool';
@@ -404,6 +405,76 @@
     const lines = edit ? changes(name, input) : [];
     if (lines.length) d.appendChild(diffBlock(lines));
     return append(d);
+  }
+
+  // ---- the agent asks: leave to use a tool, or a question of its own ----
+  const post = (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const el = (tag, cls, text) => { const x = document.createElement(tag); if (cls) x.className = cls; if (text != null) x.textContent = text; return x; };
+  let asks = {}; // id -> the card of a request still waiting
+  function askCard(e) {
+    const card = el('div', 'ask'), input = e.input || {}, answerable = !traceUrl;
+    const act = el('div', 'ask-act');
+    if (e.tool === 'AskUserQuestion') {
+      const qs = input.questions || [], chosen = qs.map(() => new Set());
+      const sendAnswers = () => post('answer', { id: e.id, decision: 'answered', answers: Object.fromEntries(qs.map((q, i) => [q.question, [...chosen[i]].join(', ')])) });
+      const direct = qs.length === 1 && !qs[0].multiSelect; // one question, one choice: a click answers it
+      const go = el('button', 'primary', 'send');
+      go.type = 'button'; go.disabled = true; go.onclick = sendAnswers;
+      qs.forEach((q, i) => {
+        if (q.header) card.appendChild(el('div', 'ask-head', q.header));
+        card.appendChild(el('div', 'ask-text', q.question));
+        const row = el('div', 'ask-options');
+        (q.options || []).forEach(o => {
+          const b = el('button', 'option');
+          b.type = 'button'; b.disabled = !answerable;
+          b.append(el('span', 'label', o.label), el('span', 'hint', o.description || ''));
+          b.onclick = () => {
+            if (!q.multiSelect) { chosen[i].clear(); row.querySelectorAll('.option').forEach(x => x.classList.remove('on')); }
+            chosen[i].has(o.label) && q.multiSelect ? chosen[i].delete(o.label) : chosen[i].add(o.label);
+            b.classList.toggle('on', chosen[i].has(o.label));
+            go.disabled = chosen.some(c => !c.size);
+            if (direct) sendAnswers();
+          };
+          row.appendChild(b);
+        });
+        card.appendChild(row);
+      });
+      if (!direct && answerable) act.appendChild(go);
+    } else {
+      const bash = e.tool === 'Bash';
+      card.appendChild(el('div', 'ask-head', bash ? 'Claude wants to run' : 'Claude wants to use ' + e.tool));
+      card.appendChild(el('pre', 'ask-what', bash ? String(input.command || '') : input.file_path ? rel(input.file_path) : JSON.stringify(input, null, 1)));
+      if (input.description) card.appendChild(el('div', 'ask-text', input.description));
+      if (answerable) {
+        const always = el('div', 'ask-always'), fields = (e.patterns || []).map(p => { const f = el('input'); f.value = p; f.spellcheck = false; f.setAttribute('aria-label', 'Pattern to always allow'); return f; });
+        always.append(el('span', '', 'always allow remembers'), ...fields);
+        const button = (text, cls, body) => { const b = el('button', cls, text); b.type = 'button'; b.onclick = () => post('answer', { id: e.id, ...body() }); return b; };
+        act.append(button('Allow once', 'primary', () => ({ decision: 'once' })),
+          button('Always allow', '', () => ({ decision: 'always', patterns: fields.map(f => f.value.trim()).filter(Boolean) })),
+          button('Deny', 'deny', () => ({ decision: 'deny' })));
+        card.append(act, always);
+      }
+    }
+    if (!act.parentNode) card.appendChild(act);
+    if (!answerable && !act.children.length) act.textContent = 'waiting for an answer';
+    asks[e.id] = card;
+    append(card);
+    if (live) card.scrollIntoView({ block: 'nearest' });
+  }
+  // The request has its answer, or will never get one: the card says which and stops taking clicks.
+  function settle(id, decision, e) {
+    const card = asks[id];
+    if (!card) return;
+    delete asks[id];
+    card.classList.add('settled', decision);
+    card.querySelectorAll('.ask-always').forEach(x => x.remove());
+    card.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    const said = decision === 'once' ? 'allowed once' : decision === 'always' ? 'always allowed: ' + ((e && e.patterns) || []).join('  ') : decision === 'deny' ? 'denied'
+      : decision === 'answered' ? 'answered: ' + Object.values((e && e.answers) || {}).join('; ') : 'not answered: the turn ended first';
+    const act = card.querySelector('.ask-act'), picked = decision === 'answered' ? Object.values(e.answers || {}).flatMap(a => String(a).split(', ')) : [];
+    card.querySelectorAll('.option').forEach(b => b.classList.toggle('on', picked.includes(b.firstChild.textContent)));
+    if (decision === 'answered') act.remove(); else act.replaceChildren();
+    card.appendChild(el('div', 'ask-said', said));
   }
   function dropLive() { if (liveEl) { liveEl.remove(); liveEl = null; } if (liveTool) { liveTool.remove(); liveTool = null; } }
 
@@ -450,6 +521,7 @@
       });
     } else if (ev.type === 'result') {
       dropLive();
+      Object.values(tools).forEach(row => { if (!row.classList.contains('ok') && !row.classList.contains('bad')) row.classList.add('cut'); }); // a stopped turn leaves calls unfinished
       add('turn', ev.is_error ? 'stopped' : 'turn done');
       lastWho = '';
     }
@@ -479,12 +551,20 @@
   const handlers = {
     hello(e) { project = e.project; $('project').textContent = e.project; $('mode').textContent = e.agent && e.agent.startsWith('script') ? '· scripted agent' : ''; },
     async caught_up() { if (latest) await learnTypes(latest); live = true; present(null, true); },
-    session(e) { if (e.restart && feed.children.length) { add('turn', 'earlier session above'); lastWho = ''; } },
+    session(e) {
+      Object.keys(asks).forEach(id => settle(id, 'cancelled')); // whoever asked is gone
+      if (e.restart && feed.children.length) { add('turn', 'earlier session above'); lastWho = ''; }
+    },
+    ask(e) { lastWho = 'Claude'; askCard(e); },
+    answer(e) { settle(e.id, e.decision, e); },
     replay_end() { $('mode').textContent = '· replay finished'; },
     prompt(e) { add('msg you', e.text, 'You'); },
     agent(e) { agent(e.ev); },
     agent_raw(e) { add('tool bad', e.line); },
-    agent_state(e) { cell('agent', 'agent: ' + e.state, e.state === 'running' ? 'live' : ''); if (PC && live) PC.setBusy(e.state === 'running'); },
+    agent_state(e) {
+      cell('agent', 'agent: ' + (e.state === 'waiting' ? 'waiting for your answer' : e.state), e.state === 'running' || e.state === 'waiting' ? 'live' : '');
+      if (PC && live) PC.setBusy(e.state === 'running');
+    },
     build(e) {
       cell('build', e.ok ? 'build ok · ' + e.ms + ' ms' : 'build failing', e.ok ? '' : 'bad');
       buildOut = e.ok ? '' : e.output;
@@ -511,7 +591,10 @@
   };
   // One event at a time, in order: a graph waits for its types before it is drawn.
   let turn = Promise.resolve();
-  const dispatch = e => { turn = turn.then(() => (handlers[e.type] || (() => {}))(e)).catch(err => console.error(err)); };
+  // A feed that was at its end stays there, whatever the event added or grew.
+  const dispatch = e => {
+    turn = turn.then(async () => { const stick = pinned(); await (handlers[e.type] || (() => {}))(e); if (stick) feed.scrollTop = feed.scrollHeight; }).catch(err => console.error(err));
+  };
 
   if (traceUrl) {
     // A recorded run, played in the page with its own timing. No sidecar involved.
@@ -544,9 +627,9 @@
     const text = $('prompt').value.trim();
     if (!text) return;
     $('prompt').value = '';
-    await fetch('prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+    await post('prompt', { text });
   }
   $('ask').addEventListener('submit', ev => { ev.preventDefault(); send(); });
   $('prompt').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); send(); } });
-  $('stop').onclick = () => fetch('stop', { method: 'POST' });
+  $('stop').onclick = () => post('stop');
 })();
