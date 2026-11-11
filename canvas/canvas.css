@@ -2671,3 +2671,12 @@
 .rig-beam-grad stop {
   stop-color: var(--pc-avatar-beam, #ffe58a);
 }
+
+/* past a handful, a function's tests fold to one pip per status and a count */
+.canvas-edge-label .pip-more {
+  font-size: 9px;
+  line-height: 1;
+  margin-left: -1px;
+  color: var(--pc-token-exp);
+  opacity: 0.8;
+}

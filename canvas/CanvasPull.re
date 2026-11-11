@@ -364,8 +364,7 @@ let apply =
           let room =
             float_of_int(String.length(e.e_label))
             *. 7.4
-            +. 9.
-            *. float_of_int(List.length(e.tests))
+            +. CanvasPips.width(e.tests)
             +. 44.;
           Some((a, b, discs[a].r +. discs[b].r +. min(room, longest)));
         | _ => None

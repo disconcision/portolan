@@ -5,5 +5,5 @@
 (include_subdirs no)
 
 (tests
- (names test_canvas_graph test_regions)
+ (names test_canvas_graph test_regions test_pips)
  (libraries portolan_canvas_graph portolan_graph alcotest))

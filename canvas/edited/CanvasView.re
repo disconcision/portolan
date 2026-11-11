@@ -100,7 +100,9 @@ let svg = (~key=?, name, attrs, children) =>
     children,
   );
 
-let test_pip = (~on_click=?, t: CanvasGraph.test_info): Node.t => {
+/* PORTOLAN: [title] says what a pip that stands for several tests is. */
+let test_pip =
+    (~title="select this test", ~on_click=?, t: CanvasGraph.test_info): Node.t => {
   let cls =
     switch (t.status) {
     | Some(Pass) => "pip-pass"
@@ -110,7 +112,7 @@ let test_pip = (~on_click=?, t: CanvasGraph.test_info): Node.t => {
     };
   let click =
     switch (on_click) {
-    | Some(f) => [Attr.on_click(_ => f(t)), Attr.title("select this test")]
+    | Some(f) => [Attr.on_click(_ => f(t)), Attr.title(title)]
     | None => []
     };
   div(~attrs=[clss(["test-pip", cls]), ...click], []);
@@ -717,12 +719,40 @@ let edge_label =
     ],
     [
       text(e.e_label),
-      ...List.map(
-           test_pip(~on_click=(t: CanvasGraph.test_info) =>
-             inject_jump(t.t_id)
-           ),
-           e.tests,
-         ),
+      /* PORTOLAN: past a handful, one pip per status and a count
+         (CanvasPips); the pip opens the first test it stands for. */
+      ...{
+           let jump = (t: CanvasGraph.test_info) => inject_jump(t.t_id);
+           switch (CanvasPips.shown(e.tests)) {
+           | Each(tests) => List.map(test_pip(~on_click=jump), tests)
+           | Folded(groups) =>
+             List.concat_map(
+               ((t, more)) =>
+                 [
+                   test_pip(
+                     ~title=
+                       Printf.sprintf(
+                         "%d tests like this; opens the first",
+                         more + 1,
+                       ),
+                     ~on_click=jump,
+                     t,
+                   ),
+                 ]
+                 @ (
+                   more > 0
+                     ? [
+                       div(
+                         ~attrs=[clss(["pip-more"])],
+                         [text("+" ++ string_of_int(more))],
+                       ),
+                     ]
+                     : []
+                 ),
+               groups,
+             )
+           };
+         },
     ],
   );
 };

@@ -44,6 +44,7 @@ The file has no `<html>`, `<head>` or `<body>` tags on purpose, so the same file
 
 - Standalone HTML, no build step. Fonts from Google Fonts; everything else in the repo.
 - Both light and dark themes, through the tokens in `notebook.css`.
+- Before pushing, run `node tools/check-site.mjs`: it parses every page's inline script (an unescaped apostrophe in a page's data once shipped an empty front page).
 - Say what was verified and what was not. A study built from agent research says so at the top.
 - This repo is public. No private paths, tokens or personal details in pages.
 
