@@ -92,7 +92,8 @@ let edge_path = (~pull=0., el: edge_layout) =>
         ]);
       | _ => el.wire
       };
-    Lab.path(List.map(to_lab, points));
+    /* PORTOLAN: the corner rounding is the edge style's */
+    CanvasOptions.path(List.map(to_lab, points));
   } else {
     let d =
       max(1., Float.hypot(el.dst_p.x -. el.c2.x, el.dst_p.y -. el.c2.y));
@@ -903,6 +904,10 @@ let layout_impl =
     );
   Util.PerfTimer.record("layout/pre", Util.PerfTimer.now() -. t_pre);
   let t_solve = Util.PerfTimer.now();
+  /* PORTOLAN: a layout that places every node itself skips the engine */
+  let own_places = CanvasOptions.places(experiment);
+  let (grid_nodes, all_spec_edges, attachments) =
+    own_places ? ([], [], []) : (grid_nodes, all_spec_edges, attachments);
   let res =
     Util.GraphLayout.layout({
       nodes:
@@ -965,6 +970,36 @@ let layout_impl =
             : None,
         g.nodes,
       );
+  /* PORTOLAN */
+  let placed_layouts =
+    own_places
+      ? {
+        let radii: Hashtbl.t(string, float) = Hashtbl.create(64);
+        List.iter(
+          (n: CanvasGraph.tynode) => Hashtbl.replace(radii, n.key, r_of(n)),
+          g.nodes,
+        );
+        let radius = k =>
+          Option.value(~default=base_radius, Hashtbl.find_opt(radii, k));
+        let at: Hashtbl.t(string, Lab.point) = Hashtbl.create(64);
+        List.iter(
+          ((k, p)) => Hashtbl.replace(at, k, p),
+          CanvasOptions.place(~radius, experiment, g),
+        );
+        List.filter_map(
+          (n: CanvasGraph.tynode) =>
+            Hashtbl.find_opt(at, n.key)
+            |> Option.map(p =>
+                 {
+                   node: n,
+                   p: from_lab(p),
+                   r: radius(n.key),
+                 }
+               ),
+          g.nodes,
+        );
+      }
+      : placed_layouts;
 
   /* Declutter the automatic arrangement once, before manual placement.
      A pointer movement must not push unrelated nodes out of its new
@@ -983,6 +1018,11 @@ let layout_impl =
         },
       placed_layouts,
     );
+  /* PORTOLAN: rows and arcs are already clear of each other */
+  let declutter = (~chords, ~fixed, ~radius_of, nodes) =>
+    own_places ? nodes : declutter(~chords, ~fixed, ~radius_of, nodes);
+  let separate_docked_chords = (~chords, nodes) =>
+    own_places ? nodes : separate_docked_chords(~chords, nodes);
   /* every straight line the render will draw: function arrows and the
      "made of" links (parts → product, former → alias, element → [T],
      alias-body deps → alias) */
@@ -1111,7 +1151,12 @@ let layout_impl =
            ]
          );
     let placed =
-      if (Lab.research(experiment)) {
+      /* PORTOLAN: Portolan's own placements come first */
+      if (own_places) {
+        items;
+      } else if (experiment == "compact") {
+        CanvasOptions.arrange(g, items);
+      } else if (Lab.research(experiment)) {
         let result =
           Lab.place(
             ~clusters,
@@ -1522,6 +1567,82 @@ let layout_impl =
           edge_layouts,
         )
       : edge_layouts;
+  /* PORTOLAN: the edge styles of CanvasOptions */
+  let edge_layouts =
+    CanvasOptions.routes()
+      ? {
+        let wires: Hashtbl.t(string, CanvasOptions.wire) =
+          Hashtbl.create(64);
+        List.iter(
+          ((name, w)) => Hashtbl.replace(wires, name, w),
+          CanvasOptions.route(
+            ~nodes=
+              List.map(
+                (n: node_layout) => (n.node.key, to_lab(n.p), n.r),
+                node_layouts,
+              ),
+            ~links=
+              List.map(((a, b, _, _)) => (a, b), formations @ dep_links),
+            ~room=
+              name =>
+                List.find_opt(
+                  (e: CanvasGraph.edge) => e.e_name == name,
+                  g.edges,
+                )
+                |> Option.map((e: CanvasGraph.edge) =>
+                     float_of_int(String.length(e.e_label)) *. 7.4 +. 44.
+                   )
+                |> Option.value(~default=60.),
+            List.filter_map(
+              (el: edge_layout) =>
+                el.endo
+                  ? None : Some((el.edge.e_name, el.edge.e_src, el.edge.dst)),
+              edge_layouts,
+            ),
+          ),
+        );
+        List.map(
+          (el: edge_layout) =>
+            switch (Hashtbl.find_opt(wires, el.edge.e_name)) {
+            | Some({points: [first, ..._] as points, label, _}) =>
+              let wire = List.map(from_lab, points);
+              {
+                ...el,
+                wire,
+                src_p: from_lab(first),
+                dst_p: List.nth(wire, List.length(wire) - 1),
+                label_p: {
+                  x: label.x,
+                  y: label.y -. 6.,
+                },
+                label_anchor: from_lab(label),
+              };
+            | Some({ctrl: Some((c1, c2)), label, _}) =>
+              /* a curve: its ends are where the control points leave from */
+              let rim = (k, toward: Lab.point) =>
+                switch (pos_of(k)) {
+                | Some(p) => offset_along(p, from_lab(toward), radius_of(k))
+                | None => from_lab(toward)
+                };
+              {
+                ...el,
+                wire: [],
+                src_p: rim(el.edge.e_src, c1),
+                dst_p: rim(el.edge.dst, c2),
+                c1: from_lab(c1),
+                c2: from_lab(c2),
+                label_p: {
+                  x: label.x,
+                  y: label.y -. 6.,
+                },
+                label_anchor: from_lab(label),
+              };
+            | _ => el
+            },
+          edge_layouts,
+        );
+      }
+      : edge_layouts;
 
   /* ---- label placement: multi-direction search avoiding BOTH other
      labels and node circles. A label chip renders translate(-50%,-100%):
@@ -1771,16 +1892,18 @@ let layout_impl =
           let fits_on_wire = !el.endo && chord -. 2. *. w >= 2. *. (9. +. 14.);
           let on_wire_p =
             if (fits_on_wire) {
-              List.map(
-                t => {
-                  let c = curve_at(t);
-                  {
-                    x: c.x,
-                    y: c.y +. 6.,
-                  };
-                },
-                [0.5, 0.42, 0.58, 0.34, 0.66, 0.28, 0.72],
-              )
+              /* PORTOLAN: an edge style's own choice is tried first */
+              (CanvasOptions.routes() ? [el.label_anchor] : [])
+              @ List.map(
+                  t => {
+                    let c = curve_at(t);
+                    {
+                      x: c.x,
+                      y: c.y +. 6.,
+                    };
+                  },
+                  [0.5, 0.42, 0.58, 0.34, 0.66, 0.28, 0.72],
+                )
               |> List.find_opt((c: pos) =>
                    (
                      el.wire == []
