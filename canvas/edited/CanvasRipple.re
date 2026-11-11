@@ -612,6 +612,9 @@ let get_dot_sprite = (fill: string, dpr: float): Js.Unsafe.any => {
       );
     let mid = float_of_int(px_size) /. 2.;
     /* solid core matching the old 0.75px arc, short soft skirt */
+    /* PORTOLAN: a smaller dot (the skirt ends at 0.95px, was 1.25): at
+       the zooms real modules are read at, the old one weighed as much
+       as a label's stroke */
     let grad =
       Js.Unsafe.meth_call(
         cx,
@@ -622,7 +625,7 @@ let get_dot_sprite = (fill: string, dpr: float): Js.Unsafe.any => {
           Js.Unsafe.inject(0.),
           Js.Unsafe.inject(mid),
           Js.Unsafe.inject(mid),
-          Js.Unsafe.inject(1.25 *. dpr),
+          Js.Unsafe.inject(0.95 *. dpr),
         |],
       );
     let stop = (at: float, a: float) => {
@@ -948,17 +951,24 @@ let rec draw = (): unit => {
          (screen pitch [7, 14)) has already faded in underneath and
          takes over — a smooth crossfade instead of the old abrupt
          subdivision */
+      /* PORTOLAN: the lattice recedes as the view zooms out. Below 1:1
+         the band of screen pitches widens toward [28, 56), so every
+         other dot drops out by the same crossfade, and every dot
+         fades. At 1:1 and closer it is the lattice nodes snap to. */
+      let out = fmin(1., fmax(0., (1. -. z) /. 0.5)); /* 0 at 1:1, 1 by 1:2 */
+      let lo = 14. *. (1. +. out);
+      let faint = 0.85 -. 0.25 *. fmin(1., fmax(0., (1. -. z) /. 0.7));
       let g = ref(14.); /* current grid step, model units */
       let p = ref(14. *. z); /* its screen pitch */
-      while (p^ < 14.) {
+      while (p^ < lo) {
         g := g^ *. 2.;
         p := p^ *. 2.;
       };
-      while (p^ >= 28.) {
+      while (p^ >= 2. *. lo) {
         g := g^ /. 2.;
         p := p^ /. 2.;
       };
-      let f = (p^ -. 14.) /. 14.; /* 0..1 position between levels */
+      let f = (p^ -. lo) /. lo; /* 0..1 position between levels */
       let fine_alpha = f *. f; /* ease-in so the fine grid arrives late */
       /* dots fade approaching the PANEL edges (the viewport is the
          frame now, not the board: no more island-and-abyss) */
@@ -1050,9 +1060,9 @@ let rec draw = (): unit => {
         };
       };
       if (fine_alpha > 0.02) {
-        draw_pass(g^ /. 2., fine_alpha, ~skip_coarse=true);
+        draw_pass(g^ /. 2., fine_alpha *. faint, ~skip_coarse=true);
       };
-      draw_pass(g^, 1., ~skip_coarse=false);
+      draw_pass(g^, faint, ~skip_coarse=false);
       /* pulses ride on top of the lattice */
       let (live_pulses, done_pulses) =
         List.partition((p: pulse) => t -. p.t0 < pulse_ms, pulses^);

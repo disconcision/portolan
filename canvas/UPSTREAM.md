@@ -83,7 +83,7 @@ in `test/` build and run them natively.
 | `upstream/CanvasAvatar.re` | `src/web/app/canvas/` | verbatim | |
 | `upstream/CanvasBubble.re` | `src/web/app/canvas/` | verbatim | |
 | `upstream/CanvasCamera.re` | `src/web/app/canvas/` | verbatim | |
-| `upstream/CanvasRipple.re` | `src/web/app/canvas/` | verbatim | |
+| `edited/CanvasRipple.re` | `src/web/app/canvas/` | edited (the dot lattice, about 15 lines) | A quieter lattice: a smaller dot, drawn fainter; below 1:1 every dot fades further and every other one drops out (the level-of-detail band moves from 14–28 px of screen pitch toward 28–56). At 1:1 and closer it is still the lattice node centres snap to. The dot's size is baked into a sprite, so this could not be a stylesheet change. |
 | `upstream/CanvasJelly.re` | `src/web/app/canvas/` | verbatim | |
 | `upstream/CanvasLog.re` | `src/web/app/canvas/` | verbatim | |
 | `edited/CanvasView.re` | `src/web/app/canvas/` | edited (the hull palette, 8 lines) | The six hull colours read `var(--pc-hull-N, <upstream colour>)` so a host can theme them. Worth taking upstream. |
