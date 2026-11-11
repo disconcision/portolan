@@ -24,3 +24,8 @@
     a graph the page already has. */
 let start:
   (~extractor: string, ~cause: unit => Yojson.Safe.t, Project.t) => unit;
+
+/** Every `File "lib/scene.ml", line 21` in a compiler's or a test runner's
+    output, as (file, line), in order and without repeats. An error over
+    several lines (`lines 3-5`) gives its first. */
+let locations: string => list((string, int));

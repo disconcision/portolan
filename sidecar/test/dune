@@ -1,0 +1,5 @@
+; The parts of the sidecar that decide something, checked without files,
+; processes or the bus.
+(test
+ (name test_sidecar)
+ (libraries portolan_sidecar alcotest yojson))

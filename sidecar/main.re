@@ -31,6 +31,8 @@
    Dependencies: unix, threads, str, yojson. The graph is treated as
    opaque JSON here; only the extractor and the canvas know its shape. */
 
+open Portolan_sidecar;
+
 let (/) = Filename.concat;
 
 let usage = "usage:
