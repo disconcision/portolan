@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regions: Contour and Pull</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/notebook.css">
+<link rel="stylesheet" href="log.css">
+</head>
+<body>
+<main>
+<header class="col">
+  <span class="eyebrow"><a href="../">Portolan notebook</a> · <a href="./">logbook</a> · 15 · 11 November 2026</span>
+  <h1>Is a tendrilly region a matter of its outline, or of where its members sit?</h1>
+  <p class="result">Both, and they are separate. Drawing the outline around a module's members instead of along its arrows removes the arms, but leaves the module in pieces joined by threads. Pulling the members together is what makes it one mass. With both, the dungeon example's seven modules read as seven regions, and a module that is mostly functions between other modules' types still comes out stretched. The price is longer arrows between modules and some of the layout's own order.</p>
+</header>
+
+<section>
+  <dl class="parts">
+    <dt>Why</dt>
+    <dd>
+      <p>A module's region is a circle around each member plus a band along each of the module's arrows, merged into one blob. So its shape is whatever the arrows do. The layout does not try to keep a module's members near each other, so the blob grows arms across the board, and other modules' nodes end up between the arms where inside cannot be told from outside (the last picture of entry 3).</p>
+      <p>Andrew wants regions "more consolidated" and not "as tendrilly as it is now", but is not sure he wants "to turn everything into kind of oblate spheroids": "I could see the truth as being somewhere between the two." One way he thinks about it is what closing a module to a single disc would look like. He wanted to see it on real code before deciding.</p>
+      <p>The reading this entry tests: there are two things. The contour, which could go around members only and so be as irregular as the membership is. And a pull, a tendency of a module's members toward each other, so that a module that owns its types comes out compact, one that does not stays stretched, and being stretched then says something.</p>
+    </dd>
+    <dt>What I did</dt>
+    <dd>
+      <p>Two settings in the canvas header, beside layout and edges, each also an API call and <code>?contour=</code> / <code>?pull=</code> in the address. The defaults are today's behaviour.</p>
+      <p><strong>Contour.</strong> <code>arrows</code> is today's. <code>members</code> draws the circles and no bands; a module in several pieces is joined by the shortest tree of thin links between them. A function with one end inside the module and one outside keeps its label out of the region: it is an arrow leaving. <code>smooth</code> is the same shapes drawn larger, through a filter that takes the extra back off the outside, so the hollows between near members fill in and nothing else grows.</p>
+      <p><strong>Pull.</strong> <code>none</code>, <code>mild</code>, <code>strong</code>. A pass after whichever layout placed the nodes and before any arrow is routed. In rounds, each member moves 3% of the way to its module's centre (14 rounds or 40), and modules that sit on top of each other move apart, each as one piece. Then nodes are moved clear of each other, each arrow is given room for its label, and a node that a module has closed around is moved out through the widest gap. A built-in terminal docked to another module's type is let go and travels with its own module. Nested modules are pulled toward their own centre and their parent's.</p>
+      <p>Shot on four scenes, all nine combinations each, in the layered layout with curved edges: the dungeon example whole with its seven modules open, its <code>Creatures</code> module (nested <code>Items</code> and <code>Combat</code>), Portolan's <code>Graph</code> (nested <code>Of_json</code>) and Portolan's <code>CanvasGraph</code> (three nested modules). <code>CanvasGraph</code> stands in for <code>Turn</code>, which has no nested module and so no region: it draws the same under every combination. Three combinations were shot again in the ledger layout with metro edges. Every picture is a headless Chrome screenshot at double density, 50 in all with the two of <code>Turn</code>. I looked at each of them; Andrew has seen none.</p>
+    </dd>
+  </dl>
+</section>
+
+<section>
+  <div class="col"><h2>What happened</h2></div>
+  <figure>
+    <a href="img/15-grid-creatures.jpg"><img src="img/15-grid-creatures.jpg" alt="Nine drawings of the Creatures module in a three by three grid. Down the rows the two nested modules' regions lose their arms and then their hollows; across the columns their members gather until each is one mass." loading="lazy"></a>
+    <figcaption><strong>The dungeon's <code>Creatures</code> module, all nine.</strong> Rows: contour <code>arrows</code>, <code>members</code>, <code>smooth</code>. Columns: pull <code>none</code>, <code>mild</code>, <code>strong</code>. Pink is the nested module <code>Items</code>, teal is <code>Combat</code>. Top left is today's.</figcaption>
+  </figure>
+  <div class="col">
+    <p><strong>Down the first column</strong>, with nothing moved: the bands go and <code>Items</code> keeps its shape, but its far member (the result of <code>name</code>, top left) is now a lump on a thread, and <code>smooth</code> fills between the pieces and so covers nodes that are not the module's.</p>
+    <p><strong>Along the first row</strong>, with today's contour: the pull makes it worse. A terminal that has gone home leaves a longer arrow behind, and the band follows the arrow.</p>
+    <p><strong>Bottom right</strong>: two masses side by side, with the arrows of <code>Combat</code>'s functions leaving its region for the parent's type <code>t</code>.</p>
+  </div>
+  <div class="pair">
+    <figure>
+      <a href="img/15-dungeon-today.jpg"><img src="img/15-dungeon-today.jpg" alt="The dungeon project with all seven modules open: regions in six colours lie over each other in a tall column, with bands running between them." loading="lazy"></a>
+      <figcaption><strong>The whole dungeon project today</strong> (<code>arrows</code>, <code>none</code>). Seven modules. Which nodes are in <code>Rules</code> (teal, top) cannot be read.</figcaption>
+    </figure>
+    <figure>
+      <a href="img/15-dungeon-smooth-strong.jpg"><img src="img/15-dungeon-smooth-strong.jpg" alt="The same project: seven separate coloured masses stacked down the board, arrows running between them." loading="lazy"></a>
+      <figcaption><strong><code>smooth</code>, <code>strong</code>.</strong> From the top: <code>Creatures</code> with <code>Items</code> and <code>Combat</code> darker inside it, <code>Rules</code> beside it, <code>Dungeon</code>, <code>Pos</code>, then <code>Turn</code>, <code>Render</code> and <code>Script</code>. A few arms remain: results that <code>Creatures</code>' and <code>Turn</code>'s own functions keep docked at a type on the module's edge.</figcaption>
+    </figure>
+  </div>
+  <div class="pair">
+    <figure>
+      <a href="img/15-graph-today.jpg"><img src="img/15-graph-today.jpg" alt="Portolan's Graph module: the region of its submodule Of_json runs in long bands from the lower left up to five record types on the right." loading="lazy"></a>
+      <figcaption><strong><code>Graph</code> today.</strong> <code>Of_json</code> is functions from <code>json</code> to the parent's record types, so its region is the bundle of arrows.</figcaption>
+    </figure>
+    <figure>
+      <a href="img/15-graph-members-strong.jpg"><img src="img/15-graph-members-strong.jpg" alt="The same module: Of_json is one compact region at the lower right, next to the json type, and its arrows fan out of it to the record types." loading="lazy"></a>
+      <figcaption><strong><code>members</code>, <code>strong</code>.</strong> <code>Of_json</code> is what it owns: argument tuples and terminals, gathered beside <code>json</code>. Most of the same arrows now leave the region. Two functions that run wholly between the parent's types (<code>node</code>, <code>handle</code>) still hold an arm up the bundle by their labels.</figcaption>
+    </figure>
+  </div>
+  <figure>
+    <a href="img/15-canvasgraph-members-strong.jpg"><img src="img/15-canvasgraph-members-strong.jpg" alt="Portolan's CanvasGraph module. One nested module is a compact teal mass at the lower left. Another, in pink, is a small mass at the right and a chain of small lumps joined by thin lines across the whole board." loading="lazy"></a>
+    <figcaption><strong>Stretched, and meaning it.</strong> <code>CanvasGraph</code>, <code>members</code>, <code>strong</code>. <code>Abbreviate</code> (teal) works on strings of its own and closes to one mass. <code>Read</code> (pink) is functions between the parent's types: the pull has nothing of its own to gather, and it stays a thread through them.</figcaption>
+  </figure>
+  <div class="pair">
+    <figure>
+      <a href="img/15-dungeon-ledger-today.jpg"><img src="img/15-dungeon-ledger-today.jpg" alt="The dungeon project in the ledger layout with metro edges: coloured bands follow the long routes around the whole board." loading="lazy"></a>
+      <figcaption><strong>Ledger and metro, today.</strong> The bands follow the routes.</figcaption>
+    </figure>
+    <figure>
+      <a href="img/15-dungeon-ledger-smooth-strong.jpg"><img src="img/15-dungeon-ledger-smooth-strong.jpg" alt="The same: the modules are separate coloured masses in a row, joined by metro routes." loading="lazy"></a>
+      <figcaption><strong>Ledger and metro, <code>smooth</code>, <code>strong</code>.</strong> The modules come apart into a row. Inside a module the ledger's rows no longer line up.</figcaption>
+    </figure>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Contour</th><th>Pull none</th><th>Pull mild</th><th>Pull strong</th></tr></thead>
+    <tbody>
+      <tr><td>arrows</td><td>Today's: arms, and no inside or outside between them.</td><td>Worse than none.</td><td>Worst: the longest arrows, each with a band.</td></tr>
+      <tr><td>members</td><td>No arms. A spread-out module is lumps on threads, and the threads cross other regions.</td><td>Neither: things have moved, and modules that lay over each other still do.</td><td>Best for one module's view. Each region is the nodes in it and nothing else.</td></tr>
+      <tr><td>smooth</td><td>Fills between the pieces, so it covers what is not the module's. Worse than <code>members</code>.</td><td>As above, rounder.</td><td>Best for the whole project: reads as a map. Hides which nodes of a region are members.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <dl class="parts">
+    <dt>What it means</dt>
+    <dd>
+      <p>The two things are separate, and neither does the job alone. The contour decides whether a region has arms. The pull decides whether it is one piece. Today's contour cannot be kept with a pull at all.</p>
+      <p><strong>Which is best.</strong> <code>strong</code> with <code>members</code> or <code>smooth</code>. Between those two it is a matter of taste and of scale: <code>smooth</code> for the whole project, where a region is read as a territory, and <code>members</code> inside one module, where it matters which nodes are in. Neither is an oblate spheroid: the shape is still the membership, and <code>Read</code> shows that a module with nothing of its own does not get rounded off. <code>mild</code> is not a useful middle. It disturbs the layout without separating anything.</p>
+      <p><strong>What consolidation costs.</strong> Arrows. A function of one module that takes another module's type used to keep its result docked at that type; now the result is at home and the arrow runs between the two regions. On the whole dungeon project the total length of arrows went from 18,900 to 26,200 board units, 39% more; on <code>Creatures</code> 12% more, on <code>CanvasGraph</code> 9%, on <code>Graph</code> 2% less. The long arrows cross regions they have nothing to do with. Inside a pulled module the layered layout's left-to-right order is weaker, a hub with many functions is as crowded as it was (<code>Turn</code>'s <code>state</code>, bottom left of the dungeon pictures), and in the ledger the rows of a pulled module stop lining up, which was the ledger's point.</p>
+      <p><strong>Collapse.</strong> Under a strong pull every module that owns something is one connected shape with a centre, so closing it to a disc where it stands is a short move for every member. That was not built.</p>
+    </dd>
+    <dt>Rough</dt>
+    <dd>
+      <p>The pull's numbers (3% a round, 14 and 40 rounds, the spacings) are first guesses. It solves everything again on every change, so one new function can move a whole module: it breaks the canvas's rule of stability of place, and it has not been watched through an agent's run or with nodes dragged by hand. Threads go straight and cross other regions. The modules shrink where they stand, so the board keeps the gaps between them. On the dungeon's 143 nodes the pass takes about as long as the layout it follows (some 60 ms against 50, on a busy machine), and the canvas lays a project out a dozen times when it is picked; a large project has not been timed. A change of pull leaves the same complaints in the canvas journal as a change of layout does (label leaders that appear with no act to bring them on).</p>
+    </dd>
+    <dt>Andrew's to decide</dt>
+    <dd>
+      <p>Whether regions that read as regions are worth arrows a third longer in the whole-project view. Whether the look wanted is <code>members</code> or <code>smooth</code>. And, if the pull is wanted, whether it should stay a pass after the layout or become part of the layouts: a ledger that gave each module its own block of lanes would keep its rows.</p>
+    </dd>
+  </dl>
+</section>
+</main>
+</body>
+</html>
