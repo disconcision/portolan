@@ -1,0 +1,7 @@
+; What CanvasGraph makes of a graph record, checked natively:
+;   dune test canvas/test
+(include_subdirs no)
+
+(test
+ (name test_canvas_graph)
+ (libraries portolan_canvas_graph portolan_graph alcotest))

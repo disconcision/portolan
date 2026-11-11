@@ -20,6 +20,7 @@ animates the change from one to the next.
 eval $(opam env --switch=editor-output --set-switch)   # OCaml 5.2, js_of_ocaml 5.9.1, virtual_dom v0.16, reason 3.15, yojson
 dune build ./canvas                                    # -> _build/default/canvas/portolan_canvas_js.bc.js (dev build, about 17 MB)
 # dune build --profile release ./canvas                # same path, optimised: 786 KB (253 KB gzipped)
+dune test canvas/test                                  # what CanvasGraph makes of a graph record: native, no browser
 python3 -m http.server 8843 --bind 127.0.0.1           # at the repository root
 # open http://127.0.0.1:8843/canvas/demo.html          (add ?autoplay to start at once)
 ```
@@ -63,6 +64,10 @@ Upstream's console testers (`__canvasBurst`, `__canvasStage`, `__cameraState`,
 `upstream/` is byte-for-byte; `edited/` is upstream plus edits marked
 `PORTOLAN`; `shim/` stands in for Hazel modules the copies mention; the rest
 is new.
+
+`CanvasGraph.re` and `shim/Haz3lcore.re` are a library of their own
+(`portolan_canvas_graph`), since nothing of the browser is in them: the tests
+in `test/` build and run them natively.
 
 | File here | Upstream path | Status | Why |
 |---|---|---|---|
@@ -287,6 +292,13 @@ watched through a paced run, or dragged in by hand.
 
 Known in the journal: one `JUMP: canvas-avatar` line (32–80 px) on a beat that
 starts while the avatar is already embodied and thinking.
+
+`CanvasGraph`'s rules (terminals, former dots, captions, what is left out,
+shortened labels) have tests in `test/test_canvas_graph.re`, on graph records
+a few items long. When the canvas stopped decoding JSON itself, the whole
+`CanvasGraph.t` of 127 graphs (every module view of Portolan and of the
+dungeon example, both recorded runs, the examples, the demo steps) was
+compared before and after, and was equal.
 
 Not verified: Firefox and Safari; touch input and pinch zoom; dragging and
 collapsing by a real hand; graphs past a few dozen definitions. Hazel's

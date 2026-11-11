@@ -2,17 +2,26 @@
 ; upstream/  files copied from Hazel, byte for byte
 ; edited/    files copied from Hazel with a few marked edits
 ; shim/      small stand-ins for the Hazel modules those files mention
+; test/      native tests of CanvasGraph
 ; *.re here  what was rewritten for Portolan (graph record, pacing, director)
 
 (include_subdirs unqualified)
 
 (data_only_dirs demo tools)
 
+; The graph the canvas draws, and how it is made from the graph record.
+; Nothing of the browser is in it, so it also builds natively: test/ runs it.
+(library
+ (name portolan_canvas_graph)
+ (modules CanvasGraph Haz3lcore)
+ (wrapped false)
+ (libraries portolan_graph yojson))
+
 (library
  (name portolan_canvas)
- (modules :standard \ portolan_canvas_js)
+ (modules :standard \ portolan_canvas_js CanvasGraph Haz3lcore)
  (modes byte)
- (libraries js_of_ocaml virtual_dom yojson portolan_graph)
+ (libraries js_of_ocaml virtual_dom yojson portolan_canvas_graph)
  (js_of_ocaml)
  (preprocess
   (pps js_of_ocaml-ppx)))
