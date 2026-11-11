@@ -92,7 +92,8 @@ let edge_path = (~pull=0., el: edge_layout) =>
         ]);
       | _ => el.wire
       };
-    Lab.path(List.map(to_lab, points));
+    /* PORTOLAN: the corner rounding is the edge style's */
+    CanvasOptions.path(List.map(to_lab, points));
   } else {
     let d =
       max(1., Float.hypot(el.dst_p.x -. el.c2.x, el.dst_p.y -. el.c2.y));
@@ -478,6 +479,227 @@ let separate_docked_chords =
   );
 };
 
+/* PORTOLAN: the two passes above, to the same result, for large graphs.
+   Upstream's visit every node for every chord and look each one up by key
+   (six rounds of it in declutter): about three seconds of a 1800-node
+   layout. These keep the nodes in arrays, and give a terminal only the
+   chords that touch its anchor. The originals are kept above, unused, so
+   the copy still reads against Hazel's. */
+let declutter =
+    (
+      ~chords: list((string, string)),
+      ~fixed: list(string),
+      ~radius_of: string => float,
+      nodes: list(node_layout),
+    )
+    : list(node_layout) => {
+  /* (named so the unused original is not a compile error) */
+  ignore(declutter);
+  let clear = 12.;
+  let ns = Array.of_list(nodes);
+  let n = Array.length(ns);
+  let index: Hashtbl.t(string, int) = Hashtbl.create(64);
+  Array.iteri(
+    (i, nl: node_layout) => Hashtbl.replace(index, nl.node.key, i),
+    ns,
+  );
+  let at = k =>
+    switch (Hashtbl.find_opt(index, k)) {
+    | Some(i) => i
+    | None => (-1)
+    };
+  /* a key that occurs twice is one place, as in upstream's table */
+  let slot = Array.map((nl: node_layout) => at(nl.node.key), ns);
+  let xs = Array.map((nl: node_layout) => nl.p.x, ns);
+  let ys = Array.map((nl: node_layout) => nl.p.y, ns);
+  Array.iteri(
+    (i, s) => {
+      xs[s] = ns[i].p.x;
+      ys[s] = ns[i].p.y;
+    },
+    slot,
+  );
+  let anchor =
+    Array.map(
+      (nl: node_layout) =>
+        switch (nl.node.sat) {
+        | Some((a, _)) => Some(a)
+        | None => None
+        },
+      ns,
+    );
+  let movable =
+    Array.mapi(
+      (i, nl: node_layout) =>
+        !List.mem(nl.node.key, fixed) && anchor[i] == None,
+      ns,
+    );
+  let radius = Array.map((nl: node_layout) => radius_of(nl.node.key), ns);
+  let parity = Array.make(n, 1.);
+  Array.iteri((i, s) => parity[s] = i mod 2 == 0 ? 1. : (-1.), slot);
+  let ends = List.map(((ka, kb)) => (at(ka), at(kb)), chords);
+  for (_ in 1 to 6) {
+    let ox = Array.make(n, 0.);
+    let oy = Array.make(n, 0.);
+    let moved = Array.make(n, false);
+    List.iter(
+      ((ia, ib)) =>
+        if (ia >= 0 && ib >= 0) {
+          let ax = xs[ia]
+          and ay = ys[ia];
+          let dx = xs[ib] -. ax
+          and dy = ys[ib] -. ay;
+          let len = sqrt(dx *. dx +. dy *. dy);
+          if (len > 1.) {
+            let (ux, uy) = (dx /. len, dy /. len);
+            let (nx, ny) = (-. uy, ux);
+            for (i in 0 to n - 1) {
+              let s = slot[i];
+              if (s != ia && s != ib && movable[i]) {
+                let r = radius[i];
+                let px = xs[s] -. ax
+                and py = ys[s] -. ay;
+                let along = px *. ux +. py *. uy;
+                let side = px *. nx +. py *. ny;
+                let need = r +. clear;
+                if (along > r && along < len -. r && abs_float(side) < need) {
+                  let dir =
+                    abs_float(side) < 0.5
+                      ? parity[s] : side >= 0. ? 1. : (-1.);
+                  let m = need -. abs_float(side);
+                  ox[s] = ox[s] +. dir *. nx *. m;
+                  oy[s] = oy[s] +. dir *. ny *. m;
+                  moved[s] = true;
+                };
+              };
+            };
+          };
+        },
+      ends,
+    );
+    for (s in 0 to n - 1) {
+      if (moved[s]) {
+        xs[s] = xs[s] +. ox[s];
+        ys[s] = ys[s] +. oy[s];
+      };
+    };
+    Array.iteri(
+      (i, a) =>
+        switch (a) {
+        | Some(a) =>
+          let ia = at(a);
+          if (ia >= 0 && moved[ia]) {
+            let s = slot[i];
+            xs[s] = xs[s] +. ox[ia];
+            ys[s] = ys[s] +. oy[ia];
+          };
+        | None => ()
+        },
+      anchor,
+    );
+  };
+  List.mapi(
+    (i, nl: node_layout) =>
+      {
+        ...nl,
+        p: {
+          x: xs[slot[i]],
+          y: ys[slot[i]],
+        },
+      },
+    nodes,
+  );
+};
+let separate_docked_chords =
+    (~chords: list((string, string)), nodes: list(node_layout)) => {
+  ignore(separate_docked_chords);
+  let touching: Hashtbl.t(string, list((string, string))) =
+    Hashtbl.create(64);
+  List.iter(
+    ((ka, kb) as chord) =>
+      List.iter(
+        k =>
+          Hashtbl.replace(
+            touching,
+            k,
+            [
+              chord,
+              ...Option.value(~default=[], Hashtbl.find_opt(touching, k)),
+            ],
+          ),
+        ka == kb ? [ka] : [ka, kb],
+      ),
+    List.rev(chords),
+  );
+  let positions = Hashtbl.create(64);
+  List.iter(
+    (nl: node_layout) => Hashtbl.replace(positions, nl.node.key, nl.p),
+    nodes,
+  );
+  List.map(
+    (nl: node_layout) =>
+      switch (nl.node.kind, nl.node.sat) {
+      | (Builtin, Some((anchor, _))) when Hashtbl.mem(touching, anchor) =>
+        let p =
+          List.fold_left(
+            (p: pos, (ka, kb)) =>
+              switch (
+                Hashtbl.find_opt(positions, ka),
+                Hashtbl.find_opt(positions, kb),
+              ) {
+              | (Some(a), Some(b)) when nl.node.key != ka && nl.node.key != kb =>
+                let length = sqrt((b.x -. a.x) ** 2. +. (b.y -. a.y) ** 2.);
+                let u = norm(a, b);
+                let along = (p.x -. a.x) *. u.x +. (p.y -. a.y) *. u.y;
+                let side = (p.y -. a.y) *. u.x -. (p.x -. a.x) *. u.y;
+                if (length > 1.
+                    && along > 0.
+                    && along < length
+                    && abs_float(side) < nl.r
+                    +. 12.) {
+                  let candidate = dir => {
+                    x: p.x -. u.y *. dir *. 42.,
+                    y: p.y +. u.x *. dir *. 42.,
+                  };
+                  let clearance = (q: pos) =>
+                    List.fold_left(
+                      (score, other: node_layout) =>
+                        other.node.key == nl.node.key
+                          ? score
+                          : min(
+                              score,
+                              sqrt(
+                                (q.x -. other.p.x)
+                                ** 2.
+                                +. (q.y -. other.p.y)
+                                ** 2.,
+                              )
+                              -. other.r,
+                            ),
+                      max_float,
+                      nodes,
+                    );
+                  let above = candidate(-1.)
+                  and below = candidate(1.);
+                  clearance(above) >= clearance(below) ? above : below;
+                } else {
+                  p;
+                };
+              | _ => p
+              },
+            nl.p,
+            Hashtbl.find(touching, anchor),
+          );
+        {
+          ...nl,
+          p,
+        };
+      | _ => nl
+      },
+    nodes,
+  );
+};
+
 /* Manual movement is applied after automatic layout. Docked satellites
    inherit their anchor's movement; an explicit satellite pin stays put. */
 let apply_manual_positions = (~offsets, ~pins, nodes: list(node_layout)) => {
@@ -525,7 +747,11 @@ type ranking =
   | Combined
   | FunctionFlow
   | TypeDependencies;
-let layout_impl =
+/* PORTOLAN: upstream's layout_impl is cut in two where its last step
+   begins. `layout_core` is everything that does not depend on the frame;
+   `layout_frame` translates the result into the frame. A render asks for
+   the same graph in several frames, and now pays for the placement once. */
+let layout_core =
     (
       ~ranking=Combined,
       ~experiment="current",
@@ -546,8 +772,10 @@ let layout_impl =
          the view in a small pane; neighbours may overlap for now). */
       ~cards: list((string, (float, float)))=[],
       g: CanvasGraph.t,
-    )
-    : t => {
+    ) => {
+  /* PORTOLAN: the frame is layout_frame's */
+  ignore(center_within);
+  ignore(origin_override);
   let t_pre = Util.PerfTimer.now();
   let x_scale =
     experiment == "current"
@@ -595,6 +823,8 @@ let layout_impl =
         g.nodes,
       ),
   };
+  /* PORTOLAN: "compact" docks every one-use unnamed type */
+  let g = experiment == "compact" ? CanvasOptions.dock_single_use(g) : g;
   /* ---- classify: grid vs docked ---- */
   let fan = (k: string): int =>
     List.length(
@@ -903,6 +1133,10 @@ let layout_impl =
     );
   Util.PerfTimer.record("layout/pre", Util.PerfTimer.now() -. t_pre);
   let t_solve = Util.PerfTimer.now();
+  /* PORTOLAN: a layout that places every node itself skips the engine */
+  let own_places = CanvasOptions.places(experiment);
+  let (grid_nodes, all_spec_edges, attachments) =
+    own_places ? ([], [], []) : (grid_nodes, all_spec_edges, attachments);
   let res =
     Util.GraphLayout.layout({
       nodes:
@@ -965,6 +1199,36 @@ let layout_impl =
             : None,
         g.nodes,
       );
+  /* PORTOLAN */
+  let placed_layouts =
+    own_places
+      ? {
+        let radii: Hashtbl.t(string, float) = Hashtbl.create(64);
+        List.iter(
+          (n: CanvasGraph.tynode) => Hashtbl.replace(radii, n.key, r_of(n)),
+          g.nodes,
+        );
+        let radius = k =>
+          Option.value(~default=base_radius, Hashtbl.find_opt(radii, k));
+        let at: Hashtbl.t(string, Lab.point) = Hashtbl.create(64);
+        List.iter(
+          ((k, p)) => Hashtbl.replace(at, k, p),
+          CanvasOptions.place(~radius, experiment, g),
+        );
+        List.filter_map(
+          (n: CanvasGraph.tynode) =>
+            Hashtbl.find_opt(at, n.key)
+            |> Option.map(p =>
+                 {
+                   node: n,
+                   p: from_lab(p),
+                   r: radius(n.key),
+                 }
+               ),
+          g.nodes,
+        );
+      }
+      : placed_layouts;
 
   /* Declutter the automatic arrangement once, before manual placement.
      A pointer movement must not push unrelated nodes out of its new
@@ -983,6 +1247,11 @@ let layout_impl =
         },
       placed_layouts,
     );
+  /* PORTOLAN: rows and arcs are already clear of each other */
+  let declutter = (~chords, ~fixed, ~radius_of, nodes) =>
+    own_places ? nodes : declutter(~chords, ~fixed, ~radius_of, nodes);
+  let separate_docked_chords = (~chords, nodes) =>
+    own_places ? nodes : separate_docked_chords(~chords, nodes);
   /* every straight line the render will draw: function arrows and the
      "made of" links (parts → product, former → alias, element → [T],
      alias-body deps → alias) */
@@ -1021,6 +1290,23 @@ let layout_impl =
       List.find_opt((nl: node_layout) => nl.node.key == k, node_layouts)
       |> Option.map((nl: node_layout) => nl.r)
       |> Option.value(~default=base_radius);
+    /* PORTOLAN: the same, by table. declutter asks once per chord per
+       node per round; searching the list each time was most of a large
+       graph's layout. */
+    let circle_r = {
+      let radii: Hashtbl.t(string, float) = Hashtbl.create(64);
+      List.iter(
+        (nl: node_layout) =>
+          if (!Hashtbl.mem(radii, nl.node.key)) {
+            Hashtbl.add(radii, nl.node.key, nl.r);
+          },
+        node_layouts,
+      );
+      ignore(circle_r);
+      (k: string) => (
+        Option.value(~default=base_radius, Hashtbl.find_opt(radii, k)): float
+      );
+    };
     declutter(~chords, ~fixed=free_keys, ~radius_of=circle_r, node_layouts)
     |> separate_docked_chords(~chords);
   };
@@ -1111,7 +1397,12 @@ let layout_impl =
            ]
          );
     let placed =
-      if (Lab.research(experiment)) {
+      /* PORTOLAN: Portolan's own placements come first */
+      if (own_places) {
+        items;
+      } else if (experiment == "compact") {
+        CanvasOptions.arrange(g, items);
+      } else if (Lab.research(experiment)) {
         let result =
           Lab.place(
             ~clusters,
@@ -1130,7 +1421,11 @@ let layout_impl =
                         ["packed", "stable", "grid", "relaxed"],
                       )
                  )) {
-        Lab.place("components", items, links, []);
+        /* PORTOLAN: the lab's packing, without its list searches */
+        CanvasOptions.components(
+          items,
+          links,
+        );
       } else if (old_scope == signature
                  && old_keys == keys
                  && old_links == topology) {
@@ -1522,6 +1817,82 @@ let layout_impl =
           edge_layouts,
         )
       : edge_layouts;
+  /* PORTOLAN: the edge styles of CanvasOptions */
+  let edge_layouts =
+    CanvasOptions.routes()
+      ? {
+        let wires: Hashtbl.t(string, CanvasOptions.wire) =
+          Hashtbl.create(64);
+        List.iter(
+          ((name, w)) => Hashtbl.replace(wires, name, w),
+          CanvasOptions.route(
+            ~nodes=
+              List.map(
+                (n: node_layout) => (n.node.key, to_lab(n.p), n.r),
+                node_layouts,
+              ),
+            ~links=
+              List.map(((a, b, _, _)) => (a, b), formations @ dep_links),
+            ~room=
+              name =>
+                List.find_opt(
+                  (e: CanvasGraph.edge) => e.e_name == name,
+                  g.edges,
+                )
+                |> Option.map((e: CanvasGraph.edge) =>
+                     float_of_int(String.length(e.e_name)) *. 7.4 +. 44.
+                   )
+                |> Option.value(~default=60.),
+            List.filter_map(
+              (el: edge_layout) =>
+                el.endo
+                  ? None : Some((el.edge.e_name, el.edge.e_src, el.edge.dst)),
+              edge_layouts,
+            ),
+          ),
+        );
+        List.map(
+          (el: edge_layout) =>
+            switch (Hashtbl.find_opt(wires, el.edge.e_name)) {
+            | Some({points: [first, ..._] as points, label, _}) =>
+              let wire = List.map(from_lab, points);
+              {
+                ...el,
+                wire,
+                src_p: from_lab(first),
+                dst_p: List.nth(wire, List.length(wire) - 1),
+                label_p: {
+                  x: label.x,
+                  y: label.y -. 6.,
+                },
+                label_anchor: from_lab(label),
+              };
+            | Some({ctrl: Some((c1, c2)), label, _}) =>
+              /* a curve: its ends are where the control points leave from */
+              let rim = (k, toward: Lab.point) =>
+                switch (pos_of(k)) {
+                | Some(p) => offset_along(p, from_lab(toward), radius_of(k))
+                | None => from_lab(toward)
+                };
+              {
+                ...el,
+                wire: [],
+                src_p: rim(el.edge.e_src, c1),
+                dst_p: rim(el.edge.dst, c2),
+                c1: from_lab(c1),
+                c2: from_lab(c2),
+                label_p: {
+                  x: label.x,
+                  y: label.y -. 6.,
+                },
+                label_anchor: from_lab(label),
+              };
+            | _ => el
+            },
+          edge_layouts,
+        );
+      }
+      : edge_layouts;
 
   /* ---- label placement: multi-direction search avoiding BOTH other
      labels and node circles. A label chip renders translate(-50%,-100%):
@@ -1771,16 +2142,18 @@ let layout_impl =
           let fits_on_wire = !el.endo && chord -. 2. *. w >= 2. *. (9. +. 14.);
           let on_wire_p =
             if (fits_on_wire) {
-              List.map(
-                t => {
-                  let c = curve_at(t);
-                  {
-                    x: c.x,
-                    y: c.y +. 6.,
-                  };
-                },
-                [0.5, 0.42, 0.58, 0.34, 0.66, 0.28, 0.72],
-              )
+              /* PORTOLAN: an edge style's own choice is tried first */
+              (CanvasOptions.routes() ? [el.label_anchor] : [])
+              @ List.map(
+                  t => {
+                    let c = curve_at(t);
+                    {
+                      x: c.x,
+                      y: c.y +. 6.,
+                    };
+                  },
+                  [0.5, 0.42, 0.58, 0.34, 0.66, 0.28, 0.72],
+                )
               |> List.find_opt((c: pos) =>
                    (
                      el.wire == []
@@ -1924,6 +2297,36 @@ let layout_impl =
       value_layouts,
     );
   };
+  /* PORTOLAN: the cut */
+  (
+    experiment,
+    cards,
+    node_layouts,
+    edge_layouts,
+    value_layouts,
+    formations,
+    dep_links,
+    pad,
+    (min_x, min_y, max_x, max_y),
+  );
+};
+let layout_frame =
+    (
+      ~center_within: option(float),
+      ~origin_override: option(pos),
+      (
+        experiment,
+        cards,
+        node_layouts,
+        edge_layouts,
+        value_layouts,
+        formations,
+        dep_links,
+        pad,
+        (min_x, min_y, max_x, max_y),
+      ),
+    )
+    : t =>
   if (node_layouts == []) {
     {
       nodes: [],
@@ -2043,7 +2446,6 @@ let layout_impl =
       },
     };
   };
-};
 
 /* ---- instrumentation: how often and how long a render lays out ---- */
 let layout_calls: ref(int) = ref(0);
@@ -2063,9 +2465,28 @@ type layout_key = {
   k_offsets: list((string, (float, float))),
   k_pins: list((string, (float, float))),
   k_cards: list((string, (float, float))),
+  /* PORTOLAN: the pane shape a packing layout aimed for */
+  k_aspect: float,
 };
 let layout_memo: ref(list((layout_key, t))) = ref([]);
 let layout_memo_hits: ref(int) = ref(0);
+/* PORTOLAN: two memos. `layout_memo` is upstream's, by every parameter.
+   `core_memo` holds placements by everything but the frame: the fit check,
+   the frame derivation and the view ask for one graph in three or four
+   frames, and those now share a placement. `layout_calls` and `layout_ms`
+   count placements. */
+let same_key = (a: layout_key, b: layout_key) =>
+  a.k_experiment == b.k_experiment
+  && a.k_graph === b.k_graph
+  && a.k_x == b.k_x
+  && a.k_y == b.k_y
+  && a.k_center == b.k_center
+  && a.k_origin == b.k_origin
+  && a.k_offsets == b.k_offsets
+  && a.k_pins == b.k_pins
+  && a.k_cards == b.k_cards
+  && a.k_aspect == b.k_aspect;
+let core_memo = ref([]);
 let layout =
     (
       ~x_scale=1.,
@@ -2079,61 +2500,67 @@ let layout =
     )
     : t => {
   let cards = Option.value(~default=card_extents^, cards);
-  let experiment = (
-    Lab.mode^,
-    Lab.wires^,
-    Lab.scene^,
-    Lab.generation^ + Lab.revision^,
-  );
+  /* PORTOLAN: only the layered layouts stretch, and only the packing ones
+     look at the pane's shape; a key that says otherwise is a wasted solve */
+  let stretches = List.mem(Lab.mode^, ["current", "flow", "dependencies"]);
+  let packs = CanvasOptions.places(Lab.mode^) || Lab.mode^ == "compact";
   let key = {
-    k_experiment: experiment,
+    k_experiment: (
+      Lab.mode^,
+      Lab.wires^,
+      Lab.scene^,
+      Lab.generation^ + Lab.revision^,
+    ),
     k_graph: g,
-    k_x: x_scale,
-    k_y: y_scale,
+    k_x: stretches ? x_scale : 1.,
+    k_y: stretches ? y_scale : 1.,
     k_center: center_within,
     k_origin: origin_override,
     k_offsets: offsets,
     k_pins: pins,
     k_cards: cards,
+    k_aspect: packs ? CanvasOptions.aspect^ : 0.,
   };
-  let same = (k: layout_key) =>
-    k.k_experiment == experiment
-    && k.k_graph === g
-    && k.k_x == x_scale
-    && k.k_y == y_scale
-    && k.k_center == center_within
-    && k.k_origin == origin_override
-    && k.k_offsets == offsets
-    && k.k_pins == pins
-    && k.k_cards == cards;
-  switch (List.find_opt(((k, _)) => same(k), layout_memo^)) {
+  switch (List.find_opt(((k, _)) => same_key(k, key), layout_memo^)) {
   | Some((_, r)) =>
     incr(layout_memo_hits);
     r;
   | None =>
-    let now = () =>
-      Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now();
-    let t0 = now();
-    let r =
-      layout_impl(
-        ~experiment=Lab.mode^,
-        ~circuit=Lab.wires^ == "circuit",
-        ~ranking=
-          Lab.mode^ == "flow"
-            ? FunctionFlow
-            : Lab.mode^ == "dependencies" ? TypeDependencies : Combined,
-        ~x_scale,
-        ~y_scale,
-        ~center_within,
-        ~origin_override,
-        ~offsets,
-        ~pins,
-        ~cards,
-        g,
-      );
-    incr(layout_calls);
-    layout_ms := layout_ms^ +. (now() -. t0);
-    Util.PerfTimer.record("canvas-layout", now() -. t0);
+    let core_key = {
+      ...key,
+      k_center: None,
+      k_origin: None,
+    };
+    let core =
+      switch (List.find_opt(((k, _)) => same_key(k, core_key), core_memo^)) {
+      | Some((_, c)) => c
+      | None =>
+        let now = () =>
+          Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now();
+        let t0 = now();
+        let c =
+          layout_core(
+            ~experiment=Lab.mode^,
+            ~circuit=Lab.wires^ == "circuit",
+            ~ranking=
+              Lab.mode^ == "flow"
+                ? FunctionFlow
+                : Lab.mode^ == "dependencies" ? TypeDependencies : Combined,
+            ~x_scale,
+            ~y_scale,
+            ~offsets,
+            ~pins,
+            ~cards,
+            g,
+          );
+        incr(layout_calls);
+        layout_ms := layout_ms^ +. (now() -. t0);
+        Util.PerfTimer.record("canvas-layout", now() -. t0);
+        core_memo :=
+          [(core_key, c), ...List.filteri((i, _) => i < 3, core_memo^)];
+        c;
+      };
+    let r = layout_frame(~center_within, ~origin_override, core);
     layout_memo :=
       [(key, r), ...List.filteri((i, _) => i < 5, layout_memo^)];
     r;

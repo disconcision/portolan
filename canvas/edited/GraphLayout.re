@@ -546,55 +546,83 @@ let layout = (spec: Spec.t): result => {
      height is created exactly where density demands it. */
   let h_halo = (id: string): float =>
     radius(id) +. (att_extent(id, In) +. att_extent(id, Out)) /. 2.;
-  for (_ in 1 to 12) {
-    List.iteri(
-      (i, a) =>
-        List.iteri(
-          (j, b) =>
-            if (j > i) {
-              switch (
-                Hashtbl.find_opt(posed, a),
-                Hashtbl.find_opt(posed, b),
-              ) {
-              | (Some((pa, ra)), Some((pb, rb))) =>
-                let need_x = h_halo(a) +. h_halo(b) +. 14.;
-                let need_y = v_half(a) +. v_half(b) +. row_gap /. 2.;
-                let dx = abs_float(pa.x -. pb.x)
-                and dy = pb.y -. pa.y;
-                if (dx < need_x && abs_float(dy) < need_y) {
-                  let push = (need_y -. abs_float(dy)) /. 2.;
-                  /* preserve current vertical order; ties break by
-                     input order (a stays above) */
-                  let s = dy > 0. || dy == 0. ? 1. : (-1.);
-                  Hashtbl.replace(
-                    posed,
-                    a,
-                    (
-                      {
-                        x: pa.x,
-                        y: pa.y -. s *. push,
-                      },
-                      ra,
-                    ),
-                  );
-                  Hashtbl.replace(
-                    posed,
-                    b,
-                    (
-                      {
-                        x: pb.x,
-                        y: pb.y +. s *. push,
-                      },
-                      rb,
-                    ),
-                  );
-                };
-              | _ => ()
-              };
-            },
-          node_ids,
-        ),
-      node_ids,
+  {
+    /* PORTOLAN: the same shearing, over only the pairs that can meet. Nothing
+       here moves in x, so the pairs whose halos overlap in x are found once;
+       the twelve rounds then visit those, in upstream's order, on arrays.
+       (Upstream visits every pair every round, looking each node up by its
+       key: at 700 nodes that was most of a layout's time.) */
+
+    let ids = Array.of_list(node_ids);
+    let n = Array.length(ids);
+    let at = Array.map(id => Hashtbl.find_opt(posed, id), ids);
+    let halo = Array.map(h_halo, ids);
+    let half = Array.map(v_half, ids);
+    let xs =
+      Array.map(
+        p =>
+          switch (p) {
+          | Some((q: pos, _)) => q.x
+          | None => 0.
+          },
+        at,
+      );
+    let ys =
+      Array.map(
+        p =>
+          switch (p) {
+          | Some((q: pos, _)) => q.y
+          | None => 0.
+          },
+        at,
+      );
+    let pairs = ref([]);
+    for (i in n - 1 downto 0) {
+      for (j in n - 1 downto i + 1) {
+        if (at[i] != None
+            && at[j] != None
+            && abs_float(xs[i] -. xs[j]) < halo[i]
+            +. halo[j]
+            +. 14.) {
+          pairs := [(i, j), ...pairs^];
+        };
+      };
+    };
+    for (_ in 1 to 12) {
+      List.iter(
+        ((i, j)) => {
+          let need_y = half[i] +. half[j] +. row_gap /. 2.;
+          let dy = ys[j] -. ys[i];
+          if (abs_float(dy) < need_y) {
+            let push = (need_y -. abs_float(dy)) /. 2.;
+            /* preserve current vertical order; ties break by input
+               order (a stays above) */
+            let s = dy > 0. || dy == 0. ? 1. : (-1.);
+            ys[i] = ys[i] -. s *. push;
+            ys[j] = ys[j] +. s *. push;
+          };
+        },
+        pairs^,
+      );
+    };
+    Array.iteri(
+      (i, p) =>
+        switch (p) {
+        | Some((q: pos, r)) =>
+          Hashtbl.replace(
+            posed,
+            ids[i],
+            (
+              {
+                x: q.x,
+                y: ys[i],
+              },
+              r,
+            ),
+          )
+        | None => ()
+        },
+      at,
     );
   };
 

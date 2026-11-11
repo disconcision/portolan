@@ -13,7 +13,15 @@
      PortolanCanvas.fit()
      PortolanCanvas.onSelect(fn(name, kind, at))
      PortolanCanvas.pending()               beats still queued
-     PortolanCanvas.log()                   the canvas journal, as text */
+     PortolanCanvas.log()                   the canvas journal, as text
+     PortolanCanvas.layouts()               [{id, label}]: the layouts on offer
+     PortolanCanvas.edgeStyles()            [{id, label}]: the edge styles
+     PortolanCanvas.layout() / edges()      the ones in use (ids)
+     PortolanCanvas.setLayout(id)           lays the board out again; false
+     PortolanCanvas.setEdges(id)            for an id that is not on offer
+     PortolanCanvas.layoutStats()           {calls, ms, hits, phases}: layouts
+                                            computed, their total time, memo
+                                            hits, time by phase */
 open Js_of_ocaml;
 open Portolan_canvas;
 
@@ -72,6 +80,21 @@ let guard = (what: string, f: unit => unit): unit =>
       ),
     );
   };
+
+/* [{id, label}, ...] */
+let options = (l: list((string, string))) =>
+  Js.array(
+    Array.of_list(
+      List.map(
+        ((id, label)) =>
+          Js.Unsafe.obj([|
+            ("id", Js.Unsafe.inject(Js.string(id))),
+            ("label", Js.Unsafe.inject(Js.string(label))),
+          |]),
+        l,
+      ),
+    ),
+  );
 
 let () = {
   let fn1 = (f: Js.Unsafe.any => unit) =>
@@ -171,6 +194,66 @@ let () = {
       (
         "pending",
         Js.Unsafe.inject(Js.wrap_callback(() => CanvasDirector.pending())),
+      ),
+      (
+        "layouts",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() => options(CanvasOptions.layouts)),
+        ),
+      ),
+      (
+        "edgeStyles",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() => options(CanvasOptions.edge_styles)),
+        ),
+      ),
+      (
+        "layout",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() => Js.string(CanvasOptions.layout())),
+        ),
+      ),
+      (
+        "edges",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() => Js.string(CanvasOptions.edges())),
+        ),
+      ),
+      (
+        "setLayout",
+        Js.Unsafe.inject(
+          Js.wrap_callback((k: Js.Unsafe.any) =>
+            Js.bool(
+              CanvasDirector.set_layout(Js.to_string(Js.Unsafe.coerce(k))),
+            )
+          ),
+        ),
+      ),
+      (
+        "setEdges",
+        Js.Unsafe.inject(
+          Js.wrap_callback((k: Js.Unsafe.any) =>
+            Js.bool(
+              CanvasDirector.set_edges(Js.to_string(Js.Unsafe.coerce(k))),
+            )
+          ),
+        ),
+      ),
+      (
+        "layoutStats",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() =>
+            Js.Unsafe.obj([|
+              ("calls", Js.Unsafe.inject(CanvasLayout.layout_calls^)),
+              ("ms", Js.Unsafe.inject(CanvasLayout.layout_ms^)),
+              ("hits", Js.Unsafe.inject(CanvasLayout.layout_memo_hits^)),
+              (
+                "phases",
+                Js.Unsafe.inject(Js.string(Util.PerfTimer.summary())),
+              ),
+            |])
+          ),
+        ),
       ),
       (
         "log",

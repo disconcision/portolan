@@ -158,6 +158,19 @@
   $('fit').onclick = () => PC && PC.fit();
   $('surface').classList.toggle('tool-active', surface);
   $('surface').onclick = () => { surface = !surface; keep('surface', surface ? '1' : '0'); $('surface').classList.toggle('tool-active', surface); present(null, true); };
+  // The layout and the edge style: the canvas lists what it offers; the choice is kept, and
+  // ?layout= and ?edges= in the address override it.
+  const chooser = (id, key, list, set) => {
+    const sel = $(id), want = params.get(key) || kept(key);
+    sel.replaceChildren(...list.map(o => Object.assign(document.createElement('option'), { value: o.id, textContent: key + ': ' + o.label })));
+    if (want && set(want)) sel.value = want;
+    sel.onchange = () => { if (set(sel.value)) keep(key, sel.value); };
+    sel.hidden = false;
+  };
+  if (PC && PC.setLayout) {
+    chooser('layout', 'layout', PC.layouts(), id => PC.setLayout(id));
+    chooser('edges', 'edges', PC.edgeStyles(), id => PC.setEdges(id));
+  }
   const redraw = () => window.dispatchEvent(new Event('resize')); // the canvas sizes and paints its dot grid by script
 
   // ---- light / dark, and the corner variation ----

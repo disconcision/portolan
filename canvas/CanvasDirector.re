@@ -915,6 +915,14 @@ let view = (graph0: CanvasGraph.t): Node.t => {
       avail_height;
     };
   CanvasLayout.card_extents := [];
+  /* PORTOLAN: the layouts that pack aim for the pane's shape (in coarse
+     steps, so a small resize is not a new arrangement) */
+  switch (avail_width, avail_height) {
+  | (Some(w), Some(h)) =>
+    CanvasOptions.aspect :=
+      max(0.5, min(4., Float.round(w /. h *. 4.) /. 4.))
+  | _ => ()
+  };
   let lay = {
     /* pins/offsets for nodes that no longer exist must not keep a stale
        frame alive */
@@ -2649,6 +2657,33 @@ let reset = (): unit => {
 let fit = (): unit => {
   fit_pending := true;
   request_render();
+};
+
+/* PORTOLAN: the layout and the edge style (CanvasOptions). The graph on
+   the board is laid out again and glides to its new places; positions
+   set by dragging belonged to the old arrangement and are dropped. */
+let relayout = (): unit => {
+  cached_frame := None;
+  node_offsets := [];
+  CanvasBuffer.stage_beat(~slow=true, ());
+  fit_pending := true;
+  request_render();
+};
+let set_layout = (k: string): bool => {
+  let ok = CanvasOptions.set_layout(k);
+  if (ok) {
+    CanvasLog.log("layout: " ++ k);
+    relayout();
+  };
+  ok;
+};
+let set_edges = (k: string): bool => {
+  let ok = CanvasOptions.set_edges(k);
+  if (ok) {
+    CanvasLog.log("edges: " ++ k);
+    relayout();
+  };
+  ok;
 };
 
 let set_follow = (b: bool): unit => {
