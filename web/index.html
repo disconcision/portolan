@@ -25,7 +25,9 @@
       <svg viewBox="0 0 24 24" width="20" height="20"><g stroke="currentColor" stroke-width="1" fill="none"><circle cx="12" cy="12" r="7"/><path d="M12 1v22M1 12h22M4.2 4.2l15.6 15.6M19.8 4.2L4.2 19.8"/></g><circle cx="12" cy="12" r="1.8" fill="currentColor"/></svg>
     </div>
     <div id="title">portolan</div>
-    <div id="editor-mode"><span>/</span><span id="project">…</span><span id="mode"></span></div>
+    <div id="editor-mode"><span>/</span><span id="project">…</span>
+      <span id="module-wrap" hidden><span>/</span><select id="module" aria-label="Module shown on the canvas" title="The module the canvas is drawing"></select></span>
+      <span id="mode"></span></div>
     <div class="spacer"></div>
     <div id="top-right">
       <button id="corners" title="Switch the bar tabs between rounded and square"></button>
@@ -48,11 +50,13 @@
       </div>
       <div id="canvas-host"><div id="canvas"></div><div id="flux" hidden></div></div>
       <section id="info">
-        <div id="info-head"><span id="info-path">Pick a function or type on the canvas to see its definition.</span><span id="info-type"></span></div>
+        <div id="info-head"><span id="info-path">Pick a function or type on the canvas to see its definition.</span><span id="info-type"></span>
+          <span class="toolbar-spacer"></span><button class="canvas-tool-btn" id="syntax" hidden title="Show this definition in the other syntax"></button></div>
         <pre id="info-code"></pre>
       </section>
     </div>
 
+    <div id="divider" role="separator" aria-orientation="vertical" aria-label="Resize the chat pane" tabindex="0"></div>
     <aside id="sidebar">
       <div id="feed" aria-live="polite"></div>
       <form id="ask">

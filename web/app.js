@@ -4,18 +4,96 @@
   const feed = $('feed');
   const params = new URLSearchParams(location.search), traceUrl = params.get('trace'), speed = Math.max(0.25, +params.get('speed') || 1);
   const PC = window.PortolanCanvas;
-  let project = '', live = false, graphs = [], seen = new Set(), tools = {}, liveEl = null, liveTool = null, toolJson = '', lastWho = '';
+  const root = document.documentElement;
+  const keep = (k, v) => { try { localStorage.setItem('portolan.' + k, v); } catch (e) {} };
+  const kept = k => { try { return localStorage.getItem('portolan.' + k); } catch (e) { return null; } };
+  let project = '', live = false, seen = new Set(), tools = {}, liveEl = null, liveTool = null, toolJson = '', lastWho = '';
   let files = null; // file contents carried by a recorded trace
   let view = null, which = '';
+  let latest = null; // the whole project's graph, as last received
+  let shown = null, shownKey = ''; // what the canvas is drawing: one module of it, or all of it
+  let moduleName = null; // '' = the whole project; null = not chosen yet
 
-  // A project that is one compilation unit is drawn flat, as a Hazel program is:
-  // the file's own module is not a region. Several files keep theirs.
+  // ---- one module at a time ----
+  // A project of any size is too much to draw whole, so the canvas draws one file's module:
+  // its types and functions, with the types it uses from elsewhere as faint outside nodes.
+  const top = x => (x.m_path || [])[0] || '';
+  function modules(g) {
+    const count = {}, order = [];
+    [...g.nodes.filter(n => n.kind === 'alias'), ...g.edges, ...(g.values || [])].forEach(x => { const m = top(x); if (!m) return; if (!(m in count)) { count[m] = 0; order.push(m); } count[m]++; });
+    return order.map(m => ({ name: m, size: count[m] }));
+  }
+  function moduleOfFile(g, file) {
+    const hit = g.edges.find(e => e.at && e.at.file === file) || g.nodes.find(n => n.at && n.at.file === file) || (g.values || []).find(v => v.at && v.at.file === file);
+    return hit ? top(hit) : '';
+  }
+  // A project that is one module is drawn flat, as a Hazel program is: the file's own module is not a region.
   function flatten(g) {
     const items = [...g.nodes.filter(n => n.kind === 'alias'), ...g.edges, ...(g.values || [])];
-    const tops = new Set(items.map(x => (x.m_path || [])[0]).filter(Boolean));
+    const tops = new Set(items.map(top).filter(Boolean));
     if (tops.size !== 1 || items.some(x => !(x.m_path || []).length)) return g;
     const cut = x => ({ ...x, m_path: (x.m_path || []).slice(1) });
     return { ...g, nodes: g.nodes.map(cut), edges: g.edges.map(cut), values: (g.values || []).map(cut) };
+  }
+  function moduleView(g, mod) {
+    if (!mod) return flatten(g);
+    const inMod = x => top(x) === mod, cut = x => ({ ...x, m_path: (x.m_path || []).slice(1) });
+    const edges = g.edges.filter(inMod), values = (g.values || []).filter(inMod);
+    const byKey = new Map(g.nodes.map(n => [n.key, n])), want = new Set();
+    const need = k => { const n = byKey.get(k); if (!n || want.has(k)) return; want.add(k); (n.parts || []).forEach(need); };
+    g.nodes.forEach(n => { if (n.kind === 'alias' && inMod(n)) need(n.key); });
+    edges.forEach(e => { need(e.src); need(e.dst); });
+    values.forEach(v => need(v.key));
+    const nodes = g.nodes.filter(n => want.has(n.key)).map(n => (n.kind === 'alias' && !inMod(n) ? { ...n, kind: 'ghost', label: n.key, m_path: [] } : cut(n)));
+    return { ...g, nodes, edges: edges.map(cut), values: values.map(cut), loose_tests: (g.loose_tests || []).filter(t => t.at && moduleOfFile(g, t.at.file) === mod) };
+  }
+  function drawPicker() {
+    const ms = latest ? modules(latest) : [], sel = $('module');
+    $('module-wrap').hidden = ms.length < 2;
+    const want = [['', 'whole project'], ...ms.map(m => [m.name, m.name + '  ·  ' + m.size])];
+    if (sel.options.length !== want.length || want.some((w, i) => sel.options[i].value !== w[0] || sel.options[i].textContent !== w[1]))
+      sel.replaceChildren(...want.map(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; }));
+    sel.value = moduleName || '';
+  }
+  function choose(mod, cause) {
+    moduleName = mod;
+    keep('module.' + project, mod);
+    drawPicker();
+    present(cause, true);
+  }
+  // Draw the current module of the latest graph: at once after a switch, as a paced beat otherwise.
+  function present(cause, fresh) {
+    if (!latest) return;
+    if (moduleName === null) {
+      const ms = modules(latest), saved = kept('module.' + project);
+      moduleName = ms.length < 2 ? '' : ms.some(m => m.name === saved) ? saved : ms[0].name;
+      drawPicker();
+      fresh = fresh || moduleName !== ''; // a one-module project's first definitions arrive as a beat
+    }
+    if (moduleName && !modules(latest).some(m => m.name === moduleName)) moduleName = '';
+    const g = moduleView(latest, moduleName), key = JSON.stringify(g);
+    if (key === shownKey && !fresh) return; // nothing in this module changed
+    shown = g;
+    shownKey = key;
+    if (!live) return;
+    if (fresh) { view.reset(); view.show(g); } else view.push(g, cause);
+  }
+  $('module').onchange = () => choose($('module').value);
+
+  // A graph shown at once is framed before its layout has settled, and comes out cut off or far
+  // too small. Watch the board until it stops changing, then frame it; a hidden tab draws late.
+  let settling = 0;
+  function fitWhenSettled() {
+    clearInterval(settling);
+    let last = '', same = 0, tries = 0;
+    settling = setInterval(() => {
+      const board = $('canvas').querySelector('.canvas-root'), n = $('canvas').querySelectorAll('.canvas-node').length;
+      const now = n + '|' + (board ? board.style.width + board.style.height : '');
+      same = n > 0 && now === last ? same + 1 : 0;
+      last = now;
+      if (same === 2 || same === 8) PC.fit(); // once when it stops moving, once more after its own camera has finished
+      if (same >= 8 || ++tries > 60) clearInterval(settling);
+    }, 250);
   }
 
   // ---- canvas: Hazel's, ported. The plain view is only a fallback when its bundle is missing. ----
@@ -23,11 +101,10 @@
     hazel: {
       mount: el => PC.mount(el),
       push: (g, c) => PC.push(g, { label: (c && c.label) || 'edit', ok: true }),
-      // Shown before the pane has settled, the canvas frames far too wide: fit again once it has.
-      show: g => { PC.show(g); setTimeout(() => PC.fit(), 500); },
+      show: g => { PC.show(g); fitWhenSettled(); },
       reset: () => PC.reset(),
       onSelect: cb => PC.onSelect((name, _kind, at) => {
-        const g = graphs.length ? graphs[graphs.length - 1] : null;
+        const g = shown;
         const item = g && (g.edges.find(e => e.name === name || e.label === name) || g.nodes.find(n => n.key === name || n.label === name) || (g.values || []).find(v => v.name === name));
         cb(item || { label: name, at }, item && g.edges.includes(item) ? 'edge' : 'node', at || (item && item.at));
       }),
@@ -47,7 +124,7 @@
     view.mount($('canvas'));
     view.onSelect(showSource);
     view.reset();
-    if (graphs.length) view.show(graphs[graphs.length - 1]);
+    if (shown && live) view.show(shown);
     $('which').textContent = name === 'hazel' ? 'plain view' : 'canvas';
   }
   $('which').hidden = !PC;
@@ -57,9 +134,9 @@
   toggle('pace', on => PC.setPace(on));
   toggle('follow', on => PC.setFollow(on));
   $('fit').onclick = () => PC && PC.fit();
+  const redraw = () => window.dispatchEvent(new Event('resize')); // the canvas sizes and paints its dot grid by script
 
   // ---- light / dark, and the corner variation ----
-  const root = document.documentElement, keep = (k, v) => { try { localStorage.setItem('portolan.' + k, v); } catch (e) {} };
   function chrome() {
     $('theme').textContent = root.dataset.theme === 'dark' ? 'light' : 'dark';
     $('corners').textContent = root.dataset.corners === 'square' ? 'round' : 'square';
@@ -68,7 +145,7 @@
     if (root.dataset.theme === 'dark') delete root.dataset.theme; else root.dataset.theme = 'dark';
     keep('theme', root.dataset.theme || 'light');
     chrome();
-    window.dispatchEvent(new Event('resize')); // the canvas draws its dot grid by script: have it redraw in the new colour
+    redraw();
   };
   $('corners').onclick = () => {
     root.dataset.corners = root.dataset.corners === 'square' ? 'round' : 'square';
@@ -77,28 +154,114 @@
   };
   chrome();
 
-  // ---- the selected definition's code ----
+  // ---- the chat pane's width ----
+  const main = $('main'), setSide = w => main.style.setProperty('--side-w', Math.round(Math.max(260, Math.min(w, main.clientWidth - 320))) + 'px');
+  if (kept('side')) main.style.setProperty('--side-w', kept('side') + 'px');
+  $('divider').addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    $('divider').setPointerCapture(ev.pointerId);
+    const move = e => setSide(main.getBoundingClientRect().right - e.clientX);
+    const up = () => {
+      $('divider').removeEventListener('pointermove', move);
+      keep('side', parseInt(main.style.getPropertyValue('--side-w'), 10));
+      redraw();
+    };
+    $('divider').addEventListener('pointermove', move);
+    $('divider').addEventListener('pointerup', up, { once: true });
+  });
+  $('divider').addEventListener('keydown', ev => {
+    if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+    setSide($('sidebar').clientWidth + (ev.key === 'ArrowLeft' ? 24 : -24));
+    keep('side', parseInt(main.style.getPropertyValue('--side-w'), 10));
+    redraw();
+  });
+
+  // ---- the selected definition's code, as written or in the other syntax ----
+  let picked = null, syntax = kept('syntax') || 'written'; // 'written' | 're' | 'ml'
+  const native = file => (/\.rei?$/.test(file) ? 're' : 'ml');
+  function drawSyntax() {
+    const b = $('syntax'), at = picked && picked.at;
+    b.hidden = !at || !!traceUrl;
+    if (!at) return;
+    const other = native(at.file) === 're' ? 'ml' : 're', on = syntax === other;
+    b.textContent = on ? 'as written' : other === 're' ? 'as Reason' : 'as OCaml';
+  }
+  $('syntax').onclick = () => {
+    const at = picked && picked.at;
+    if (!at) return;
+    const other = native(at.file) === 're' ? 'ml' : 're';
+    syntax = syntax === other ? 'written' : other;
+    keep('syntax', syntax);
+    showSource(picked.item, picked.kind, at);
+  };
   async function showSource(item, kind, at) {
+    picked = { item, kind, at };
     $('info-path').textContent = at ? at.path : item.label || item.name || '';
     $('info-type').textContent = kind === 'edge' && item.ty ? ': ' + item.ty : item.ty ? '= ' + item.ty : '';
     $('info-code').textContent = '';
+    drawSyntax();
     if (!at) return;
     try {
-      const text = files ? files[at.file] || '' : await (await fetch('source?file=' + encodeURIComponent(at.file))).text();
+      if (files) { $('info-code').textContent = (files[at.file] || '').split('\n').slice(at.line - 1, at.end_line).join('\n'); return; }
+      const convert = syntax !== 'written' && syntax !== native(at.file);
+      if (convert) {
+        const r = await fetch('refmt?file=' + encodeURIComponent(at.file) + '&line=' + at.line + '&end_line=' + at.end_line + '&to=' + syntax);
+        if (r.ok) { $('info-code').textContent = await r.text(); return; }
+      }
+      const text = await (await fetch('source?file=' + encodeURIComponent(at.file))).text();
       $('info-code').textContent = text.split('\n').slice(at.line - 1, at.end_line).join('\n');
     } catch (e) { $('info-code').textContent = '(could not read ' + at.file + ')'; }
+  }
+
+  // ---- formatted text: a small Markdown reader for the agent's replies ----
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  function inline(s) {
+    const code = [];
+    s = esc(s).replace(/`([^`\n]+)`/g, (_, c) => { code.push(c); return '\u0000' + (code.length - 1) + '\u0000'; });
+    s = s.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,;:!?]|$)/g, '$1<i>$2</i>')
+      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    return s.replace(/\u0000(\d+)\u0000/g, (_, i) => '<code>' + code[+i] + '</code>');
+  }
+  function markdown(text) {
+    const lines = text.replace(/\r/g, '').split('\n'), out = [];
+    let i = 0, para = [], list = null;
+    const flushP = () => { if (para.length) { out.push('<p>' + inline(para.join(' ')) + '</p>'); para = []; } };
+    const flushL = () => { if (list) { out.push('<' + list.tag + '>' + list.items.map(x => '<li>' + inline(x) + '</li>').join('') + '</' + list.tag + '>'); list = null; } };
+    while (i < lines.length) {
+      const l = lines[i];
+      const fence = l.match(/^\s*```(.*)$/);
+      if (fence) {
+        flushP(); flushL();
+        const body = [];
+        i++;
+        while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) body.push(lines[i++]);
+        i++;
+        out.push('<pre>' + esc(body.join('\n')) + '</pre>');
+        continue;
+      }
+      const h = l.match(/^(#{1,4})\s+(.*)$/), ul = l.match(/^\s*[-*]\s+(.*)$/), ol = l.match(/^\s*\d+[.)]\s+(.*)$/);
+      if (h) { flushP(); flushL(); out.push('<h' + Math.min(4, h[1].length + 1) + '>' + inline(h[2]) + '</h' + Math.min(4, h[1].length + 1) + '>'); }
+      else if (ul || ol) { flushP(); const tag = ul ? 'ul' : 'ol'; if (!list || list.tag !== tag) { flushL(); list = { tag, items: [] }; } list.items.push((ul || ol)[1]); }
+      else if (/^\s*\|.*\|\s*$/.test(l)) { flushP(); flushL(); const rows = []; while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(lines[i++]); out.push('<pre>' + esc(rows.join('\n')) + '</pre>'); continue; }
+      else if (!l.trim()) { flushP(); flushL(); }
+      else if (list && /^\s{2,}\S/.test(l)) list.items[list.items.length - 1] += ' ' + l.trim();
+      else { flushL(); para.push(l.trim()); }
+      i++;
+    }
+    flushP(); flushL();
+    return out.join('');
   }
 
   // ---- chat feed ----
   const rel = p => { const k = '/' + project + '/'; const i = p ? p.lastIndexOf(k) : -1; return i >= 0 ? p.slice(i + k.length) : p || ''; };
   const pinned = () => feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
   function append(d) { const stick = pinned(); feed.appendChild(d); if (stick) feed.scrollTop = feed.scrollHeight; return d; }
-  function add(cls, text, who) {
+  function add(cls, text, who, rich) {
     if (who && who !== lastWho) { const w = document.createElement('div'); w.className = 'who' + (who === 'You' ? ' you' : ''); w.textContent = who; append(w); }
     if (who) lastWho = who;
     const d = document.createElement('div');
     d.className = cls;
-    d.textContent = text;
+    if (rich) d.innerHTML = markdown(text); else d.textContent = text;
     return append(d);
   }
   function toolRow(name, input) {
@@ -118,6 +281,7 @@
   }
   function dropLive() { if (liveEl) { liveEl.remove(); liveEl = null; } if (liveTool) { liveTool.remove(); liveTool = null; } }
 
+  let liveText = '';
   function agent(ev) {
     if (ev.type === 'stream_event') {
       if (!live) return;
@@ -125,11 +289,11 @@
       if (e.type === 'content_block_start') {
         dropLive();
         const b = e.content_block || {};
-        if (b.type === 'text') liveEl = add('msg say', '', 'Claude');
+        if (b.type === 'text') { liveText = ''; liveEl = add('msg say md', '', 'Claude'); }
         else if (b.type === 'tool_use') { toolJson = ''; liveTool = toolRow(b.name + ' …', {}); liveTool.dataset.name = b.name; }
       } else if (e.type === 'content_block_delta') {
         const d = e.delta || {}, stick = pinned();
-        if (d.type === 'text_delta' && liveEl) { liveEl.textContent += d.text; if (PC) PC.setThought(liveEl.textContent); }
+        if (d.type === 'text_delta' && liveEl) { liveText += d.text; liveEl.innerHTML = markdown(liveText); if (PC) PC.setThought(liveText); }
         else if (d.type === 'input_json_delta' && liveTool) {
           toolJson += d.partial_json || '';
           const m = toolJson.match(/"file_path"\s*:\s*"([^"]+)"/);
@@ -146,7 +310,7 @@
         const key = (msg.id || '') + ':' + (b.id || b.type + ':' + i + ':' + String(b.text || b.thinking || '').length);
         if (seen.has(key)) return;
         seen.add(key);
-        if (b.type === 'text' && b.text.trim()) add('msg say', b.text, 'Claude');
+        if (b.type === 'text' && b.text.trim()) add('msg say md', b.text, 'Claude', true);
         else if (b.type === 'thinking' && (b.thinking || '').trim()) add('msg think', b.thinking, 'Claude');
         else if (b.type === 'tool_use') { lastWho = 'Claude'; tools[b.id] = toolRow(b.name, b.input || {}); }
       });
@@ -166,23 +330,40 @@
   }
 
   function cell(id, text, cls) { const c = $(id); c.textContent = text; c.className = 'cell' + (id === 'agent' ? ' tail' : '') + (cls ? ' ' + cls : ''); }
+  function flux(ok, partial, output) {
+    const f = $('flux');
+    f.hidden = ok;
+    if (ok) return;
+    f.innerHTML = '<b></b>\n';
+    f.firstChild.textContent = partial ? 'Build failing. Broken definitions are marked; the rest is current.' : 'Build failing. The picture is the last good state.';
+    if (output) f.appendChild(document.createTextNode(output.split('\n').slice(0, 14).join('\n')));
+  }
 
+  let buildOut = '';
   const handlers = {
     hello(e) { project = e.project; $('project').textContent = e.project; $('mode').textContent = e.agent && e.agent.startsWith('script') ? '· scripted agent' : ''; },
-    caught_up() { live = true; if (graphs.length) view.show(graphs[graphs.length - 1]); },
+    caught_up() { live = true; if (shown) { view.reset(); view.show(shown); } },
+    session(e) { if (e.restart && feed.children.length) { add('turn', 'earlier session above'); lastWho = ''; } },
     replay_end() { $('mode').textContent = '· replay finished'; },
     prompt(e) { add('msg you', e.text, 'You'); },
     agent(e) { agent(e.ev); },
     agent_raw(e) { add('tool bad', e.line); },
     agent_state(e) { cell('agent', 'agent: ' + e.state, e.state === 'running' ? 'live' : ''); if (PC && live) PC.setBusy(e.state === 'running'); },
     build(e) {
-      cell('build', e.ok ? 'build ok · ' + e.ms + ' ms' : 'build failing', e.ok ? 'ok' : 'bad');
-      const f = $('flux');
-      f.hidden = e.ok;
-      if (!e.ok) { f.innerHTML = '<b>Build failing. The picture is the last good state.</b>\n'; f.appendChild(document.createTextNode(e.output.split('\n').slice(0, 14).join('\n'))); }
+      cell('build', e.ok ? 'build ok · ' + e.ms + ' ms' : 'build failing', e.ok ? '' : 'bad');
+      buildOut = e.ok ? '' : e.output;
+      flux(e.ok, false, e.output);
     },
-    tests(e) { cell('tests', e.failing.length ? e.failing.length + ' test' + (e.failing.length > 1 ? 's' : '') + ' failing' : e.ok ? 'tests pass' : 'tests did not run', e.failing.length || !e.ok ? 'bad' : 'ok'); },
-    graph(e) { const g = flatten(e.graph); graphs.push(g); if (live) view.push(g, e.cause); },
+    tests(e) { cell('tests', e.failing.length ? e.failing.length + ' test' + (e.failing.length > 1 ? 's' : '') + ' failing' : e.ok ? 'tests pass' : 'tests did not run', e.failing.length || !e.ok ? 'bad' : ''); },
+    graph(e) {
+      latest = e.graph;
+      drawPicker();
+      if (e.partial) flux(false, true, buildOut);
+      // Follow the work: when the agent changes another module, the canvas goes there.
+      const file = e.cause && e.cause.file, m = file ? moduleOfFile(latest, file) : '';
+      if (live && moduleName && m && m !== moduleName && $('follow').classList.contains('tool-active')) choose(m, e.cause);
+      else present(e.cause, false);
+    },
     error(e) { add('tool bad', e.where + ': ' + e.message); },
     files(e) { files = e.files; },
   };
