@@ -33,6 +33,13 @@ let json_of_any = (v: Js.Unsafe.any): Yojson.Safe.t => {
   Yojson.Safe.from_string(s);
 };
 
+/* a snapshot that is not a graph record is an error [guard] reports */
+let graph_of_any = (v: Js.Unsafe.any): CanvasGraph.t =>
+  switch (CanvasGraph.of_json(json_of_any(v))) {
+  | Ok(g) => g
+  | Error(message) => failwith("not a graph record: " ++ message)
+  };
+
 /* neither undefined nor null */
 let present = (v: Js.Unsafe.any): bool => {
   let ty = Js.to_string(Js.typeof(Js.Unsafe.coerce(v)));
@@ -122,10 +129,7 @@ let () = {
                     site: None,
                     ok: true,
                   };
-              CanvasDirector.push(
-                CanvasGraph.of_json(json_of_any(snap)),
-                c,
-              );
+              CanvasDirector.push(graph_of_any(snap), c);
             })
           ),
         ),
@@ -133,9 +137,7 @@ let () = {
       (
         "show",
         fn1(snap =>
-          guard("show", () =>
-            CanvasDirector.show(CanvasGraph.of_json(json_of_any(snap)))
-          )
+          guard("show", () => CanvasDirector.show(graph_of_any(snap)))
         ),
       ),
       ("reset", fn1(_ => guard("reset", CanvasDirector.reset))),

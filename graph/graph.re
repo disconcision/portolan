@@ -1,10 +1,7 @@
-/* The graph record: the only thing the canvas reads.
+/* The graph record and its JSON: see graph.rei. */
 
-   It mirrors Hazel's CanvasGraph.t, with the Hazel-specific fields made
-   opaque: a definition is identified by a [handle] (file + span), and
-   code is carried as source text. Producers (the extractor here, Hazel's
-   statics there) build one of these per step; the canvas diffs
-   consecutive snapshots. Keep the JSON shape stable: traces store it. */
+type key = string;
+type name = string;
 
 /* Where a definition lives. [path] is the entry path, e.g. "Geo/scale". */
 type handle = {
@@ -22,7 +19,7 @@ type node_kind =
   | Product; /* the argument tuple of a multi-argument function */
 
 type node = {
-  key: string, /* unique: the type's printed form, qualified */
+  key,
   label: string,
   m_path: list(string), /* enclosing modules, outermost first */
   kind: node_kind,
@@ -30,11 +27,11 @@ type node = {
   n_ty: option(string), /* the declaration's right-hand side */
   n_doc: option(string),
   n_err: bool,
-  /* keys of the component nodes, one level down: the arguments of a
-     Product, and what an Alias or a Derived node is formed from (the
-     fields of a record, the element of a list, ...). A component that is
-     itself an unnamed type is a Derived node with parts of its own. */
-  parts: list(string),
+  /* the component nodes, one level down: the arguments of a Product, and
+     what an Alias or a Derived node is formed from (the fields of a
+     record, the element of a list, ...). A component that is itself an
+     unnamed type is a Derived node with parts of its own. */
+  parts: list(key),
   /* what an Alias or a Derived node is formed with: "()" tuple,
      "{}" record, "[]" list or array, "?" option, "->" function (its
      parts are the arguments, then the result), "=" another name for its
@@ -53,36 +50,36 @@ type test_status =
 type test = {
   t_name: string,
   t_status: test_status,
-  t_refs: list(string), /* edge names it mentions */
+  t_refs: list(name), /* the functions it mentions */
   t_at: handle,
 };
 
 type edge = {
-  e_name: string, /* unique: qualified name */
+  e_name: name,
   e_label: string,
   e_m_path: list(string),
   e_ty: string, /* printed type */
-  src: string, /* node key: the argument, or a Product node */
-  dst: string, /* node key: the result */
+  src: key, /* the argument, or a Product node */
+  dst: key, /* the result */
   e_doc: option(string),
   e_err: bool,
   e_hole: bool, /* body is a hole or a TODO */
   main: bool, /* used from two or more places */
-  e_deps: list(string), /* edge and value names its body mentions */
+  e_deps: list(name), /* the functions and values its body mentions */
   e_exported: bool,
   tests: list(test),
   e_at: handle,
 };
 
 type value = {
-  v_name: string,
+  v_name: name,
   v_label: string,
   v_m_path: list(string),
-  v_key: string, /* node key of its type */
+  v_key: key, /* the node of its type */
   v_ty: string,
   v_doc: option(string),
   v_err: bool,
-  v_deps: list(string), /* edge and value names its definition mentions */
+  v_deps: list(name), /* the functions and values its definition mentions */
   v_exported: bool,
   v_at: handle,
 };

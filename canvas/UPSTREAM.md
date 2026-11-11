@@ -1,7 +1,8 @@
 # The canvas and its upstream
 
 This directory is Hazel's Constellation canvas running outside Hazel: a
-js_of_ocaml bundle that draws graph snapshots (`graph/graph.ml`'s JSON) and
+js_of_ocaml bundle that draws graph snapshots (the graph record of
+`graph/graph.re`, sent as JSON) and
 animates the change from one to the next.
 
 - **Upstream:** [hazelgrove/hazel](https://github.com/hazelgrove/hazel), branch
@@ -19,6 +20,7 @@ animates the change from one to the next.
 eval $(opam env --switch=editor-output --set-switch)   # OCaml 5.2, js_of_ocaml 5.9.1, virtual_dom v0.16, reason 3.15, yojson
 dune build ./canvas                                    # -> _build/default/canvas/portolan_canvas_js.bc.js (dev build, about 17 MB)
 # dune build --profile release ./canvas                # same path, optimised: 786 KB (253 KB gzipped)
+dune test canvas/test                                  # what CanvasGraph makes of a graph record: native, no browser
 python3 -m http.server 8843 --bind 127.0.0.1           # at the repository root
 # open http://127.0.0.1:8843/canvas/demo.html          (add ?autoplay to start at once)
 ```
@@ -63,6 +65,10 @@ Upstream's console testers (`__canvasBurst`, `__canvasStage`, `__cameraState`,
 `PORTOLAN`; `shim/` stands in for Hazel modules the copies mention; the rest
 is new.
 
+`CanvasGraph.re` and `shim/Haz3lcore.re` are a library of their own
+(`portolan_canvas_graph`), since nothing of the browser is in them: the tests
+in `test/` build and run them natively.
+
 | File here | Upstream path | Status | Why |
 |---|---|---|---|
 | `edited/GraphLayout.re`, `.rei` | `src/util/` | edited (one block, about 75 lines; the `.rei` is unchanged) | The cross-column vertical relief visits only the pairs that can meet. See Layout cost. Worth taking upstream. |
@@ -89,7 +95,7 @@ is new.
 | `shim/Key.re` | `src/util/Key.re` | shim | `get_key`. |
 | `shim/Haz3lcore.re` | (`haz3lcore`) | shim | `Id.t = string`: `CanvasView` names `Haz3lcore.Id.t` in five signatures. |
 | `shim/CanvasTrajectory.re` | `src/web/app/canvas/CanvasTrajectory.re` | shim | Two hooks (`on_change`, `busy`) the copies call. |
-| `CanvasGraph.re` | `src/web/app/canvas/CanvasGraph.re` | rewritten | Upstream's record types with the same field names (so the copies read them unchanged), ids as strings, terms as source text, plus `handles`. Extraction (lines 160–1606 upstream) is gone; `of_json` reads Portolan's Graph JSON instead. |
+| `CanvasGraph.re` | `src/web/app/canvas/CanvasGraph.re` | rewritten | Upstream's record types with the same field names (so the copies read them unchanged), ids as strings, terms as source text, plus `handles`. Extraction (lines 160–1606 upstream) is gone; `of_graph` makes the picture from Portolan's graph record (`Portolan_graph.Graph.t`) instead. |
 | `CanvasDirector.re` | `src/web/app/canvas/CanvasSidebar.re` | lifted + new | See below. |
 | `CanvasOptions.re`, `.rei` | — | new | The layouts and edge styles on offer, and the ones written for Portolan. |
 | `portolan_canvas_js.re` | — | new | The global API. |
@@ -223,10 +229,18 @@ samples), picking the avatar up, settings persistence.
 
 ## What the reader derives
 
+The JSON is decoded in one place, `Graph.of_json` (`graph/graph.re`). The
+canvas takes the typed record: `CanvasGraph.of_graph: Graph.t => t`, and
+`of_json` / `of_string` are the two in a row. A snapshot that is not a graph
+record (a missing field, an unknown kind) is refused whole and logged; the
+canvas's own JSON reader, now gone, filled in defaults. That reader also took
+`deps`, `hidden_deps` and `sat: {anchor, output}` from a node's JSON when a
+producer supplied them. They are not in the record, nothing wrote them, and
+they are no longer read.
+
 Portolan's graph record does not carry four things the layout and score read.
-`CanvasGraph.of_json` takes them from the JSON when present (optional node
-fields `deps`, `hidden_deps`, `sat: {anchor, output}`, `former`) and otherwise
-derives them the way Hazel's extraction does:
+`of_graph` derives them the way Hazel's extraction does (a `former` the record
+gives is kept):
 
 - **satellites:** a builtin (or a type variable) that is a function's only
   argument, its result, or a component is split into one terminal per use-site
@@ -278,6 +292,13 @@ watched through a paced run, or dragged in by hand.
 
 Known in the journal: one `JUMP: canvas-avatar` line (32–80 px) on a beat that
 starts while the avatar is already embodied and thinking.
+
+`CanvasGraph`'s rules (terminals, former dots, captions, what is left out,
+shortened labels) have tests in `test/test_canvas_graph.re`, on graph records
+a few items long. When the canvas stopped decoding JSON itself, the whole
+`CanvasGraph.t` of 127 graphs (every module view of Portolan and of the
+dungeon example, both recorded runs, the examples, the demo steps) was
+compared before and after, and was equal.
 
 Not verified: Firefox and Safari; touch input and pinch zoom; dragging and
 collapsing by a real hand; graphs past a few dozen definitions. Hazel's
