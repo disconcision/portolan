@@ -63,6 +63,31 @@ open Parsetree;
 let add_loc = (spans, kind, mpath, name, loc: Location.t) =>
   add(spans, kind, mpath, name, loc.loc_start.pos_lnum, loc.loc_end.pos_lnum);
 
+/* An inline test without a description has nothing to be looked up by
+   but its place among the others of its module: "#1", "#2", ... */
+let unnamed = (n: int): string => "#" ++ string_of_int(n);
+
+let add_unnamed_lines = (spans, mpath, first: int, last: int) => {
+  let rec free = n =>
+    if (Hashtbl.mem(
+          spans,
+          (Test, String.concat("/", mpath @ [unnamed(n)])),
+        )) {
+      free(n + 1);
+    } else {
+      n;
+    };
+  add(spans, Test, mpath, unnamed(free(1)), first, last);
+};
+
+let add_unnamed = (spans, mpath, loc: Location.t) =>
+  add_unnamed_lines(
+    spans,
+    mpath,
+    loc.loc_start.pos_lnum,
+    loc.loc_end.pos_lnum,
+  );
+
 let pattern_names = (p: pattern): list(string) => {
   let found = ref([]);
   let pat = (it: Ast_iterator.iterator, p: pattern) => {
@@ -127,7 +152,7 @@ let expanded_tests = (spans, mpath, e: expression) => {
       switch (descr) {
       | Some(name) when name != "" =>
         add_loc(spans, Test, mpath, name, e.pexp_loc)
-      | _ => ()
+      | _ => add_unnamed(spans, mpath, e.pexp_loc)
       };
     | _ => Ast_iterator.default_iterator.expr(it, e)
     };
@@ -139,7 +164,86 @@ let expanded_tests = (spans, mpath, e: expression) => {
   it.expr(it, e);
 };
 
-let rec structure = (spans, mpath: list(string), items: structure): unit =>
+/* [within]: where the items are when they do not say (what a ppx wrote
+   after a type, see Extract.collect). */
+/* Alcotest cases whose body is written in place, under the names
+   Extract gives them: [test_case "name" ...] as "name", and inside
+   [("suite", [...])] any call with a literal name as "suite: name" (it
+   may be a wrapper of [test_case]; without types one cannot tell, and a
+   span nobody asks for does no harm). */
+let alcotest_cases = (spans, mpath, e: expression) => {
+  let name_of = (args): option(string) =>
+    List.find_map(
+      fun
+      | (Asttypes.Nolabel, arg) => string_constant(arg)
+      | _ => None,
+      args,
+    );
+  let is_test_case = (f: Longident.t) =>
+    switch (Longident.last(f)) {
+    | "test_case" => true
+    | _ => false
+    | exception _ => false
+    };
+  let rec list_literal = (e: expression): option(list(expression)) =>
+    switch (e.pexp_desc) {
+    | [@implicit_arity]
+      Pexp_construct(
+        {txt: Lident("::"), _},
+        Some({pexp_desc: Pexp_tuple([head, tail]), _}),
+      ) =>
+      Option.map(rest => [head, ...rest], list_literal(tail))
+    | [@implicit_arity] Pexp_construct({txt: Lident("[]"), _}, None) =>
+      Some([])
+    | _ => None
+    };
+  let expr = (it: Ast_iterator.iterator, e: expression) =>
+    switch (e.pexp_desc) {
+    | [@implicit_arity] Pexp_apply({pexp_desc: Pexp_ident(f), _}, args)
+        when is_test_case(f.txt) && name_of(args) != None =>
+      add_loc(spans, Test, mpath, Option.get(name_of(args)), e.pexp_loc)
+    | Pexp_tuple([suite, cases])
+        when string_constant(suite) != None && list_literal(cases) != None =>
+      List.iter(
+        (case: expression) =>
+          switch (case.pexp_desc) {
+          | [@implicit_arity] Pexp_apply(_, args) when name_of(args) != None =>
+            add_loc(
+              spans,
+              Test,
+              mpath,
+              Option.get(string_constant(suite))
+              ++ ": "
+              ++ Option.get(name_of(args)),
+              case.pexp_loc,
+            )
+          | _ => it.expr(it, case)
+          },
+        Option.get(list_literal(cases)),
+      )
+    | _ => Ast_iterator.default_iterator.expr(it, e)
+    };
+
+  let it = {
+    ...Ast_iterator.default_iterator,
+    expr,
+  };
+  it.expr(it, e);
+};
+
+let rec structure =
+        (
+          ~within: option(Location.t)=?,
+          spans,
+          mpath: list(string),
+          items: structure,
+        )
+        : unit => {
+  let placed = (loc: Location.t): Location.t =>
+    switch (within) {
+    | Some(around) when loc.loc_start.pos_lnum == 0 => around
+    | _ => loc
+    };
   List.iter(
     (si: structure_item) =>
       switch (si.pstr_desc) {
@@ -160,9 +264,15 @@ let rec structure = (spans, mpath: list(string), items: structure): unit =>
                 si.pstr_loc;
               };
             switch (pattern_names(vb.pvb_pat)) {
-            | [] => expanded_tests(spans, mpath, vb.pvb_expr)
+            | [] =>
+              expanded_tests(spans, mpath, vb.pvb_expr);
+              alcotest_cases(spans, mpath, vb.pvb_expr);
             | names =>
-              List.iter(name => add_loc(spans, Val, mpath, name, loc), names)
+              alcotest_cases(spans, mpath, vb.pvb_expr);
+              List.iter(
+                name => add_loc(spans, Val, mpath, name, placed(loc)),
+                names,
+              );
             };
           },
           bindings,
@@ -173,7 +283,8 @@ let rec structure = (spans, mpath: list(string), items: structure): unit =>
       | Pstr_recmodule(mbs) => List.iter(module_binding(spans, mpath), mbs)
       | Pstr_include({pincl_mod, _}) =>
         switch (strip_constraint(pincl_mod).pmod_desc) {
-        | Pmod_structure(s) => structure(spans, mpath, s)
+        | Pmod_structure(s) =>
+          structure(~within=placed(si.pstr_loc), spans, mpath, s)
         | _ => ()
         }
       /* [let%test "name" = e], before ppx_inline_test has run */
@@ -197,12 +308,15 @@ let rec structure = (spans, mpath: list(string), items: structure): unit =>
             _,
           ) =>
           add_loc(spans, Test, mpath, name, si.pstr_loc)
+        | ("test" | "test_unit", _, _) =>
+          add_unnamed(spans, mpath, si.pstr_loc)
         | _ => ()
         }
       | _ => ()
       },
     items,
-  )
+  );
+}
 
 and module_binding = (spans, mpath, mb: module_binding): unit =>
   switch (mb.pmb_name.txt, strip_constraint(mb.pmb_expr).pmod_desc) {
@@ -341,7 +455,9 @@ let tree = (~root: string, ~build: string, file: string): option(tree) => {
    which lasts until a line indented no deeper than it. An item runs to
    the line before the next line at its indentation that opens something
    (an item, a module, [open], a comment, ...) or before the first line
-   indented less. Handles both syntaxes; knows nothing of strings or
+   indented less. A module whose signature is written out before its body
+   ([module M : sig ... end = struct ... end]) is found by the line where
+   the body starts. Handles both syntaxes; knows nothing of strings or
    comments that span lines. */
 
 let is_ident_char = c =>
@@ -376,8 +492,10 @@ let rec skip_spaces = (s: string, i: int): int =>
 
 type line =
   | Blank
-  | Item(int, kind, string) /* indentation, kind, name */
+  | Item(int, kind, string) /* indentation, kind, name ("": a test without one) */
   | Module(int, string)
+  /* [end = struct], [} = {]: a module's signature ends, its body starts */
+  | Body(int)
   | Opener(int) /* starts something that is not an item: open, a comment, ... */
   | Other(int);
 
@@ -402,8 +520,17 @@ let classify = (~last: kind, s: string): line => {
     d
     + String.length(prefix) <= n
     && String.sub(s, d, String.length(prefix)) == prefix;
+  let ends = suffix => {
+    let t = String.trim(s);
+    String.ends_with(~suffix, t);
+  };
   if (d >= n || s.[d] == '\r') {
     Blank;
+  } else if (starts("}")
+             && ends("= {")
+             || starts("end")
+             && ends("= struct")) {
+    Body(d);
   } else if (starts("[@@") && !starts("[@@@")) {
     Other
       (d); /* an attribute of the item above */
@@ -500,6 +627,8 @@ let classify = (~last: kind, s: string): line => {
         | Some(close) => Item(d, Test, String.sub(s, j + 1, close - j - 1))
         | None => Opener(d)
         };
+      } else if (ext == "test" || ext == "test_unit") {
+        Item(d, Test, "");
       } else {
         Opener(d);
       };
@@ -555,6 +684,7 @@ let scan = (~prefix: list(string), text: string): t => {
     | Blank => None
     | Item(d, _, _)
     | Module(d, _)
+    | Body(d)
     | Opener(d)
     | Other(d) => Some(d);
   /* the last line of the item that starts on line [i] (0-based) */
@@ -588,10 +718,26 @@ let scan = (~prefix: list(string), text: string): t => {
       switch (indent(c)) {
       | None => ()
       | Some(d) =>
-        stack := List.filter(((md, _, _)) => md < d, stack^);
+        stack :=
+          List.filter(
+            ((md, _, _)) =>
+              switch (c) {
+              /* the module it is the body of stays open, and what its
+                 signature declared is found again, defined, below */
+              | Body(_) => md <= d
+              | _ => md < d
+              },
+            stack^,
+          );
+        switch (c, stack^) {
+        | (Body(_), [(md, name, _), ...rest]) when md == d =>
+          stack := [(md, name, None), ...rest]
+        | _ => ()
+        };
         let body =
           switch (stack^) {
           | [] => 0
+          | [(md, _, None), ..._] when md == d => (-1) /* the [Body] line itself */
           | [(md, name, None), ...rest] =>
             stack := [(md, name, Some(d)), ...rest];
             d;
@@ -600,6 +746,8 @@ let scan = (~prefix: list(string), text: string): t => {
         let mpath = prefix @ List.rev_map(((_, name, _)) => name, stack^);
         if (d == body) {
           switch (c) {
+          | Item(_, Test, "") =>
+            add_unnamed_lines(spans, mpath, i + 1, last_line(i, d) + 1)
           | Item(_, kind, name) =>
             add(spans, kind, mpath, name, i + 1, last_line(i, d) + 1)
           | Module(_, name) => stack := [(d, name, None), ...stack^]

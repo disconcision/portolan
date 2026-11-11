@@ -129,6 +129,23 @@ type unit_info = {
   mutable u_items: list(item) /* reversed */
 };
 
+/* A test before the graph is assembled. */
+type found_test = {
+  ft_test: G.test,
+  ft_uses: list(string), /* the project names its body mentions */
+  /* For an Alcotest case, which is written apart from what it tests: */
+  ft_alcotest: option(alcotest),
+}
+and alcotest = {
+  /* the qualified name of its file's module and a ".": the definitions
+     under it are helpers, looked through to what they use */
+  a_helpers: string,
+  /* its suite and its place in it, when the suite is written out */
+  a_case: option((string, int)),
+  /* the top-level function that is its body, when it is one */
+  a_fn: option(string),
+};
+
 /* A top-level definition before the graph is assembled: [mentions] are
    the project names its body refers to, not yet filtered. */
 type def =
@@ -159,7 +176,7 @@ type ctx = {
   seen: Hashtbl.t(string, unit), /* node keys already emitted */
   mutable nodes: list(G.node), /* reversed */
   mutable defs: list(def), /* reversed */
-  mutable tests: list((G.test, list(string))) /* reversed, with mentions */
+  mutable tests: list(found_test) /* reversed */
 };
 
 /* ---------- resolving paths to project names ---------- */
@@ -596,10 +613,24 @@ let rec strip_constraint =
 
 /* ---------- pass 1: collect ---------- */
 
+/* [within] is where the items are when they do not say: a ppx writes
+   [include struct ... end] after the type it derives from, and may leave
+   what is inside without a location. */
 let rec collect =
-        (ctx: ctx, u: unit_info, scope: scope, items: list(structure_item))
+        (
+          ~within: option(Location.t)=?,
+          ctx: ctx,
+          u: unit_info,
+          scope: scope,
+          items: list(structure_item),
+        )
         : unit => {
   let push = item => u.u_items = [item, ...u.u_items];
+  let placed = (loc: Location.t): Location.t =>
+    switch (within) {
+    | Some(around) when loc.loc_start.pos_lnum == 0 => around
+    | _ => loc
+    };
   let declare_value = (id, name) => {
     let q = qualify(scope.mpath, name);
     Ident.Tbl.replace(u.u_vals, id, q);
@@ -634,7 +665,7 @@ let rec collect =
               } else {
                 si.str_loc;
               };
-            push([@implicit_arity] Value_item(scope, vb, loc));
+            push([@implicit_arity] Value_item(scope, vb, placed(loc)));
           },
           bindings,
         );
@@ -655,7 +686,7 @@ let rec collect =
            those to the same qualified names. Other includes are skipped. */
         switch (strip_constraint(u, incl_mod, scope.vis)) {
         | ({mod_desc: Tmod_structure(s), _}, _) =>
-          collect(ctx, u, scope, s.str_items);
+          collect(~within=placed(si.str_loc), ctx, u, scope, s.str_items);
           List.iter(
             fun
             | [@implicit_arity] Types.Sig_value(id, _, _) => {
@@ -1139,7 +1170,14 @@ let add_test =
     }: G.test
   );
 
-  ctx.tests = [(test, mentions(ctx, u, body)), ...ctx.tests];
+  ctx.tests = [
+    {
+      ft_test: test,
+      ft_uses: mentions(ctx, u, body),
+      ft_alcotest: None,
+    },
+    ...ctx.tests,
+  ];
 };
 
 /* Record every inline test in an expression. They sit at the top of a
@@ -1166,6 +1204,125 @@ let find_inline_tests =
         closure,
       );
     | None => Tast_iterator.default_iterator.expr(it, e)
+    };
+
+  let it = {
+    ...Tast_iterator.default_iterator,
+    expr,
+  };
+  it.expr(it, e);
+};
+
+/* An Alcotest case, [Alcotest.test_case "name" `Quick f], or the same
+   through a wrapper of one's own ([case("name", f)]): an application
+   that makes a test case from a literal name and, last, a function.
+   Returns the name and the function. */
+let alcotest_case = (e: expression): option((string, expression)) => {
+  let is_case = (ty: Types.type_expr) =>
+    switch (Types.get_desc(ty)) {
+    | [@implicit_arity] Tconstr(p, _, _) =>
+      Path.last(p) == "test_case" && contains(~sub="Alcotest", Path.name(p))
+    | _ => false
+    };
+  switch (e.exp_desc) {
+  | [@implicit_arity] Texp_apply(_, args) when is_case(e.exp_type) =>
+    let plain =
+      List.filter_map(
+        fun
+        | (Asttypes.Nolabel, Some(arg)) => Some(arg)
+        | _ => None,
+        args,
+      );
+    let name =
+      List.find_map(
+        (arg: expression) =>
+          switch (arg.exp_desc) {
+          | Texp_constant([@implicit_arity] Const_string(s, _, _)) =>
+            Some(s)
+          | _ => None
+          },
+        plain,
+      );
+    switch (name, List.rev(plain)) {
+    | (Some(name), [body, _, ..._]) => Some((name, body))
+    | _ => None
+    };
+  | _ => None
+  };
+};
+
+/* [a; b; c] as written, [None] for a list that is computed. */
+let rec list_literal = (e: expression): option(list(expression)) =>
+  switch (e.exp_desc) {
+  | [@implicit_arity] Texp_construct(_, {cstr_name: "::", _}, [head, tail]) =>
+    Option.map(rest => [head, ...rest], list_literal(tail))
+  | [@implicit_arity] Texp_construct(_, {cstr_name: "[]", _}, []) =>
+    Some([])
+  | _ => None
+  };
+
+/* Record every Alcotest case in an expression. Its status, and where it
+   is when its body is a function defined elsewhere in the file, are
+   filled in by [assemble]. */
+let find_alcotest_cases =
+    (ctx: ctx, u: unit_info, ~mpath: list(string), e: expression): unit => {
+  let add = (~suite: option((string, int)), ~loc, name, body: expression) => {
+    let fn =
+      switch (body.exp_desc) {
+      | [@implicit_arity] Texp_ident(p, _, _) => project_value(ctx, u, p)
+      | _ => None
+      };
+    let name =
+      switch (suite) {
+      | Some((suite, _)) => suite ++ ": " ++ name
+      | None => name
+      };
+    ctx.tests = [
+      {
+        ft_test: {
+          t_name: name,
+          t_status: Unknown,
+          t_refs: [],
+          t_at: handle(u, mpath, name, loc),
+        },
+        ft_uses: mentions(ctx, u, body),
+        ft_alcotest:
+          Some({
+            a_helpers: String.concat(".", u.u_mpath) ++ ".",
+            a_case: suite,
+            a_fn: fn,
+          }),
+      },
+      ...ctx.tests,
+    ];
+  };
+  let expr = (it: Tast_iterator.iterator, e: expression) =>
+    switch (alcotest_case(e), e.exp_desc) {
+    | (Some((name, body)), _) =>
+      add(~suite=None, ~loc=e.exp_loc, name, body)
+    /* ("suite", [case; case]) */
+    | (
+        None,
+        Texp_tuple([
+          {
+            exp_desc:
+              Texp_constant([@implicit_arity] Const_string(suite, _, _)),
+            _,
+          },
+          cases,
+        ]),
+      )
+        when list_literal(cases) != None =>
+      List.iteri(
+        (i, case: expression) =>
+          switch (alcotest_case(case)) {
+          | Some((name, body)) =>
+            add(~suite=Some((suite, i)), ~loc=case.exp_loc, name, body)
+          | None => it.expr(it, case)
+          },
+        Option.get(list_literal(cases)),
+      )
+    | (None, _) => Tast_iterator.default_iterator.expr(it, e)
     };
 
   let it = {
@@ -1312,8 +1469,11 @@ let emit = (ctx: ctx, u: unit_info, item: item): unit =>
     switch (pat_bound_idents_full(vb.vb_pat)) {
     | [] =>
       /* [let () = ...] or [let _ = ...]: only of interest for its tests */
-      find_inline_tests(ctx, u, ~mpath=scope.mpath, vb.vb_expr)
+      find_inline_tests(ctx, u, ~mpath=scope.mpath, vb.vb_expr);
+      find_alcotest_cases(ctx, u, ~mpath=scope.mpath, vb.vb_expr);
     | bound =>
+      /* [let suite = [test_case ...]] */
+      find_alcotest_cases(ctx, u, ~mpath=scope.mpath, vb.vb_expr);
       List.iter(
         ((_, name: Location.loc(string), ty, _)) =>
           define(
@@ -1327,7 +1487,7 @@ let emit = (ctx: ctx, u: unit_info, item: item): unit =>
             ~body=Some(vb.vb_expr),
           ),
         bound,
-      )
+      );
     }
   };
 
@@ -1372,15 +1532,149 @@ let assemble = (ctx: ctx): G.t => {
 
   let is_def = name => Hashtbl.mem(kept, name);
   let is_edge = name => Hashtbl.find_opt(kept, name) == Some(true);
+  let uses_by_name = Hashtbl.create(64)
+  and edge_handles = Hashtbl.create(64);
+  List.iter(
+    d => {
+      Hashtbl.replace(uses_by_name, def_name(d), uses_of(d));
+      switch (d) {
+      | [@implicit_arity] Edge(e, _)
+      | Carried_edge(e) => Hashtbl.replace(edge_handles, e.e_name, e.e_at)
+      | Value(_)
+      | Carried_value(_) => ()
+      };
+    },
+    defs,
+  );
+  /* A function of a test file that is the body of an Alcotest case is
+     that test, not a function of the project: it is not an edge. */
+  let test_fn = (t: found_test): option(string) =>
+    switch (t.ft_alcotest) {
+    | Some({a_fn: Some(f), a_helpers, _})
+        when
+          String.starts_with(~prefix=a_helpers, f)
+          && Hashtbl.mem(edge_handles, f) =>
+      Some(f)
+    | _ => None
+    };
+  List.iter(t => Option.iter(Hashtbl.remove(kept), test_fn(t)), ctx.tests);
+  let defs = List.filter(d => is_def(def_name(d)), defs);
+  let uses_of_name = name =>
+    Option.value(Hashtbl.find_opt(uses_by_name, name), ~default=[]);
+  /* What an Alcotest case exercises: the project's functions outside
+     its own file that its body mentions, or that the helpers it
+     mentions in its file do, however many helpers deep. A case that
+     reaches none is attached to the functions of its file it mentions. */
+  let exercised = (a: alcotest, t: found_test): list(string) => {
+    let seen = Hashtbl.create(16);
+    let found = ref([]);
+    let rec visit = name =>
+      if (!Hashtbl.mem(seen, name)) {
+        Hashtbl.replace(seen, name, ());
+        if (String.starts_with(~prefix=a.a_helpers, name)) {
+          List.iter(visit, uses_of_name(name));
+        } else if (is_edge(name)) {
+          found := [name, ...found^];
+        };
+      };
+    List.iter(visit, t.ft_uses);
+    switch (List.rev(found^), test_fn(t)) {
+    | ([], Some(f)) => List.filter(is_edge, uses_of_name(f))
+    | ([], None) => List.filter(is_edge, t.ft_uses)
+    | (outside, _) => outside
+    };
+  };
+  /* Failed if the test run named it (see extract.rei), or reported a
+     location inside it. */
+  let cases =
+    List.filter_map(
+      (t: found_test) =>
+        Option.bind(t.ft_alcotest, a =>
+          Option.map(((suite, i)) => ("alcotest:" ++ suite, i), a.a_case)
+        ),
+      ctx.tests,
+    );
+  let alcotest_status = (a: alcotest, at: G.handle): G.test_status =>
+    switch (ctx.failing) {
+    | None => Unknown
+    | Some(l) =>
+      let named =
+        switch (a.a_case) {
+        | Some((suite, i)) => List.mem(("alcotest:" ++ suite, i), l)
+        | None => false
+        };
+      /* a case named as failing that is none of the cases whose suite
+         is known: it may be this one */
+      let unclaimed =
+        a.a_case == None
+        && List.exists(
+             ((f, _) as failed) =>
+               String.starts_with(~prefix="alcotest:", f)
+               && !List.mem(failed, cases),
+             l,
+           );
+      let located =
+        List.exists(
+          ((file, line)) =>
+            file == at.file && at.line <= line && line <= at.end_line,
+          l,
+        );
+      if (named || located) {
+        Fail;
+      } else if (unclaimed) {
+        Unknown;
+      } else {
+        Pass;
+      };
+    };
   let tests =
     List.rev_map(
-      ((t: G.test, uses)) =>
-        {
-          ...t,
-          t_refs: List.filter(is_edge, uses),
+      (t: found_test) =>
+        switch (t.ft_alcotest) {
+        | None => {
+            ...t.ft_test,
+            t_refs: List.filter(is_edge, t.ft_uses),
+          }
+        | Some(a) =>
+          let t_at =
+            switch (Option.map(Hashtbl.find(edge_handles), test_fn(t))) {
+            | Some(at) => at
+            | None => t.ft_test.t_at
+            };
+          {
+            ...t.ft_test,
+            t_refs: exercised(a, t),
+            t_status: alcotest_status(a, t_at),
+            t_at,
+          };
         },
       ctx.tests,
     );
+  /* In the order they are in their file: a case found where it is run
+     may have been placed at its function, further up. */
+  let tests = {
+    let rec runs = (acc, l: list(G.test)) =>
+      switch (l) {
+      | [] => List.rev(acc)
+      | [t, ..._] =>
+        let (same, rest) = {
+          let rec split = (same, l: list(G.test)) =>
+            switch (l) {
+            | [o, ...rest] when o.t_at.file == t.t_at.file =>
+              split([o, ...same], rest)
+            | _ => (List.rev(same), l)
+            };
+          split([], l);
+        };
+        runs([same, ...acc], rest);
+      };
+    runs([], tests)
+    |> List.concat_map(
+         List.stable_sort((a: G.test, b: G.test) =>
+           compare(a.t_at.line, b.t_at.line)
+         ),
+       );
+  };
 
   /* For each name: how many other definitions and tests mention it, and
      which tests do. */
@@ -1742,6 +2036,77 @@ let carry =
   let located = Locate.source(~root, ~build, ~prefix, file);
   let by_line = (line_of, l) =>
     List.stable_sort((a, b) => compare(line_of(a), line_of(b)), l);
+  let moved = (h: G.handle, (line, end_line)): G.handle => {
+    ...h,
+    line,
+    end_line,
+  };
+  /* A value that is not written in the file was derived by a ppx from
+     a type, and was placed where the type is: it follows the type. */
+  let relocate_def = (h: G.handle): option(G.handle) =>
+    switch (relocate(located, [Locate.Val], h), located) {
+    | (Some(at), Some(l)) when Locate.find(l, Locate.Val, h.path) == None =>
+      let around =
+        List.find_map(
+          (n: G.node) =>
+            switch (n.at) {
+            | Some(t) when t.line <= h.line && h.end_line <= t.end_line =>
+              Some(Locate.find(l, Locate.Type, t.path))
+            | _ => None
+            },
+          nodes,
+        );
+      switch (around) {
+      | Some(Some(span)) => Some(moved(h, span))
+      | Some(None) when l.exact => None /* its type is gone */
+      | _ => Some(at)
+      };
+    | (at, _) => at
+    };
+  /* An inline test without a description is named by its text
+     ("<<total empty = 0>>") or its line ("line 12"). When it is not
+     found under that name it is looked for by its place among the
+     tests without a description of its module, if there are still as
+     many of them. */
+  let parent = (path: string): string =>
+    switch (String.rindex_opt(path, '/')) {
+    | Some(i) => String.sub(path, 0, i)
+    | None => ""
+    };
+  let by_line_number = (t: G.test) =>
+    String.starts_with(~prefix="line ", t.t_name);
+  let undescribed = (t: G.test) =>
+    by_line_number(t) || String.starts_with(~prefix="<<", t.t_name);
+  let place = (t: G.test): option((int, int)) => {
+    let fellows =
+      List.filter(
+        (o: G.test) =>
+          undescribed(o) && parent(o.t_at.path) == parent(t.t_at.path),
+        tests,
+      )
+      |> by_line((o: G.test) => o.t_at.line);
+    let find = k =>
+      Option.bind(located, l =>
+        Locate.find(
+          l,
+          Locate.Test,
+          parent(t.t_at.path) ++ "/" ++ Locate.unnamed(k),
+        )
+      );
+    let rec index = (k, l) =>
+      switch (l) {
+      | [] => None
+      | [o, ..._] when o === t => Some(k)
+      | [_, ...rest] => index(k + 1, rest)
+      };
+    if (undescribed(t)
+        && find(List.length(fellows)) != None
+        && find(List.length(fellows) + 1) == None) {
+      Option.bind(index(1, fellows), find);
+    } else {
+      None;
+    };
+  };
   {
     c_file: file,
     c_prefix: prefix,
@@ -1761,7 +2126,7 @@ let carry =
     c_edges:
       List.filter_map(
         (e: G.edge) =>
-          relocate(located, [Locate.Val], e.e_at)
+          relocate_def(e.e_at)
           |> Option.map(e_at =>
                {
                  ...e,
@@ -1775,7 +2140,7 @@ let carry =
     c_values:
       List.filter_map(
         (v: G.value) =>
-          relocate(located, [Locate.Val], v.v_at)
+          relocate_def(v.v_at)
           |> Option.map(v_at =>
                {
                  ...v,
@@ -1789,21 +2154,46 @@ let carry =
     c_tests:
       List.filter_map(
         (t: G.test) => {
-          /* [let test_x () = ...] is found as a value, an inline test by
-             its description; one without a description ("line 12")
-             cannot be looked for */
+          /* [let test_x () = ...] and the function of an Alcotest case
+             are found as values, an inline test by its description */
+          let by_name =
+            Option.bind(located, l =>
+              List.find_map(
+                kind => Locate.find(l, kind, t.t_at.path),
+                [Locate.Test, Locate.Val],
+              )
+            );
           let t_at =
-            if (String.starts_with(~prefix="line ", t.t_name)) {
-              Some(t.t_at);
-            } else {
-              relocate(located, [Locate.Test, Locate.Val], t.t_at);
+            switch (located, by_name, place(t)) {
+            | (None, _, _) => Some(t.t_at)
+            | (Some(_), Some(span), _)
+            | (Some(_), None, Some(span)) => Some(moved(t.t_at, span))
+            | (Some(l), None, None) =>
+              if (l.exact && !by_line_number(t)) {
+                None;
+              } else {
+                Some(t.t_at);
+              }
             };
           Option.map(
-            t_at =>
-              {
-                ...t,
-                t_status: G.Unknown,
-                t_at,
+            (t_at: G.handle) =>
+              if (by_line_number(t)) {
+                let t_name = Printf.sprintf("line %d", t_at.line);
+                {
+                  ...t,
+                  t_name,
+                  t_status: G.Unknown,
+                  t_at: {
+                    ...t_at,
+                    path: parent(t_at.path) ++ "/" ++ t_name,
+                  },
+                };
+              } else {
+                {
+                  ...t,
+                  t_status: G.Unknown,
+                  t_at,
+                };
               },
             t_at,
           );
@@ -1903,7 +2293,15 @@ let emit_carried = (ctx: ctx, previous: G.t, c: carried): unit => {
     c.c_values,
   );
   List.iter(
-    (t: G.test) => ctx.tests = [(t, t.t_refs), ...ctx.tests],
+    (t: G.test) =>
+      ctx.tests = [
+        {
+          ft_test: t,
+          ft_uses: t.t_refs,
+          ft_alcotest: None,
+        },
+        ...ctx.tests,
+      ],
     c.c_tests,
   );
 };
