@@ -40,7 +40,7 @@ type source =
         with the recording's own timing, [speed] times as fast. There is
         no project, so no sources, prompts or stops. */
     Replay({
-      lines: list(string),
+      lines: list(Event.Line.t),
       speed: float,
     });
 

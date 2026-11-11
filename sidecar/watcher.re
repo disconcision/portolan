@@ -3,7 +3,7 @@ let (/) = Filename.concat;
 type t = {
   project: Project.t,
   extractor: string,
-  cause: unit => Yojson.Safe.t,
+  cause: unit => Event.cause,
   /* The graph last sent, as compact JSON; "" before the first. */
   mutable last_graph: string,
   /* The failing tests of the last test run; None before the first. */
@@ -202,12 +202,7 @@ let emit_graph = (w, ~why, ~broken=?, ()) =>
   /* A failed build with no graph to show for it: the page keeps the last
      picture. A good build with nothing compiled yet has nothing to say. */
   | Error(_) when broken != None || !anything_compiled(w.project) => ()
-  | Error(output) =>
-    Bus.emit([
-      ("type", `String("extract")),
-      ("ok", `Bool(false)),
-      ("output", `String(Bus.clip(output))),
-    ])
+  | Error(output) => Bus.emit(Extract_failed(Event.clip(output)))
   };
 
 /* ---------- one round ---------- */
@@ -227,12 +222,13 @@ let cycle = w =>
           Project.build_dir,
         ),
       );
-    Bus.emit([
-      ("type", `String("build")),
-      ("ok", `Bool(code == 0)),
-      ("output", `String(Bus.clip(out))),
-      ("ms", `Int(int_of_float((Unix.gettimeofday() -. started) *. 1000.))),
-    ]);
+    Bus.emit(
+      Build({
+        ok: code == 0,
+        output: Event.clip(out),
+        ms: int_of_float((Unix.gettimeofday() -. started) *. 1000.),
+      }),
+    );
     if (code == 0) {
       /* First with the test results we already had, so pips do not blink. */
       emit_graph(w, ~why, ());
@@ -248,22 +244,14 @@ let cycle = w =>
       /* Dune names its own files too (the test rule in a `dune` file). */
       let failing = List.filter(((f, _)) => is_code(f), locations(tout));
       w.last_failing = Some(failing);
-      Bus.emit([
-        ("type", `String("tests")),
-        ("ok", `Bool(tcode == 0)),
-        ("output", `String(Bus.clip(tout))),
-        (
-          "failing",
-          `List(
-            List.map(
-              ((f, n)) =>
-                `Assoc([("file", `String(f)), ("line", `Int(n))]),
-              failing,
-            ),
-          ),
-        ),
-      ]);
-      emit_graph(w, ~why=`Assoc([("label", `String("tests"))]), ());
+      Bus.emit(
+        Tests({
+          ok: tcode == 0,
+          output: Event.clip(tout),
+          failing,
+        }),
+      );
+      emit_graph(w, ~why=Tested, ());
     } else {
       emit_graph(
         w,
@@ -278,7 +266,6 @@ let cycle = w =>
 
 /* Where the last session left off, read from the bus's backlog. */
 let resume = w => {
-  open Yojson.Safe.Util;
   switch (Graphs.resume(Bus.all())) {
   | Some(graph) =>
     w.last_graph = Yojson.Safe.to_string(graph);
@@ -289,26 +276,9 @@ let resume = w => {
     | Sys_error(_) => ()
     }
   };
-  switch (Bus.last("tests")) {
-  | Some(ev) =>
-    w.last_failing = (
-      try(
-        Some(
-          ev
-          |> member("failing")
-          |> to_list
-          |> List.map(f =>
-               (
-                 f |> member("file") |> to_string,
-                 f |> member("line") |> to_int,
-               )
-             ),
-        )
-      ) {
-      | _ => None
-      }
-    )
-  | None => ()
+  switch (Bus.last(Tests)) {
+  | Some(Tests({failing, _})) => w.last_failing = Some(failing)
+  | _ => ()
   };
 };
 
@@ -318,18 +288,15 @@ let check_compiler = w =>
   switch (Project.run(~timeout=20., w.project, "ocamlc -version 2>/dev/null")) {
   | (0, version)
       when !String.starts_with(~prefix="5.2.", String.trim(version)) =>
-    Bus.emit([
-      ("type", `String("error")),
-      ("where", `String("switch")),
-      (
-        "message",
-        `String(
+    Bus.emit(
+      Error({
+        where: "switch",
+        message:
           "the project's compiler is OCaml "
           ++ String.trim(version)
           ++ "; Portolan can only draw projects built with OCaml 5.2.x for now",
-        ),
-      ),
-    ])
+      }),
+    )
   | _ => ()
   };
 
@@ -357,11 +324,12 @@ let start = (~extractor, ~cause, project) => {
         settled := s;
       }) {
       | e =>
-        Bus.emit([
-          ("type", `String("error")),
-          ("where", `String("watcher")),
-          ("message", `String(Printexc.to_string(e))),
-        ])
+        Bus.emit(
+          Error({
+            where: "watcher",
+            message: Printexc.to_string(e),
+          }),
+        )
       };
       Thread.delay(0.25);
     };

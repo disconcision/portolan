@@ -3,7 +3,7 @@ let (/) = Filename.concat;
 type source =
   | Live(Project.t, Agent.t)
   | Replay({
-      lines: list(string),
+      lines: list(Event.Line.t),
       speed: float,
     });
 
@@ -172,6 +172,8 @@ let sse = (oc, s) => {
   output_string(oc, "\n\n");
 };
 
+let sse_event = (oc, line) => sse(oc, Event.Line.to_string(line));
+
 /* Live: the trace so far at once, then a marker, then events as they
    come. A viewer joining late needs only the latest graph, so the
    backlog's graph events are sent as one. If the trace is started over,
@@ -184,10 +186,10 @@ let events_live = oc => {
     cursor := next;
     if (from_start) {
       sse(oc, "{\"type\":\"reset\"}");
-      List.iter(sse(oc), Graphs.collapse(batch));
+      List.iter(sse_event(oc), Graphs.collapse(batch));
       sse(oc, "{\"type\":\"caught_up\"}");
     } else {
-      List.iter(sse(oc), batch);
+      List.iter(sse_event(oc), batch);
     };
     flush(oc);
   };
@@ -201,20 +203,13 @@ let events_replay = (oc, ~lines, ~speed) => {
   let prev = ref(0);
   List.iter(
     line => {
-      let t =
-        try(
-          Yojson.Safe.Util.(
-            Yojson.Safe.from_string(line) |> member("t") |> to_int
-          )
-        ) {
-        | _ => prev^
-        };
+      let t = Option.value(Event.Line.time(line), ~default=prev^);
       let gap = Float.min(2.0, float_of_int(t - prev^) /. 1000. /. speed);
       if (gap > 0.005) {
         Thread.delay(gap);
       };
       prev := t;
-      sse(oc, line);
+      sse_event(oc, line);
       flush(oc);
     },
     lines,
@@ -251,59 +246,12 @@ let refmt = (oc, project, query) => {
   };
 };
 
-/* The definition a prompt is about, from the page's JSON. */
-let about = json =>
-  switch (json) {
-  | `Assoc(fields) =>
-    switch (List.assoc_opt("name", fields)) {
-    | Some(`String(name)) =>
-      Some({
-        Agent.name,
-        where:
-          switch (
-            List.assoc_opt("file", fields),
-            List.assoc_opt("line", fields),
-            List.assoc_opt("end_line", fields),
-          ) {
-          | (Some(`String(file)), Some(`Int(first)), Some(`Int(last))) =>
-            Some((file, first, last))
-          | _ => None
-          },
-      })
-    | _ => None
-    }
-  | _ => None
-  };
-
 /* The user's answer to a request of the agent's, from the page's JSON. */
-let answer = json => {
-  open Yojson.Safe.Util;
-  let strings = name =>
-    switch (json |> member(name)) {
-    | `List(items) => List.filter_map(to_string_option, items)
-    | _ => []
-    };
-  let answer =
-    switch (json |> member("decision")) {
-    | `String("once") => Some(Agent.Once)
-    | `String("always") => Some(Agent.Always(strings("patterns")))
-    | `String("deny") => Some(Agent.Deny)
-    | `String("answered") =>
-      Some(
-        Agent.Answers(
-          json
-          |> member("answers")
-          |> to_assoc
-          |> List.map(((q, label)) => (q, to_string(label))),
-        ),
-      )
-    | _ => None
-    };
-  switch (json |> member("id"), answer) {
+let answer = json =>
+  switch (Yojson.Safe.Util.member("id", json), Event.answer_of_json(json)) {
   | (`String(id), Some(answer)) => Some((id, answer))
   | _ => None
   };
-};
 
 let route = (oc, ~home, source, {meth, path, query, body}) =>
   switch (meth, path, source) {
@@ -318,10 +266,13 @@ let route = (oc, ~home, source, {meth, path, query, body}) =>
       ~ctype="application/json; charset=utf-8",
       String.concat(
         "\n",
-        switch (source) {
-        | Live(_) => Bus.all()
-        | Replay({lines, _}) => lines
-        },
+        List.map(
+          Event.Line.to_string,
+          switch (source) {
+          | Live(_) => Bus.all()
+          | Replay({lines, _}) => lines
+          },
+        ),
       ),
     )
   | ("GET", "/source", Live(project, _)) =>
@@ -338,7 +289,7 @@ let route = (oc, ~home, source, {meth, path, query, body}) =>
       switch (Yojson.Safe.from_string(body)) {
       | json => (
           Yojson.Safe.Util.(json |> member("text") |> to_string),
-          about(Yojson.Safe.Util.member("about", json)),
+          Event.about_of_json(Yojson.Safe.Util.member("about", json)),
         )
       | exception _ => (body, None)
       };

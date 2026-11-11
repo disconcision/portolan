@@ -1,20 +1,16 @@
 /* The coding agent: Claude Code in its headless streaming mode, or a
    scripted stand-in that plays steps from a file. Either way its stream
-   goes onto the bus as `agent {ev}` events, where `ev` is an object
-   shaped like Claude Code's stream output, with `agent_state {state}`
-   ("running", "waiting" for an answer from the user, "idle", "exited")
-   whenever the state changes, and `agent_raw {line}` for output that is
-   not JSON.
+   goes onto the bus (see [Event]) as [Agent] events, each an object
+   shaped like Claude Code's stream output, with [Agent_state] whenever
+   the state changes, and [Agent_raw] for output that is not JSON.
 
    When the agent wants to use a tool that nothing allows, or has a
-   question for the user, it waits, and the bus gets
-   `ask {id, tool, input, patterns, tool_use_id}`: the tool and its input
-   as Claude Code gives them (the tool AskUserQuestion carries
-   `questions`, each with `options`), and the patterns "always allow"
-   would remember. The answer is given with [answer] and reported as
-   `answer {id, decision}`, where the decision is "once", "always" (with
-   `patterns`), "deny", "answered" (with `answers`), or "cancelled" when
-   the turn ended before anyone answered.
+   question for the user, it waits, and the bus gets an [Ask]: the tool
+   and its input as Claude Code gives them (the tool AskUserQuestion
+   carries `questions`, each with `options`), and the patterns "always
+   allow" would remember. The answer is given with [answer] and reported
+   as an [Answer], which is also sent, as cancelled, when the turn ended
+   before anyone answered.
 
    Claude Code is driven over its stream-json control protocol
    (`--permission-prompt-tool stdio`): requests to use a tool arrive as
@@ -66,38 +62,14 @@ let make:
     command and read-only shell helpers. Edits to files are accepted too. */
 let default_allow: list(string);
 
-/** A definition a prompt is about: its name, and the file and first and
-    last line it is at, if known. */
-type about = {
-  name: string,
-  where: option((string, int, int)),
-};
-
 /** Sends the user's prompt to the agent, starting it if needed, and puts
-    a `prompt {text, about}` event on the bus. With [about], the agent is
-    also told which definition the user had selected. Returns at once. */
-let prompt: (t, ~about: about=?, string) => unit;
-
-/** The user's answer to a request the agent is waiting on. */
-type answer =
-  | /** This one use may go ahead. */
-    Once
-  | /** It may go ahead, and these patterns are allowed from now on, in
-        this project. */
-    Always(
-      list(string),
-    )
-  | /** It may not; the agent is told so. */
-    Deny
-  | /** The answers to the agent's questions: each question's text with
-        the label chosen (several labels joined with ", "). */
-    Answers(
-      list((string, string)),
-    );
+    a [Prompt] event on the bus. With [about], the agent is also told
+    which definition the user had selected. Returns at once. */
+let prompt: (t, ~about: Event.about=?, string) => unit;
 
 /** Answers the request with this id. Does nothing if it is not waiting
     (already answered, or its turn has ended). */
-let answer: (t, ~id: string, answer) => unit;
+let answer: (t, ~id: string, Event.answer) => unit;
 
 /** Stops the turn under way: the agent ends it and stays ready for the
     next prompt, with the conversation intact. A Claude Code process that
@@ -109,7 +81,7 @@ let stop: t => unit;
     next prompt starts a conversation with no memory of this one. */
 let forget: t => unit;
 
-/** What the agent last did to the project's files, as a graph event's
-    `cause`, and forgets it; if the agent did nothing since the last call,
-    the cause is an edit by hand. */
-let take_cause: t => Yojson.Safe.t;
+/** What the agent last did to the project's files, and forgets it; if
+    the agent did nothing since the last call, the cause is an edit by
+    hand. */
+let take_cause: t => Event.cause;

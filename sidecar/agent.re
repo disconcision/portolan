@@ -16,16 +16,18 @@ let kind_of_string = s => {
   };
 };
 
-type about = {
-  name: string,
-  where: option((string, int, int)),
-};
+type about =
+  Event.about = {
+    name: string,
+    where: option((string, int, int)),
+  };
 
 type answer =
-  | Once
-  | Always(list(string))
-  | Deny
-  | Answers(list((string, string)));
+  Event.answer =
+    | Once
+    | Always(list(string))
+    | Deny
+    | Answers(list((string, string)));
 
 type t = {
   project: Project.t,
@@ -40,7 +42,7 @@ type t = {
   /* Claude Code's conversation in this project, to carry on with. */
   mutable session: option(string),
   /* The state last put on the bus. */
-  mutable state: string,
+  mutable state: Event.state,
   /* Counts finished turns, so a stop can tell whether its turn ended. */
   mutable turns: int,
   /* Requests waiting for the user's answer: id -> the tool's input. */
@@ -53,7 +55,7 @@ type t = {
   wake: Condition.t,
   /* What the agent last did to the files; guarded by its own lock. */
   cause_m: Mutex.t,
-  mutable cause: option(Yojson.Safe.t),
+  mutable cause: option(Event.cause),
 };
 
 let default_allow =
@@ -92,7 +94,7 @@ let make = (~kind, ~model=?, ~instructions, ~allow, project) => {
     input: None,
     pid: None,
     session: None,
-    state: "idle",
+    state: Idle,
     turns: 0,
     pending: Hashtbl.create(4),
     answered: Hashtbl.create(4),
@@ -121,7 +123,7 @@ let locked = (a, f) => {
 let state = (a, s) =>
   if (a.state != s) {
     a.state = s;
-    Bus.emit([("type", `String("agent_state")), ("state", `String(s))]);
+    Bus.emit(Agent_state(s));
   };
 
 /* ---------- what the agent did ---------- */
@@ -137,10 +139,7 @@ let take_cause = a => {
   let c = a.cause;
   a.cause = None;
   Mutex.unlock(a.cause_m);
-  switch (c) {
-  | Some(c) => c
-  | None => `Assoc([("label", `String("edit")), ("by", `String("hand"))])
-  };
+  Option.value(c, ~default=Event.By_hand);
 };
 
 /* Note which file a tool call is about to change, to label the next graph. */
@@ -172,26 +171,13 @@ let track = (a, ev: Yojson.Safe.t) =>
                    );
                  set_cause(
                    a,
-                   `Assoc([
-                     ("label", `String(name)),
-                     ("tool", `String(name)),
-                     ("file", `String(file)),
-                     ("by", `String("agent")),
-                   ]),
+                   Wrote({
+                     tool: name,
+                     file,
+                   }),
                  );
                | "Bash" =>
-                 set_cause(
-                   a,
-                   `Assoc([
-                     ("label", `String("Bash")),
-                     ("tool", `String("Bash")),
-                     (
-                       "command",
-                       `String(Bus.clip(~n=120, text("command"))),
-                     ),
-                     ("by", `String("agent")),
-                   ]),
-                 )
+                 set_cause(a, Ran(Event.clip(~n=120, text("command"))))
                | _ => ()
                };
              }
@@ -209,43 +195,30 @@ let track = (a, ev: Yojson.Safe.t) =>
 let ask = (a, ~id, ~tool, ~input, ~suggestions, ~tool_use) => {
   Hashtbl.replace(a.pending, id, input);
   Bus.emit(
-    [
-      ("type", `String("ask")),
-      ("id", `String(id)),
-      ("tool", `String(tool)),
-      ("input", input),
-      (
-        "patterns",
-        `List(
-          /* A question is answered, not allowed. */
-          tool == "AskUserQuestion"
-            ? []
-            : List.map(
-                p => `String(p),
-                Permissions.suggest(~tool, ~input, ~suggestions),
-              ),
-        ),
-      ),
-    ]
-    @ (
-      switch (tool_use) {
-      | Some(id) => [("tool_use_id", `String(id))]
-      | None => []
-      }
-    ),
+    Ask({
+      id,
+      tool,
+      input,
+      /* A question is answered, not allowed. */
+      patterns:
+        tool == "AskUserQuestion"
+          ? [] : Permissions.suggest(~tool, ~input, ~suggestions),
+      tool_use,
+    }),
   );
-  state(a, "waiting");
+  state(a, Waiting);
 };
 
 /* Requests nobody will answer any more. Call with [a.m] held. */
 let drop_pending = a => {
   Hashtbl.iter(
     (id, _) =>
-      Bus.emit([
-        ("type", `String("answer")),
-        ("id", `String(id)),
-        ("decision", `String("cancelled")),
-      ]),
+      Bus.emit(
+        Answer({
+          id,
+          answer: None,
+        }),
+      ),
     a.pending,
   );
   Hashtbl.reset(a.pending);
@@ -325,7 +298,7 @@ let control_request = (a, ev) => {
 let event = (a, ev: Yojson.Safe.t) => {
   open Yojson.Safe.Util;
   track(a, ev);
-  Bus.emit([("type", `String("agent")), ("ev", ev)]);
+  Bus.emit(Agent(ev));
   switch (ev |> member("type"), ev |> member("subtype")) {
   | (`String("system"), `String("init")) =>
     locked(
@@ -340,7 +313,7 @@ let event = (a, ev: Yojson.Safe.t) => {
           | _ => ()
           };
         };
-        state(a, "running");
+        state(a, Running);
       },
     )
   | (`String("result"), _) =>
@@ -349,7 +322,7 @@ let event = (a, ev: Yojson.Safe.t) => {
       () => {
         a.turns = a.turns + 1;
         drop_pending(a);
-        state(a, "idle");
+        state(a, Idle);
       },
     )
   | _ => ()
@@ -371,11 +344,12 @@ let relay = (a, line) =>
         switch (Yojson.Safe.Util.member("request_id", ev)) {
         | `String(id) when Hashtbl.mem(a.pending, id) =>
           Hashtbl.remove(a.pending, id);
-          Bus.emit([
-            ("type", `String("answer")),
-            ("id", `String(id)),
-            ("decision", `String("cancelled")),
-          ]);
+          Bus.emit(
+            Answer({
+              id,
+              answer: None,
+            }),
+          );
         | _ => ()
         }
       )
@@ -385,10 +359,7 @@ let relay = (a, line) =>
     }
   | exception _ =>
     if (String.trim(line) != "") {
-      Bus.emit([
-        ("type", `String("agent_raw")),
-        ("line", `String(Bus.clip(line))),
-      ]);
+      Bus.emit(Agent_raw(Event.clip(line)));
     }
   };
 
@@ -504,18 +475,14 @@ let start_claude = a => {
           try(Sys.remove(session_file(a))) {
           | Sys_error(_) => ()
           };
-          Bus.emit([
-            ("type", `String("error")),
-            ("where", `String("agent")),
-            (
-              "message",
-              `String(
-                "Claude Code could not continue the earlier conversation (see .portolan/agent.err). Send the prompt again to start a new one.",
-              ),
-            ),
-          ]);
+          Bus.emit(
+            Error({
+              where: "agent",
+              message: "Claude Code could not continue the earlier conversation (see .portolan/agent.err). Send the prompt again to start a new one.",
+            }),
+          );
         };
-        state(a, "exited");
+        state(a, Exited);
       }
     );
   };
@@ -536,7 +503,7 @@ let run_script = (a, file) => {
       () => {
         a.run = a.run + 1;
         a.halt = false;
-        state(a, "running");
+        state(a, Running);
         a.run;
       },
     );
@@ -713,11 +680,12 @@ let run_script = (a, file) => {
   | () => finish(false)
   | exception Stopped => finish(true)
   | exception e =>
-    Bus.emit([
-      ("type", `String("error")),
-      ("where", `String("script")),
-      ("message", `String(Printexc.to_string(e))),
-    ]);
+    Bus.emit(
+      Error({
+        where: "script",
+        message: Printexc.to_string(e),
+      }),
+    );
     finish(true);
   };
 };
@@ -738,30 +706,12 @@ let about_text = about =>
   )
   ++ ".)";
 
-let about_json = about =>
-  `Assoc(
-    [("name", `String(about.name))]
-    @ (
-      switch (about.where) {
-      | Some((file, first, last)) => [
-          ("file", `String(file)),
-          ("line", `Int(first)),
-          ("end_line", `Int(last)),
-        ]
-      | None => []
-      }
-    ),
-  );
-
 let prompt = (a, ~about=?, text) => {
   Bus.emit(
-    [("type", `String("prompt")), ("text", `String(text))]
-    @ (
-      switch (about) {
-      | Some(about) => [("about", about_json(about))]
-      | None => []
-      }
-    ),
+    Prompt({
+      text,
+      about,
+    }),
   );
   switch (a.kind) {
   | Script(file) => ignore(Thread.create(() => run_script(a, file), ()))
@@ -790,7 +740,7 @@ let prompt = (a, ~about=?, text) => {
             ),
           ]),
         );
-        state(a, "running");
+        state(a, Running);
       },
     )
   };
@@ -802,7 +752,6 @@ let answer = (a, ~id, answer) =>
     | None => ()
     | Some(input) =>
       Hashtbl.remove(a.pending, id);
-      let strings = l => `List(List.map(s => `String(s), l));
       let allow = (~rules=[], input) =>
         `Assoc(
           [("behavior", `String("allow")), ("updatedInput", input)]
@@ -826,56 +775,43 @@ let answer = (a, ~id, answer) =>
               ]
           ),
         );
-      let (decision, more, response) =
+      let response =
         switch (answer) {
-        | Once => ("once", [], allow(input))
+        | Once => allow(input)
         | Always(patterns) =>
           Permissions.remember(a.project, patterns);
-          (
-            "always",
-            [("patterns", strings(patterns))],
-            allow(~rules=patterns, input),
-          );
-        | Deny => (
-            "deny",
-            [],
-            `Assoc([
-              ("behavior", `String("deny")),
-              (
-                "message",
-                `String(
-                  "The user declined this in Portolan's chat. Do not retry it; carry on another way or ask what they would prefer.",
-                ),
+          allow(~rules=patterns, input);
+        | Deny =>
+          `Assoc([
+            ("behavior", `String("deny")),
+            (
+              "message",
+              `String(
+                "The user declined this in Portolan's chat. Do not retry it; carry on another way or ask what they would prefer.",
               ),
-            ]),
-          )
+            ),
+          ])
         | Answers(answers) =>
           let answers =
             `Assoc(
               List.map(((q, label)) => (q, `String(label)), answers),
             );
-          (
-            "answered",
-            [("answers", answers)],
-            allow(
-              switch (input) {
-              | `Assoc(fields) =>
-                `Assoc(
-                  List.remove_assoc("answers", fields)
-                  @ [("answers", answers)],
-                )
-              | other => other
-              },
-            ),
+          allow(
+            switch (input) {
+            | `Assoc(fields) =>
+              `Assoc(
+                List.remove_assoc("answers", fields)
+                @ [("answers", answers)],
+              )
+            | other => other
+            },
           );
         };
       Bus.emit(
-        [
-          ("type", `String("answer")),
-          ("id", `String(id)),
-          ("decision", `String(decision)),
-        ]
-        @ more,
+        Answer({
+          id,
+          answer: Some(answer),
+        }),
       );
       switch (a.kind) {
       | Claude => send(a, control_response(~id, response))
@@ -884,7 +820,7 @@ let answer = (a, ~id, answer) =>
         Condition.broadcast(a.wake);
       };
       if (Hashtbl.length(a.pending) == 0) {
-        state(a, "running");
+        state(a, Running);
       };
     }
   );
@@ -898,7 +834,7 @@ let stop = a =>
     | (Script(_), _) =>
       a.halt = true;
       Condition.broadcast(a.wake);
-    | (Claude, Some(pid)) when a.state != "idle" =>
+    | (Claude, Some(pid)) when a.state != Idle =>
       /* Ends the turn and keeps the process and its conversation. */
       send(
         a,
@@ -912,7 +848,7 @@ let stop = a =>
       let insist = () => {
         Thread.delay(grace);
         locked(a, () =>
-          if (a.pid == Some(pid) && a.turns == turn && a.state != "idle") {
+          if (a.pid == Some(pid) && a.turns == turn && a.state != Idle) {
             try(Unix.kill(pid, Sys.sigterm)) {
             | Unix.Unix_error(_) => ()
             };
@@ -938,7 +874,7 @@ let forget = a => {
         Hashtbl.reset(a.pending);
         Hashtbl.reset(a.answered);
         Condition.broadcast(a.wake);
-        a.state = "idle";
+        a.state = Idle;
         try(Sys.remove(session_file(a))) {
         | Sys_error(_) => ()
         };

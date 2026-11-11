@@ -15,7 +15,8 @@
 
    The modules, each with its interface:
      Files     reading and writing files, folders git ignores
-     Bus       events, the trace file, waiting readers
+     Event     what the sidecar reports, and its JSON
+     Bus       events as they happen, the trace file, waiting readers
      Delta     the change from one JSON object to another
      Graphs    graph events: whole graphs and changes between them
      Run       a shell command with a timeout
@@ -156,30 +157,19 @@ let serve = (o, ~home, dir) => {
     | Error(message) => fail(message)
     };
   let earlier = Bus.record(Project.trace(project));
-  Bus.emit([
-    ("type", `String("session")),
-    ("restart", `Bool(earlier > 0)),
-  ]);
+  Bus.emit(Session({restart: earlier > 0}));
   Bus.emit(
-    [
-      ("type", `String("hello")),
-      ("project", `String(Project.name(project))),
-      ("agent", `String(o.agent)),
-      ("mode", `String("live")),
-    ]
-    @ (
-      switch (Project.opam_switch(project)) {
-      | Some(name) => [("switch", `String(name))]
-      | None => []
-      }
-    ),
+    Hello({
+      project: Project.name(project),
+      agent: o.agent,
+      opam_switch: Project.opam_switch(project),
+    }),
   );
   if (earlier > 0) {
     /* Whatever the agent was doing when the last session ended, it is not now. */
-    Bus.emit([
-      ("type", `String("agent_state")),
-      ("state", `String("idle")),
-    ]);
+    Bus.emit(
+      Agent_state(Idle),
+    );
   };
   /* A project that had no `dune-project` when first served is a new one,
      and stays one across restarts: its agent gets the starting hints. */
@@ -217,11 +207,16 @@ let serve = (o, ~home, dir) => {
   Http.serve(~port=o.port, ~home, Http.Live(project, agent));
 };
 
+/* The events of a trace file. */
+let trace = file =>
+  try(
+    List.map(Event.Line.of_string, Files.lines(Files.read(absolute(file))))
+  ) {
+  | Sys_error(message) => fail(message)
+  };
+
 let replay = (o, ~home, file) => {
-  let lines =
-    try(Files.lines(Files.read(absolute(file)))) {
-    | Sys_error(message) => fail(message)
-    };
+  let lines = trace(file);
   Http.serve(
     ~port=o.port,
     ~home,
@@ -232,16 +227,15 @@ let replay = (o, ~home, file) => {
   );
 };
 
-let compact = (file, out) => {
-  let lines =
-    try(Files.lines(Files.read(absolute(file)))) {
-    | Sys_error(message) => fail(message)
-    };
+let compact = (file, out) =>
   Files.write(
     absolute(out),
-    String.concat("\n", Graphs.compact(lines)) ++ "\n",
+    String.concat(
+      "\n",
+      List.map(Event.Line.to_string, Graphs.compact(trace(file))),
+    )
+    ++ "\n",
   );
-};
 
 let () = {
   Sys.set_signal(Sys.sigpipe, Sys.Signal_ignore);

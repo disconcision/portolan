@@ -1,6 +1,6 @@
 let m = Mutex.create();
 let c = Condition.create();
-let events: Dynarray.t(string) = Dynarray.create();
+let events: Dynarray.t(Event.Line.t) = Dynarray.create();
 /* The trace file being written, with its path. */
 let trace: ref(option((string, out_channel))) = ref(None);
 /* How many times the trace has been started over. */
@@ -19,13 +19,12 @@ let locked = f => {
 };
 
 /* Call with [m] held. */
-let add = fields => {
-  let s =
-    Yojson.Safe.to_string(`Assoc([("t", `Int(now_ms())), ...fields]));
-  Dynarray.add_last(events, s);
+let add = event => {
+  let line = Event.Line.make(~time=now_ms(), event);
+  Dynarray.add_last(events, line);
   switch (trace^) {
   | Some((_, oc)) =>
-    output_string(oc, s);
+    output_string(oc, Event.Line.to_string(line));
     output_char(oc, '\n');
     flush(oc);
   | None => ()
@@ -33,21 +32,10 @@ let add = fields => {
   Condition.broadcast(c);
 };
 
-let emit = fields => locked(() => add(fields));
+let emit = event => locked(() => add(event));
 
 let append = path =>
   open_out_gen([Open_append, Open_creat, Open_binary], 0o644, path);
-
-let time_of = line =>
-  switch (Yojson.Safe.from_string(line)) {
-  | `Assoc(fields) =>
-    switch (List.assoc_opt("t", fields)) {
-    | Some(`Int(t)) => Some(t)
-    | _ => None
-    }
-  | _
-  | exception _ => None
-  };
 
 let record = path => {
   let text =
@@ -58,15 +46,12 @@ let record = path => {
     };
   /* A sidecar killed mid-write leaves a cut line: leave those out. */
   let earlier =
-    List.filter(
-      l =>
-        String.starts_with(~prefix="{", l)
-        && String.ends_with(~suffix="}", l),
-      Files.lines(text),
-    );
+    Files.lines(text)
+    |> List.map(Event.Line.of_string)
+    |> List.filter(Event.Line.is_whole);
   let last_t =
     switch (List.rev(earlier)) {
-    | [last, ..._] => Option.value(time_of(last), ~default=0)
+    | [last, ..._] => Option.value(Event.Line.time(last), ~default=0)
     | [] => 0
     };
   locked(() => {
@@ -127,43 +112,21 @@ let wait = cursor => {
 
 let all = () => locked(() => Dynarray.to_list(events));
 
-/* Events are written with "t" first and "type" second, so the type can be
-   read off the front without parsing a whole (possibly large) event. */
-let type_of = line =>
-  try(
-    Scanf.sscanf(line, "{\"t\":%d,\"type\":\"%[^\"]\"", (_, ty) => Some(ty))
-  ) {
-  | _ => None
-  };
-
-let last = ty => {
+let last = kind => {
   let line =
     locked(() => {
       let rec back = i =>
         if (i < 0) {
           None;
         } else {
-          let l = Dynarray.get(events, i);
-          if (type_of(l) == Some(ty)) {
-            Some(l);
+          let line = Dynarray.get(events, i);
+          if (Event.Line.kind(line) == Some(kind)) {
+            Some(line);
           } else {
             back(i - 1);
           };
         };
       back(Dynarray.length(events) - 1);
     });
-  switch (line) {
-  | Some(l) =>
-    try(Some(Yojson.Safe.from_string(l))) {
-    | _ => None
-    }
-  | None => None
-  };
+  Option.bind(line, Event.Line.event);
 };
-
-let clip = (~n=6000, s) =>
-  if (String.length(s) <= n) {
-    s;
-  } else {
-    String.sub(s, 0, n) ++ "\n…";
-  };

@@ -1,5 +1,7 @@
-; The parts of the sidecar that decide something, checked without files,
-; processes or the bus.
+; The parts of the sidecar that decide something, checked without
+; processes or the bus. The event tests read the recorded traces.
 (test
  (name test_sidecar)
+ (deps
+  (glob_files %{project_root}/site/runs/*.jsonl))
  (libraries portolan_sidecar alcotest yojson))
