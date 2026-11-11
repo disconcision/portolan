@@ -1,0 +1,3 @@
+Work in small steps. Add one type or one function at a time, with its tests, and run `dune build` and `dune test` after each before moving on. Keep the project compiling between steps: if something is not written yet, give it a body of `failwith("TODO")` and come back to it.
+
+Write ReasonML syntax: `.re` files, each with a `.rei` interface that says in a comment what every value does. Give each module one job. Keep a type abstract in the interface when callers do not need its shape, and name the things of the domain with types rather than passing bare strings and ints. A state with alternatives is a variant, not a record of options.
