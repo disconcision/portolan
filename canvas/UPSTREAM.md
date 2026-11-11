@@ -64,7 +64,7 @@ is new.
 
 | File here | Upstream path | Status | Why |
 |---|---|---|---|
-| `upstream/GraphLayout.re`, `.rei` | `src/util/` | verbatim | |
+| `edited/GraphLayout.re`, `.rei` | `src/util/` | edited (one block, about 75 lines; the `.rei` is unchanged) | The cross-column vertical relief visits only the pairs that can meet. See Layout cost. Worth taking upstream. |
 | `upstream/AgentPulse.re` | `src/util/` | verbatim | |
 | `upstream/PerfTimer.re` | `src/util/` | verbatim | |
 | `upstream/OptUtil.re` | `src/util/` | verbatim | |
@@ -80,7 +80,7 @@ is new.
 | `upstream/CanvasJelly.re` | `src/web/app/canvas/` | verbatim | |
 | `upstream/CanvasLog.re` | `src/web/app/canvas/` | verbatim | |
 | `edited/CanvasView.re` | `src/web/app/canvas/` | edited (the hull palette, 8 lines) | The six hull colours read `var(--pc-hull-N, <upstream colour>)` so a host can theme them. Worth taking upstream. |
-| `edited/CanvasLayout.re` | `src/web/app/canvas/` | edited (hooks for `CanvasOptions`, the layout memo) | See Layouts and edge styles, and Layout cost. Every edit is marked `PORTOLAN`; upstream lines are not re-indented. |
+| `edited/CanvasLayout.re` | `src/web/app/canvas/` | edited (hooks for `CanvasOptions`; `layout_impl` cut in two; the memo; table-based copies of two passes) | See Layouts and edge styles, and Layout cost. Every edit is marked `PORTOLAN`; upstream lines are not re-indented, and the two passes that were replaced are still there, unused, above their replacements. |
 | `edited/CanvasBuffer.re` | `src/web/app/canvas/` | edited (about 25 lines) | The beat's payload is a graph snapshot instead of Hazel's editor model: `type model = CanvasGraph.t`; `same_program` is graph equality; no "statics pending" state. Dwell rules, queue, hold, staging: untouched. |
 | `shim/Util.re` | (`util` library) | shim | Re-exports `JsUtil`, `WebUtil`, `OptUtil`, `PerfTimer`, `GraphLayout`, `AgentPulse`, `Key` under `Util.`, as the copies spell them. |
 | `shim/JsUtil.re` | `src/util/JsUtil.re` | shim | 4 of its functions, upstream's bodies (`cached_client_height` without the cache). |
@@ -165,6 +165,49 @@ only. A switch of layout or edge style is one slow glide. `ledger` and
 `clusters` re-derive every place from the graph, in source order, so a new
 definition moves its neighbours down a row; `compact` repacks when a piece
 grows. None of them has been watched through a long agent run.
+
+## Layout cost
+
+Measured with `tools/layout-cost.mjs` (headless Chrome, the optimised
+bundle, a 2000×1200 window) on Portolan's own modules, default layout.
+"Drawn" counts every node on the board, terminals included.
+
+| Graph | Drawn | Picking it: layouts, time in layout | One change (remove a function, put it back) |
+|---|---|---|---|
+| `Watcher` | 48 | 7, 36 ms → 4, 5 ms | 3, 20 ms → 1, 3 ms |
+| `Graph` | 83 | 7, 147 ms → 4, 15 ms | 3, 111 ms → 1, 9 ms |
+| `CanvasEnact` | 170 | 7, 392 ms → 4, 27 ms | 4, 389 ms → 1, 16 ms |
+| `CanvasDirector` | 209 | 7, 522 ms → 4, 28 ms | 3, 394 ms → 1, 16 ms |
+| the whole project | about 1850 | 7, 183 s → 4, 2.4 s | not measured before → 2, 2.5 s |
+
+Why it was re-run: a render asks for the same graph in up to four frames
+(does the frozen frame still fit; the unstretched layout that the stretch
+is derived from; the stretched one; the one drawn), and each was a full
+placement. Why each was slow: three passes searched lists by key inside
+loops over chords and nodes.
+
+What changed, all giving the same positions as before (node positions and
+arrow paths compared against the old bundle on six modules):
+
+1. `layout_impl` is cut where its framing step starts; the memo keeps
+   placements by everything but the frame. The default layout now solves
+   once per distinct stretch (up to three times for a new graph, counting
+   the empty board, where it was seven); a layout that does not stretch
+   solves once.
+2. `GraphLayout`'s vertical relief: the pairs whose halos overlap in x are
+   found once (x does not change there) and the twelve rounds run over
+   those on arrays.
+3. The declutter pass looked a node's radius up by searching the node list,
+   once per chord per node per round: now a table. That pass and the
+   docked-chord pass have array and table versions.
+4. The default's packing of separate pieces (`Lab.place("components")`) is
+   `CanvasOptions.components`: the lab's arithmetic, with tables for roots,
+   members and groups.
+
+Not done: the whole project still blocks the page for about seven seconds
+when picked, almost all of it outside layout (building and patching 1850
+nodes of vdom, the hulls, the score). A new pane width is a new stretch and
+so a new solve.
 
 ## Left out
 
