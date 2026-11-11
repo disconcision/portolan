@@ -278,7 +278,7 @@
         i++;
         // A finished `html` block is shown as the page fragment it describes, with its source underneath.
         if (done && closed && fence[1].trim().toLowerCase() === 'html') out.push('<div class="html-block" data-html="' + esc(body.join('\n')) + '"></div>');
-        else out.push('<pre>' + esc(body.join('\n')) + '</pre>');
+        else out.push('<pre>' + PortolanSyntax.html(body.join('\n'), fence[1]) + '</pre>');
         continue;
       }
       const h = l.match(/^(#{1,4})\s+(.*)$/), ul = l.match(/^\s*[-*]\s+(.*)$/), ol = l.match(/^\s*\d+[.)]\s+(.*)$/);
