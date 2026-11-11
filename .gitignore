@@ -7,3 +7,7 @@ _site/
 .DS_Store
 # big or throwaway files go in a folder named local/ anywhere in the tree
 local/
+
+# copied from canvas/dist by the Pages workflow (and by hand for local viewing)
+site/studies/*/lib/portolan_canvas.js
+site/studies/*/lib/canvas.css
