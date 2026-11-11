@@ -142,7 +142,7 @@ is on offer and holds what Portolan added.
 | Layout | From | What it does |
 |---|---|---|
 | `current` (shown as "layered") | Hazel's default | Types in left-to-right layers by dependency and function flow; terminals docked by ring search; stretched to fill the pane. |
-| `compact` | Portolan | The same layers, not stretched; separate pieces packed in source order into rows shaped like the pane. |
+| `compact` | Portolan | The same layers, not stretched. An unnamed type used in one place (a record's field type, a lone result) docks beside that place instead of taking a row in a layer. Separate pieces are packed in source order into rows shaped like the pane. |
 | `ledger` | Portolan | Each shared type heads a lane: what makes it in rows on its left, what is made from it in rows on its right, in source order. An unnamed type used in one place is a row of that place. Lanes fill columns, a type after the types it is made from. |
 | `clusters` | Portolan | The ledger's groups with the rows bent into arcs around the type. |
 | `flow`, `dependencies` | lab | The default with only function flow, or only type dependency, deciding the layers. |
