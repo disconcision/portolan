@@ -91,6 +91,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .row label { font-size: 0.86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row input[type="color"] { width: 30px; height: 24px; padding: 0; border: 1px solid var(--rule); border-radius: 5px; background: none; cursor: pointer; }
 .row input[type="text"] { width: 100%; font: 400 0.8rem/1 var(--mono); padding: 4px 6px; border: 1px solid var(--rule); border-radius: 5px; background: var(--bg); color: var(--ink); }
+.row label, .row input[type="color"] { cursor: grab; touch-action: none; }
+.row.drop { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+body.dragging { user-select: none; -webkit-user-select: none; cursor: grabbing; }
+body.dragging .row label, body.dragging .row input { cursor: grabbing; }
+.ghost { position: fixed; left: 0; top: 0; width: 30px; height: 22px; border-radius: 5px; border: 1.5px solid var(--ink); pointer-events: none; z-index: 50; }
+.ghost::after { content: attr(data-verb); position: absolute; left: 36px; top: 3px; font: 500 0.72rem/1 var(--mono); color: var(--ink); background: var(--surface); padding: 2px 5px; border-radius: 4px; border: 1px solid var(--rule); white-space: nowrap; }
+.hint { font-size: 0.82rem; color: var(--muted); }
+.hint kbd { font: 500 0.75rem/1 var(--mono); border: 1px solid var(--rule); border-radius: 4px; padding: 1px 4px; }
+.tune { display: flex; flex-wrap: wrap; gap: 8px 26px; align-items: center; font-size: 0.86rem; }
+.tune label { display: flex; align-items: center; gap: 8px; }
+.tune input[type="range"] { width: 11rem; accent-color: var(--accent); }
+.tune output { font: 400 0.78rem/1 var(--mono); color: var(--muted); min-width: 3.2em; }
+.btn:disabled { opacity: 0.45; cursor: default; }
 .row .undo { font: 400 0.9rem/1 var(--mono); border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; visibility: hidden; }
 .row.changed .undo { visibility: visible; }
 .row.changed label { font-weight: 600; }
@@ -120,7 +133,7 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
 <header>
   <span class="eyebrow"><a href="https://andrewblinn.com/portolan/">Portolan notebook</a> · study · 10 November 2026</span>
   <h1>Colour schemes</h1>
-  <p class="lede">Sixteen candidates, six of them Graphite with an accent colour. Each shows the whole app, with the real canvas drawing the same graph. Pick one to see it large and change any colour. Your changes, notes and stars are saved, and Claude can read them.</p>
+  <p class="lede">Sixteen candidates, six of them Graphite with an accent colour. Each shows the whole app, with the real canvas drawing the same graph. Pick one to see it large and change any colour: drag one colour onto another to swap them, turn all the accents at once, and undo. Your changes, notes and stars are saved, and Claude can read them.</p>
   <div class="bar">
     <div class="seg" role="group" aria-label="Graph">
       <button id="spec-vector" aria-pressed="true">Vector run, mid-way</button>
@@ -171,13 +184,21 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
       <button id="star" aria-pressed="false" title="Mark as a favourite" aria-label="Favourite">★</button>
     </div>
     <p id="blurb"></p>
+    <p class="hint">Drag one colour onto another to swap them; hold Alt to copy it over. Rest on a row to see where its colour is used. <kbd>⌘Z</kbd> undoes.</p>
     <div id="rows"></div>
+    <div class="tune">
+      <label>Hue of the accents <input type="range" id="hue" min="-180" max="180" value="0"><output id="hue-out">0°</output></label>
+      <label>Their saturation <input type="range" id="sat" min="-100" max="100" value="0"><output id="sat-out">0%</output></label>
+      <label class="check"><input type="checkbox" id="where" checked> Show where a colour is used</label>
+    </div>
     <div class="foot-row">
       <div class="group">
         <h3><label for="note">Your note on this scheme</label></h3>
         <textarea id="note" placeholder="What works, what doesn't."></textarea>
       </div>
       <div class="actions">
+        <button class="btn" id="undo" disabled>Undo</button>
+        <button class="btn" id="redo" disabled>Redo</button>
         <button class="btn" id="dup">Duplicate as new</button>
         <button class="btn" id="reset">Reset colours</button>
         <button class="btn danger" id="del" hidden>Delete</button>
@@ -317,11 +338,19 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
   function edit(id, patch) { saved[id] = { ...(saved[id] || {}), ...patch }; save(id); }
   function setColour(role, hex) {
     if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+    remember(role);
+    setMany({ [role]: hex });
+  }
+  // Several colours in one go. A colour equal to the scheme's own is not kept as a change.
+  function setMany(patch) {
     const cs = { ...((saved[selected] || {}).colors || {}) };
-    if (hex.toLowerCase() === scheme(selected).c[role].toLowerCase() && !scheme(selected).custom) delete cs[role]; else cs[role] = hex.toUpperCase();
+    for (const role in patch) {
+      const hex = patch[role];
+      if (hex.toLowerCase() === scheme(selected).c[role].toLowerCase() && !scheme(selected).custom) delete cs[role]; else cs[role] = hex.toUpperCase();
+    }
     edit(selected, { colors: cs });
     paintSelected();
-    syncRow(role);
+    Object.keys(patch).forEach(syncRow);
     drawFoot(selected);
   }
   function syncRow(role) {
@@ -349,13 +378,131 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
   $('note').addEventListener('input', () => edit(selected, { note: $('note').value }));
   $('name').addEventListener('input', () => { if (scheme(selected).custom) { edit(selected, { name: $('name').value }); drawFoot(selected); } });
   $('star').onclick = () => { edit(selected, { star: !(saved[selected] || {}).star }); drawEditor(); drawFoot(selected); };
-  $('reset').onclick = () => { edit(selected, { colors: scheme(selected).custom ? { ...scheme(selected).c } : {} }); paintSelected(); drawEditor(); drawFoot(selected); };
+  $('reset').onclick = () => { remember('reset ' + Date.now()); edit(selected, { colors: scheme(selected).custom ? { ...scheme(selected).c } : {} }); paintSelected(); drawEditor(); drawFoot(selected); };
   $('dup').onclick = () => {
     const id = 'mine-' + Date.now().toString(36), from = scheme(selected).custom ? saved[selected].from : selected;
     saved[id] = { from, name: scheme(selected).name + ' 2', colors: colours(selected), note: '', star: false };
     save(id); drawCards(); select(id);
   };
   $('del').onclick = () => { const id = selected; if (!scheme(id).custom) return; delete saved[id]; save(id); selected = 'hazel'; drawCards(); select('hazel'); };
+
+  // ---- iterating fast: undo, swap by dragging, where a colour is used, all the accents at once ----
+  const past = {}, future = {}; // per scheme: the sets of changed colours before each step, and the undone ones
+  let lastStep = { id: '', what: '', at: 0 };
+  const current = () => ({ ...((saved[selected] || {}).colors || {}) });
+  // Called before a change. Quick successive changes to one colour (dragging in the picker) are one step.
+  function remember(what) {
+    const now = Date.now();
+    if (lastStep.id === selected && lastStep.what === what && now - lastStep.at < 900) { lastStep.at = now; return; }
+    (past[selected] = past[selected] || []).push(current());
+    if (past[selected].length > 200) past[selected].shift();
+    future[selected] = [];
+    lastStep = { id: selected, what, at: now };
+    drawHistory();
+  }
+  function restore(cs) {
+    lastStep.at = 0;
+    edit(selected, { colors: cs });
+    paintSelected();
+    ROLES.forEach(([, rs]) => rs.forEach(([id]) => syncRow(id)));
+    drawFoot(selected);
+    drawHistory();
+  }
+  function undo() { const p = past[selected] || []; if (!p.length) return; (future[selected] = future[selected] || []).push(current()); restore(p.pop()); }
+  function redo() { const f = future[selected] || []; if (!f.length) return; (past[selected] = past[selected] || []).push(current()); restore(f.pop()); }
+  function drawHistory() { $('undo').disabled = !(past[selected] || []).length; $('redo').disabled = !(future[selected] || []).length; }
+  $('undo').onclick = undo;
+  $('redo').onclick = redo;
+  document.addEventListener('keydown', ev => {
+    if (!(ev.metaKey || ev.ctrlKey) || ev.key.toLowerCase() !== 'z' || ev.target.matches('textarea, input[type="text"], #name')) return;
+    ev.preventDefault();
+    if (ev.shiftKey) redo(); else undo();
+  });
+
+  // Drag a colour onto another row: the two swap, or with Alt the first is copied over the second.
+  let drag = null, quiet = 0;
+  $('rows').addEventListener('pointerdown', ev => {
+    const r = ev.target.closest('.row');
+    if (!r || ev.button !== 0 || ev.target.matches('input[type="text"], .undo')) return;
+    drag = { role: r.dataset.role, x: ev.clientX, y: ev.clientY, moving: false, over: null };
+  });
+  document.addEventListener('pointermove', ev => {
+    if (!drag) return;
+    if (!drag.moving) {
+      if (Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 6) return;
+      drag.moving = true;
+      drag.ghost = Object.assign(document.createElement('div'), { className: 'ghost' });
+      drag.ghost.style.background = colours(selected)[drag.role];
+      document.body.appendChild(drag.ghost);
+      document.body.classList.add('dragging');
+      stopFlash();
+    }
+    drag.ghost.style.transform = 'translate(' + (ev.clientX + 12) + 'px,' + (ev.clientY + 10) + 'px)';
+    const row = (document.elementFromPoint(ev.clientX, ev.clientY) || document.body).closest('.row');
+    drag.over = row && row.dataset.role !== drag.role ? row.dataset.role : null;
+    drag.ghost.dataset.verb = drag.over ? (ev.altKey ? 'copy over' : 'swap') : '';
+    document.querySelectorAll('.row.drop').forEach(x => x.classList.remove('drop'));
+    if (drag.over) row.classList.add('drop');
+  });
+  const drop = ev => {
+    const d = drag;
+    drag = null;
+    if (!d || !d.moving) return;
+    d.ghost.remove();
+    document.body.classList.remove('dragging');
+    document.querySelectorAll('.row.drop').forEach(x => x.classList.remove('drop'));
+    quiet = Date.now() + 300; // the click that ends a drag opens no colour picker
+    if (!d.over || ev.type === 'pointercancel') return;
+    const c = colours(selected);
+    remember('drag ' + Date.now());
+    setMany(ev.altKey ? { [d.over]: c[d.role] } : { [d.over]: c[d.role], [d.role]: c[d.over] });
+  };
+  document.addEventListener('pointerup', drop);
+  document.addEventListener('pointercancel', drop);
+  document.addEventListener('click', ev => { if (Date.now() < quiet) { ev.preventDefault(); ev.stopPropagation(); } }, true);
+
+  // Rest on a row and its colour blinks in the picture, so you can see what it paints.
+  let dwell = 0, blink = 0;
+  function stopFlash() { clearTimeout(dwell); if (blink) { clearInterval(blink); blink = 0; paintSelected(); } }
+  function flash(role) {
+    const c = colours(selected), alt = lum(c[role]) > 0.45 ? '#D4006A' : '#FFE14A';
+    let n = 0;
+    clearInterval(blink);
+    blink = setInterval(() => {
+      paint(stage, n % 2 ? c : { ...c, [role]: alt });
+      if (role === 'dots' || role === 'board') window.dispatchEvent(new Event('resize'));
+      if (++n >= 6) { clearInterval(blink); blink = 0; paintSelected(); }
+    }, 170);
+  }
+  $('rows').addEventListener('mouseover', ev => {
+    const r = ev.target.closest('.row');
+    if (!r || drag || !$('where').checked || r.contains(ev.relatedTarget)) return;
+    clearTimeout(dwell);
+    dwell = setTimeout(() => flash(r.dataset.role), 450);
+  });
+  $('rows').addEventListener('mouseout', ev => { const r = ev.target.closest('.row'); if (r && !r.contains(ev.relatedTarget)) clearTimeout(dwell); });
+
+  // The accents (every colour with some saturation) turned together, or made stronger or weaker.
+  const hsl = h => { const [r, g, b] = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    if (!d) return [0, 0, l];
+    const s = d / (1 - Math.abs(2 * l - 1)), hh = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [hh * 60, s, l]; };
+  const hex = (h, s, l) => { const f = n => { const k = (n + h / 30) % 12, a = s * Math.min(l, 1 - l); return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))).toString(16).padStart(2, '0'); }; return ('#' + f(0) + f(8) + f(4)).toUpperCase(); };
+  let tuneFrom = null;
+  function tune() {
+    if (!tuneFrom) { tuneFrom = colours(selected); remember('tune ' + Date.now()); }
+    const turn = +$('hue').value, more = +$('sat').value / 100, patch = {};
+    $('hue-out').textContent = (turn > 0 ? '+' : '') + turn + '°';
+    $('sat-out').textContent = (more > 0 ? '+' : '') + Math.round(more * 100) + '%';
+    for (const role in tuneFrom) {
+      const [h, s, l] = hsl(tuneFrom[role]);
+      if (s * (1 - Math.abs(2 * l - 1)) < 0.15) continue; // by chroma: greys and tinted near-whites are not accents
+      patch[role] = hex((h + turn + 360) % 360, Math.max(0, Math.min(1, s * (1 + more))), l);
+    }
+    setMany(patch);
+  }
+  const tuned = () => { tuneFrom = null; $('hue').value = 0; $('sat').value = 0; $('hue-out').textContent = '0°'; $('sat-out').textContent = '0%'; };
+  ['hue', 'sat'].forEach(id => { $(id).addEventListener('input', tune); $(id).addEventListener('change', tuned); });
 
   // ---- the live canvas and the cards ----
   const PC = window.PortolanCanvas, live = $('live'), stage = $('stage');
@@ -406,10 +553,13 @@ footer { font-size: 0.86rem; color: var(--muted); max-width: 50rem; }
     });
   }
   function select(id) {
+    stopFlash();
     selected = id;
     document.querySelectorAll('.card').forEach(c => c.setAttribute('aria-pressed', c.dataset.id === id));
     paintSelected();
     drawEditor();
+    tuned();
+    drawHistory();
   }
   $('cards').addEventListener('click', ev => { const c = ev.target.closest('.card'); if (c) select(c.dataset.id); });
   let settle = 0;
