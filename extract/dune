@@ -1,6 +1,6 @@
 (library
  (name portolan_extract)
- (modules extract)
+ (modules extract locate)
  (libraries compiler-libs.common portolan_graph))
 
 (executable

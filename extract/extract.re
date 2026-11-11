@@ -7,7 +7,11 @@
    2. [emit]: turn each item into a node, an edge, a value or a test.
 
    Nothing here needs the compiler's environment or load path: paths are
-   resolved by hand against the names collected in pass 1. */
+   resolved by hand against the names collected in pass 1.
+
+   A module that cannot be read this time (it does not type-check, or its
+   annotations are older than its source) can be carried over from an
+   earlier graph: see "carrying over" below. */
 
 module G = Portolan_graph.Graph;
 open Typedtree;
@@ -129,7 +133,10 @@ type unit_info = {
    the project names its body refers to, not yet filtered. */
 type def =
   | Edge(G.edge, list(string))
-  | Value(G.value, list(string));
+  | Value(G.value, list(string))
+  /* from an earlier graph: what they mention is already in the record */
+  | Carried_edge(G.edge)
+  | Carried_value(G.value);
 
 type ctx = {
   failing: option(list((string, int))),
@@ -142,6 +149,13 @@ type ctx = {
   type_decls: Hashtbl.t(string, (unit_info, scope, type_declaration)),
   /* every top-level value the project binds, by qualified name */
   def_names: Hashtbl.t(string, unit),
+  /* modules carried over from an earlier graph, by compiled name: the
+     name the graph shows them under ("Geo") */
+  carried_units: Hashtbl.t(string, string),
+  /* keys of the types those modules declare */
+  carried_types: Hashtbl.t(string, unit),
+  /* the earlier graph's nodes, by key (the carried ones as they are now) */
+  previous_nodes: Hashtbl.t(string, G.node),
   seen: Hashtbl.t(string, unit), /* node keys already emitted */
   mutable nodes: list(G.node), /* reversed */
   mutable defs: list(def), /* reversed */
@@ -151,8 +165,10 @@ type ctx = {
 /* ---------- resolving paths to project names ---------- */
 
 let unit_name = (ctx: ctx, modname: string): option(string) =>
-  Hashtbl.find_opt(ctx.units, modname)
-  |> Option.map(u => String.concat(".", u.u_mpath));
+  switch (Hashtbl.find_opt(ctx.units, modname)) {
+  | Some(u) => Some(String.concat(".", u.u_mpath))
+  | None => Hashtbl.find_opt(ctx.carried_units, modname)
+  };
 
 /* The qualified name of the project module a path denotes, if any. */
 let rec module_prefix = (ctx: ctx, u: unit_info, p: Path.t): option(string) =>
@@ -186,7 +202,8 @@ let rec module_prefix = (ctx: ctx, u: unit_info, p: Path.t): option(string) =>
 let project_type =
     (ctx: ctx, u: unit_info, ~from: list(string), p: Path.t): option(string) => {
   let declared = key =>
-    if (Hashtbl.mem(ctx.type_decls, key)) {
+    if (Hashtbl.mem(ctx.type_decls, key)
+        || Hashtbl.mem(ctx.carried_types, key)) {
       Some(key);
     } else {
       None;
@@ -720,6 +737,7 @@ let plain_node = (~key, ~label, ~kind, ~parts): G.node => {
   n_doc: None,
   n_err: false,
   parts,
+  former: None,
   abstract: false,
   exported: true,
   at: None,
@@ -744,36 +762,6 @@ let ctors_of = (d: type_declaration): list(string) =>
   | _ => []
   };
 
-/* Emit the Alias node of a declared type, the first time it is reached:
-   at its declaration, or at an earlier reference from another file. */
-let touch_alias = (ctx: ctx, key: string): unit =>
-  if (!Hashtbl.mem(ctx.seen, key)) {
-    let (u, scope, d) = Hashtbl.find(ctx.type_decls, key);
-    let name = d.typ_name.txt;
-    let (exported, abstract) = type_visibility(scope.vis, name);
-    add_node(
-      ctx,
-      {
-        key,
-        label: name,
-        m_path: scope.mpath,
-        kind: Alias,
-        ctors: ctors_of(d),
-        n_ty: decl_rhs(ctx, u, ~from=scope.mpath, d),
-        n_doc:
-          first_some(
-            doc_of(d.typ_attributes),
-            sig_doc(scope.vis, ~is_type=true, name),
-          ),
-        n_err: false,
-        parts: [],
-        abstract,
-        exported,
-        at: Some(handle(u, scope.mpath, name, d.typ_loc)),
-      },
-    );
-  };
-
 let builtin = (ctx: ctx, name: string): string => {
   if (!Hashtbl.mem(ctx.seen, name)) {
     add_node(
@@ -794,11 +782,112 @@ let ghost = (ctx: ctx, name: string): string => {
   name;
 };
 
+let is_variable = (ty: Types.type_expr): bool =>
+  switch (Types.get_desc(ty)) {
+  | Tvar(_)
+  | Tunivar(_) => true
+  | _ => false
+  };
+
+/* Emit the Alias node of a declared type, the first time it is reached:
+   at its declaration, or at an earlier reference from another file. Its
+   component nodes follow it. */
+let rec touch_alias = (ctx: ctx, key: string): unit =>
+  if (!Hashtbl.mem(ctx.seen, key)) {
+    switch (Hashtbl.find_opt(ctx.type_decls, key)) {
+    | None => add_previous(ctx, key) /* declared by a carried module */
+    | Some((u, scope, d)) =>
+      let name = d.typ_name.txt;
+      let (exported, abstract) = type_visibility(scope.vis, name);
+      /* Seen from here on, so that a type that is a part of itself
+         ([type t = { next : t option }]) stops. The parts' nodes are
+         collected aside and put after this one. */
+      Hashtbl.replace(ctx.seen, key, ());
+      let before = ctx.nodes;
+      ctx.nodes = [];
+      let (former, parts) = formed_from(ctx, u, ~from=scope.mpath, d);
+      let after = ctx.nodes;
+      let node: G.node = {
+        key,
+        label: name,
+        m_path: scope.mpath,
+        kind: Alias,
+        ctors: ctors_of(d),
+        n_ty: decl_rhs(ctx, u, ~from=scope.mpath, d),
+        n_doc:
+          first_some(
+            doc_of(d.typ_attributes),
+            sig_doc(scope.vis, ~is_type=true, name),
+          ),
+        n_err: false,
+        parts,
+        former,
+        abstract,
+        exported,
+        at: Some(handle(u, scope.mpath, name, d.typ_loc)),
+      };
+      ctx.nodes = after @ [node, ...before];
+    };
+  }
+
+/* A node of the earlier graph, with the nodes it is made of, in the
+   order pass 2 emits them: a declared type before its parts, any other
+   node after. A type that is no longer declared anywhere becomes a
+   Ghost, so that what refers to it stays attached. */
+and add_previous = (ctx: ctx, key: string): unit =>
+  if (!Hashtbl.mem(ctx.seen, key)) {
+    if (Hashtbl.mem(ctx.type_decls, key)) {
+      touch_alias(ctx, key);
+    } else {
+      switch (Hashtbl.find_opt(ctx.previous_nodes, key)) {
+      | Some(n) when n.kind == Alias && Hashtbl.mem(ctx.carried_types, key) =>
+        add_node(ctx, n);
+        List.iter(add_previous(ctx), n.parts);
+      | Some(n) when n.kind != Alias =>
+        Hashtbl.replace(ctx.seen, key, ());
+        List.iter(add_previous(ctx), n.parts);
+        ctx.nodes = [n, ...ctx.nodes];
+      | _ =>
+        add_node(ctx, plain_node(~key, ~label=key, ~kind=Ghost, ~parts=[]))
+      };
+    };
+  }
+
+/* What a declared type is formed with, and from which nodes: a tuple
+   "()", a record "{}", a list or an array "[]", an option "?". */
+and formed_from =
+    (ctx: ctx, u: unit_info, ~from: list(string), d: type_declaration)
+    : (option(string), list(string)) => {
+  let node = node_of_type(ctx, u, ~from);
+  let is = (p, predef) => Path.same(p, predef);
+  switch (d.typ_type.type_kind, d.typ_type.type_manifest) {
+  | ([@implicit_arity] Type_record(labels, _), _) => (
+      Some("{}"),
+      List.map((l: Types.label_declaration) => node(l.ld_type), labels),
+    )
+  | (Type_abstract(_), Some(ty)) =>
+    switch (Types.get_desc(ty)) {
+    | Ttuple(l) => (Some("()"), List.map(node, l))
+    | [@implicit_arity] Tconstr(p, [arg], _)
+        when is(p, Predef.path_list) || is(p, Predef.path_array) => (
+        Some("[]"),
+        [node(arg)],
+      )
+    | [@implicit_arity] Tconstr(p, [arg], _) when is(p, Predef.path_option) => (
+        Some("?"),
+        [node(arg)],
+      )
+    | _ => (None, [])
+    }
+  | _ => (None, [])
+  };
+}
+
 /* Keys of the project and built-in types a type mentions, in order,
    emitting their nodes on the way. */
-let rec mentioned =
-        (ctx: ctx, u: unit_info, ~from: list(string), ty: Types.type_expr)
-        : list(string) => {
+and mentioned =
+    (ctx: ctx, u: unit_info, ~from: list(string), ty: Types.type_expr)
+    : list(string) => {
   let all = l => List.concat_map(mentioned(ctx, u, ~from), l);
   switch (Types.get_desc(ty)) {
   | [@implicit_arity] Tconstr(p, args, _) =>
@@ -824,14 +913,7 @@ let rec mentioned =
   | [@implicit_arity] Tpoly(t, _) => mentioned(ctx, u, ~from, t)
   | _ => []
   };
-};
-
-let is_variable = (ty: Types.type_expr): bool =>
-  switch (Types.get_desc(ty)) {
-  | Tvar(_)
-  | Tunivar(_) => true
-  | _ => false
-  };
+}
 
 /* The node a type expression stands for.
    - a project type (bare, or applied to type variables only): its Alias
@@ -839,9 +921,9 @@ let is_variable = (ty: Types.type_expr): bool =>
    - an outside type without arguments (Buffer.t): a Ghost
    - anything else (tuple, arrow, variable, [shape list], [int tree],
      [(shape, string) result]): a Derived node keyed by its printed form. */
-let rec node_of_type =
-        (ctx: ctx, u: unit_info, ~from: list(string), ty: Types.type_expr)
-        : string =>
+and node_of_type =
+    (ctx: ctx, u: unit_info, ~from: list(string), ty: Types.type_expr)
+    : string =>
   switch (Types.get_desc(ty)) {
   | [@implicit_arity] Tpoly(t, _) => node_of_type(ctx, u, ~from, t)
   | [@implicit_arity] Tconstr(p, args, _) =>
@@ -1135,7 +1217,14 @@ let define =
         v_m_path: from,
         v_key: node_of_type(ctx, u, ~from, ty),
         v_ty: print(ty),
+        v_doc:
+          first_some(
+            doc_of(attrs),
+            sig_doc(scope.vis, ~is_type=false, name),
+          ),
         v_err: false,
+        v_deps: [],
+        v_exported: value_exported(scope.vis, name),
         v_at: at,
       }: G.value
     );
@@ -1233,12 +1322,16 @@ let emit = (ctx: ctx, u: unit_info, item: item): unit =>
 let assemble = (ctx: ctx): G.t => {
   let def_name =
     fun
-    | [@implicit_arity] Edge(e, _) => e.e_name
-    | [@implicit_arity] Value(v, _) => v.v_name;
+    | [@implicit_arity] Edge(e, _)
+    | Carried_edge(e) => e.e_name
+    | [@implicit_arity] Value(v, _)
+    | Carried_value(v) => v.v_name;
   let uses_of =
     fun
     | [@implicit_arity] Edge(_, uses)
-    | [@implicit_arity] Value(_, uses) => uses;
+    | [@implicit_arity] Value(_, uses) => uses
+    | Carried_edge(e) => e.e_deps
+    | Carried_value(v) => v.v_deps;
   /* A name bound twice ([let x = 1 let x = x + 1]): the last one stands.
      [ctx.defs] is reversed, so the last binding of a name comes first. */
   let kept = Hashtbl.create(64);
@@ -1252,8 +1345,10 @@ let assemble = (ctx: ctx): G.t => {
             kept,
             def_name(d),
             switch (d) {
-            | Edge(_) => true
-            | Value(_) => false
+            | Edge(_)
+            | Carried_edge(_) => true
+            | Value(_)
+            | Carried_value(_) => false
             },
           );
           [d, ...acc];
@@ -1314,23 +1409,28 @@ let assemble = (ctx: ctx): G.t => {
       ),
     tests,
   );
+  let tests_of = name =>
+    List.rev(Option.value(Hashtbl.find_opt(tests_of, name), ~default=[]));
+  let deps = (name, uses) => List.filter(n => n != name && is_def(n), uses);
   let edges =
     List.filter_map(
       fun
-      | Value(_) => None
+      | Value(_)
+      | Carried_value(_) => None
       | [@implicit_arity] Edge(e, uses) =>
         Some({
           ...e,
-          e_deps: List.filter(n => n != e.e_name && is_def(n), uses),
+          e_deps: deps(e.e_name, uses),
           main:
             Option.value(Hashtbl.find_opt(users, e.e_name), ~default=0) >= 2,
-          tests:
-            List.rev(
-              Option.value(
-                Hashtbl.find_opt(tests_of, e.e_name),
-                ~default=[],
-              ),
-            ),
+          tests: tests_of(e.e_name),
+        })
+      /* [main] and the deps stay as they were, less what is gone */
+      | Carried_edge(e) =>
+        Some({
+          ...e,
+          e_deps: deps(e.e_name, e.e_deps),
+          tests: tests_of(e.e_name),
         }),
       defs,
     );
@@ -1341,8 +1441,18 @@ let assemble = (ctx: ctx): G.t => {
     values:
       List.filter_map(
         fun
-        | [@implicit_arity] Value(v, _) => Some(v)
-        | Edge(_) => None,
+        | [@implicit_arity] Value(v, uses) =>
+          Some({
+            ...v,
+            v_deps: deps(v.v_name, uses),
+          })
+        | Carried_value(v) =>
+          Some({
+            ...v,
+            v_deps: deps(v.v_name, v.v_deps),
+          })
+        | Edge(_)
+        | Carried_edge(_) => None,
         defs,
       ),
     loose_tests: List.filter((t: G.test) => t.t_refs == [], tests),
@@ -1351,20 +1461,34 @@ let assemble = (ctx: ctx): G.t => {
 
 /* ---------- reading the build directory ---------- */
 
-/* dune preprocesses lib/scene.ml into lib/scene.pp.ml and compiles that. */
+/* dune preprocesses lib/scene.ml into lib/scene.pp.ml and compiles that;
+   a Reason source lib/scene.re is compiled as lib/scene.re.ml. */
 let strip_pp = (file: string): string => {
-  let swap = (suffix, by) =>
+  let swap = ((suffix, by)) =>
     if (Filename.check_suffix(file, suffix)) {
       Some(Filename.chop_suffix(file, suffix) ++ by);
     } else {
       None;
     };
 
-  switch (swap(".pp.ml", ".ml")) {
-  | Some(f) => f
-  | None => Option.value(swap(".pp.mli", ".mli"), ~default=file)
-  };
+  List.find_map(
+    swap,
+    [
+      (".re.pp.ml", ".re"),
+      (".re.ml", ".re"),
+      (".pp.ml", ".ml"),
+      (".rei.pp.mli", ".rei"),
+      (".rei.mli", ".rei"),
+      (".pp.mli", ".mli"),
+    ],
+  )
+  |> Option.value(~default=file);
 };
+
+let in_project = (~root: string, f: string): bool =>
+  Filename.is_relative(f)
+  && Sys.file_exists(root /\/ f)
+  && !Sys.is_directory(root /\/ f);
 
 /* The source file of an implementation, relative to the root: the file the
    compiler was given, or else the file the first located item points to
@@ -1386,13 +1510,8 @@ let source_file =
       str.str_items,
     );
 
-  let in_project = f =>
-    Filename.is_relative(f)
-    && Sys.file_exists(root /\/ f)
-    && !Sys.is_directory(root /\/ f);
-
   List.find_opt(
-    in_project,
+    in_project(~root),
     Option.to_list(Option.map(strip_pp, cmt.cmt_sourcefile))
     @ Option.to_list(from_items),
   );
@@ -1430,19 +1549,30 @@ let interface_of = (cmt_path: string): vis => {
   };
 };
 
+/* A module whose source has an interface, but whose interface could not
+   be read: it did not compile. What the module exports is then unknown. */
+let interface_lost = (~root: string, ~file: string, vis: vis): bool =>
+  switch (vis) {
+  | All => in_project(~root, file ++ "i")
+  | Only(_)
+  | Nothing => false
+  };
+
 /* Names shown for the units: "Scene" for Vector__Scene. When two units
    would get the same name, fall back to "Vector.Scene", then to the short
-   name tagged with its directory. */
+   name tagged with its directory. [also] are the compiled names of units
+   that are not being read but keep their names (the carried ones). */
 let name_units =
-    (found: list((string, string, structure, vis)))
+    (~also: list(string), found: list((string, string, structure, vis)))
     : list((list(string), (string, string, structure, vis))) => {
-  let short = ((modname, _, _, _)) =>
+  let short = modname =>
     switch (List.rev(split_double_underscore(modname))) {
     | [last, ..._] => [last]
     | [] => [modname]
     };
 
-  let dotted = ((modname, _, _, _)) => split_double_underscore(modname);
+  let dotted = split_double_underscore;
+  let modnames = List.map(((modname, _, _, _)) => modname, found) @ also;
   /* how many units each candidate name would be given to */
   let tally = name_of => {
     let t = Hashtbl.create(16);
@@ -1453,7 +1583,7 @@ let name_units =
           name_of(x),
           1 + Option.value(Hashtbl.find_opt(t, name_of(x)), ~default=0),
         ),
-      found,
+      modnames,
     );
     x => Hashtbl.find(t, name_of(x)) == 1;
   };
@@ -1461,14 +1591,18 @@ let name_units =
   let unique_short = tally(short)
   and unique_dotted = tally(dotted);
   List.map(
-    ((_, file, _, _) as x) => {
+    ((modname, file, _, _) as x) => {
       let mpath =
-        if (unique_short(x)) {
-          short(x);
-        } else if (unique_dotted(x)) {
-          dotted(x);
+        if (unique_short(modname)) {
+          short(modname);
+        } else if (unique_dotted(modname)) {
+          dotted(modname);
         } else {
-          [String.concat("", short(x)) ++ "@" ++ Filename.dirname(file)];
+          [
+            String.concat("", short(modname))
+            ++ "@"
+            ++ Filename.dirname(file),
+          ];
         };
 
       (mpath, x);
@@ -1477,11 +1611,416 @@ let name_units =
   );
 };
 
+/* ---------- carrying over ---------- */
+
+/* While a file does not type-check it has no usable annotations, and its
+   definitions would drop out of the graph until it builds again. Given
+   the graph of an earlier extraction, such a file's nodes, edges, values
+   and tests are taken from there instead, moved to where Locate finds
+   them in the source as it stands. */
+
+/* What an earlier graph says about one file. */
+type carried = {
+  c_file: string,
+  c_prefix: list(string), /* the file's module, as shown: ["Geo"] */
+  c_nodes: list(G.node),
+  c_edges: list(G.edge),
+  c_values: list(G.value),
+  c_tests: list(G.test),
+};
+
+/* Every test of a graph, once, in order. */
+let all_tests = (g: G.t): list(G.test) => {
+  let seen = Hashtbl.create(16);
+  List.concat_map((e: G.edge) => e.tests, g.edges)
+  @ g.loose_tests
+  |> List.filter((t: G.test) => {
+       let first = !Hashtbl.mem(seen, (t.t_at, t.t_name));
+       Hashtbl.replace(seen, (t.t_at, t.t_name), ());
+       first;
+     });
+};
+
+/* The files a graph's definitions are in. */
+let files_of = (g: G.t): list(string) =>
+  List.filter_map(
+    (n: G.node) => Option.map((h: G.handle) => h.file, n.at),
+    g.nodes,
+  )
+  @ List.map((e: G.edge) => e.e_at.file, g.edges)
+  @ List.map((v: G.value) => v.v_at.file, g.values)
+  @ List.map((t: G.test) => t.t_at.file, all_tests(g))
+  |> List.sort_uniq(compare);
+
+/* "lib/geo.ml" -> "Geo" */
+let module_of_file = (file: string): string =>
+  String.capitalize_ascii(
+    Filename.remove_extension(Filename.basename(file)),
+  );
+
+/* The name a file's module was shown under: the start of its definitions'
+   module paths, up to the file's own module (see [name_units]). */
+let prefix_of = (file: string, m_paths: list(list(string))): list(string) => {
+  let own = module_of_file(file);
+  let is_own = part =>
+    part == own || String.starts_with(~prefix=own ++ "@", part);
+  let rec upto =
+    fun
+    | [] => None
+    | [part, ..._] when is_own(part) => Some([part])
+    | [part, ...rest] => Option.map(p => [part, ...p], upto(rest));
+  switch (List.find_map(upto, m_paths)) {
+  | Some(prefix) => prefix
+  | None => [own]
+  };
+};
+
+/* A handle moved to where its item is now. [None]: the source parses and
+   has no such item any more. */
+let relocate =
+    (located: option(Locate.t), kinds: list(Locate.kind), h: G.handle)
+    : option(G.handle) =>
+  switch (located) {
+  | None => Some(h)
+  | Some(l) =>
+    switch (List.find_map(kind => Locate.find(l, kind, h.path), kinds)) {
+    | Some((line, end_line)) =>
+      Some({
+        ...h,
+        line,
+        end_line,
+      })
+    | None =>
+      if (l.exact) {
+        None;
+      } else {
+        Some(h);
+      }
+    }
+  };
+
+let carry =
+    (~root: string, ~build: string, previous: G.t, file: string): carried => {
+  let here = (h: G.handle) => h.file == file;
+  let nodes =
+    List.filter(
+      (n: G.node) =>
+        switch (n.at) {
+        | Some(h) => here(h)
+        | None => false
+        },
+      previous.nodes,
+    );
+  let edges = List.filter((e: G.edge) => here(e.e_at), previous.edges);
+  let values = List.filter((v: G.value) => here(v.v_at), previous.values);
+  let tests =
+    List.filter((t: G.test) => here(t.t_at), all_tests(previous));
+  let prefix =
+    prefix_of(
+      file,
+      List.map((n: G.node) => n.m_path, nodes)
+      @ List.map((e: G.edge) => e.e_m_path, edges)
+      @ List.map((v: G.value) => v.v_m_path, values)
+      @ List.map(
+          (t: G.test) => String.split_on_char('/', t.t_at.path),
+          tests,
+        ),
+    );
+  let located = Locate.source(~root, ~build, ~prefix, file);
+  let by_line = (line_of, l) =>
+    List.stable_sort((a, b) => compare(line_of(a), line_of(b)), l);
+  {
+    c_file: file,
+    c_prefix: prefix,
+    c_nodes:
+      List.filter_map(
+        (n: G.node) =>
+          Option.bind(n.at, relocate(located, [Locate.Type]))
+          |> Option.map(at =>
+               {
+                 ...n,
+                 n_err: false,
+                 at: Some(at),
+               }
+             ),
+        nodes,
+      ),
+    c_edges:
+      List.filter_map(
+        (e: G.edge) =>
+          relocate(located, [Locate.Val], e.e_at)
+          |> Option.map(e_at =>
+               {
+                 ...e,
+                 e_err: false,
+                 e_at,
+               }
+             ),
+        edges,
+      )
+      |> by_line((e: G.edge) => e.e_at.line),
+    c_values:
+      List.filter_map(
+        (v: G.value) =>
+          relocate(located, [Locate.Val], v.v_at)
+          |> Option.map(v_at =>
+               {
+                 ...v,
+                 v_err: false,
+                 v_at,
+               }
+             ),
+        values,
+      )
+      |> by_line((v: G.value) => v.v_at.line),
+    c_tests:
+      List.filter_map(
+        (t: G.test) => {
+          /* [let test_x () = ...] is found as a value, an inline test by
+             its description; one without a description ("line 12")
+             cannot be looked for */
+          let t_at =
+            if (String.starts_with(~prefix="line ", t.t_name)) {
+              Some(t.t_at);
+            } else {
+              relocate(located, [Locate.Test, Locate.Val], t.t_at);
+            };
+          Option.map(
+            t_at =>
+              {
+                ...t,
+                t_status: G.Unknown,
+                t_at,
+              },
+            t_at,
+          );
+        },
+        tests,
+      )
+      |> by_line((t: G.test) => t.t_at.line),
+  };
+};
+
+/* The compiled names a carried file's module may be referred to by, when
+   its annotations do not say: its own name, and that name behind one of
+   dune's alias modules. */
+let guess_modnames = (ctx: ctx, file: string): list(string) => {
+  let own = module_of_file(file);
+  let wrapped =
+    Hashtbl.fold(
+      ((_, sub), modname, acc) =>
+        if (sub == own) {
+          [modname, ...acc];
+        } else {
+          acc;
+        },
+      ctx.wrappers,
+      [],
+    );
+  List.sort(compare, wrapped) @ [own];
+};
+
+let register_carried = (ctx: ctx, ~modnames: list(string), c: carried): unit => {
+  List.iter(
+    modname =>
+      if (!Hashtbl.mem(ctx.units, modname)
+          && !Hashtbl.mem(ctx.carried_units, modname)) {
+        Hashtbl.replace(
+          ctx.carried_units,
+          modname,
+          String.concat(".", c.c_prefix),
+        );
+      },
+    modnames,
+  );
+  List.iter(
+    (n: G.node) => {
+      Hashtbl.replace(ctx.carried_types, n.key, ());
+      Hashtbl.replace(ctx.previous_nodes, n.key, n);
+    },
+    c.c_nodes,
+  );
+  List.iter(
+    (e: G.edge) => Hashtbl.replace(ctx.def_names, e.e_name, ()),
+    c.c_edges,
+  );
+  List.iter(
+    (v: G.value) => Hashtbl.replace(ctx.def_names, v.v_name, ()),
+    c.c_values,
+  );
+};
+
+/* A carried file's turn in pass 2: the nodes its definitions need, in
+   the earlier graph's order, then the definitions and tests. */
+let emit_carried = (ctx: ctx, previous: G.t, c: carried): unit => {
+  let needed = Hashtbl.create(32);
+  let rec need = key =>
+    if (!Hashtbl.mem(needed, key)) {
+      Hashtbl.replace(needed, key, ());
+      switch (Hashtbl.find_opt(ctx.previous_nodes, key)) {
+      | Some(n)
+          when
+            !Hashtbl.mem(ctx.type_decls, key)
+            && (n.kind != Alias || Hashtbl.mem(ctx.carried_types, key)) =>
+        List.iter(need, n.parts)
+      | _ => ()
+      };
+    };
+  let keys =
+    List.map((n: G.node) => n.key, c.c_nodes)
+    @ List.concat_map((e: G.edge) => [e.src, e.dst], c.c_edges)
+    @ List.map((v: G.value) => v.v_key, c.c_values);
+  List.iter(need, keys);
+  List.iter(
+    (n: G.node) =>
+      if (Hashtbl.mem(needed, n.key)) {
+        add_previous(ctx, n.key);
+      },
+    previous.nodes,
+  );
+  List.iter(add_previous(ctx), keys); /* any the earlier graph lacks */
+  /* in source order, edges and values apart: only the order within each
+     shows in the graph */
+  List.iter(
+    (e: G.edge) => ctx.defs = [Carried_edge(e), ...ctx.defs],
+    c.c_edges,
+  );
+  List.iter(
+    (v: G.value) => ctx.defs = [Carried_value(v), ...ctx.defs],
+    c.c_values,
+  );
+  List.iter(
+    (t: G.test) => ctx.tests = [(t, t.t_refs), ...ctx.tests],
+    c.c_tests,
+  );
+};
+
+/* Are a module's annotations those of its source as it stands? dune
+   leaves the old ones in place when a file stops parsing, or when a
+   module it depends on stops compiling. The compiler records a digest of
+   the file it was given; that file is [dir]'s copy of the source or one
+   of its preprocessed forms, which dune removes when the source no
+   longer parses. */
+let up_to_date = (~dir: string, cmt: Cmt_format.cmt_infos): bool =>
+  switch (cmt.cmt_sourcefile, cmt.cmt_source_digest) {
+  | (Some(f), Some(digest)) =>
+    let path =
+      if (Filename.is_relative(f)) {
+        dir /\/ f;
+      } else {
+        f;
+      };
+    switch (Digest.file(path)) {
+    | d => d == digest
+    | exception _ => false
+    };
+  | _ => true
+  };
+
+/* Set [err] on the definitions the compiler's errors fall in: by line
+   for an error in an implementation; for one in an interface, the
+   definition its [val] or [type] stands for. */
+let mark_broken =
+    (
+      ~root: string,
+      ~build: string,
+      ~prefixes: list((string, list(string))),
+      broken: list((string, int)),
+      g: G.t,
+    )
+    : G.t =>
+  if (broken == []) {
+    g;
+  } else {
+    let by_line = (h: G.handle) =>
+      List.exists(
+        ((file, line)) =>
+          file == h.file && h.line <= line && line <= h.end_line,
+        broken,
+      );
+    /* (implementation file, kind, entry path) */
+    let by_name =
+      List.concat_map(
+        ((file, line)) =>
+          if (Filename.check_suffix(file, ".mli")
+              || Filename.check_suffix(file, ".rei")) {
+            let impl = String.sub(file, 0, String.length(file) - 1);
+            switch (List.assoc_opt(impl, prefixes)) {
+            | None => []
+            | Some(prefix) =>
+              switch (Locate.source(~root, ~build, ~prefix, file)) {
+              | None => []
+              | Some(located) =>
+                List.map(
+                  ((kind, path)) => (impl, kind, path),
+                  Locate.containing(located, line),
+                )
+              }
+            };
+          } else {
+            [];
+          },
+        broken,
+      );
+    let hit = (kind, h: G.handle) =>
+      by_line(h) || List.mem((h.file, kind, h.path), by_name);
+    {
+      ...g,
+      nodes:
+        List.map(
+          (n: G.node) =>
+            switch (n.at) {
+            | Some(h) when hit(Locate.Type, h) => {
+                ...n,
+                n_err: true,
+              }
+            | _ => n
+            },
+          g.nodes,
+        ),
+      edges:
+        List.map(
+          (e: G.edge) =>
+            if (hit(Locate.Val, e.e_at)) {
+              {
+                ...e,
+                e_err: true,
+              };
+            } else {
+              e;
+            },
+          g.edges,
+        ),
+      values:
+        List.map(
+          (v: G.value) =>
+            if (hit(Locate.Val, v.v_at)) {
+              {
+                ...v,
+                v_err: true,
+              };
+            } else {
+              v;
+            },
+          g.values,
+        ),
+    };
+  };
+
+/* ---------- the entry point ---------- */
+
+/* One file's turn in pass 2. */
+type turn =
+  | Fresh(unit_info)
+  | Carried(carried);
+
 let extract =
     (
       ~root: string,
       ~build_dir: string,
       ~failing: option(list((string, int))),
+      ~previous: option(G.t),
+      ~broken: list((string, int)),
     )
     : result(G.t, string) => {
   let ctx = {
@@ -1491,6 +2030,9 @@ let extract =
     mod_aliases: Hashtbl.create(16),
     type_decls: Hashtbl.create(64),
     def_names: Hashtbl.create(64),
+    carried_units: Hashtbl.create(8),
+    carried_types: Hashtbl.create(16),
+    previous_nodes: Hashtbl.create(64),
     seen: Hashtbl.create(64),
     nodes: [],
     defs: [],
@@ -1500,9 +2042,17 @@ let extract =
   let dir = root /\/ build_dir /\/ "default";
   let cmts =
     List.filter(f => Filename.check_suffix(f, ".cmt"), find_cmts(dir));
+  let previous_files =
+    switch (previous) {
+    | Some(g) => files_of(g)
+    | None => []
+    };
   /* Read every implementation. A file that failed to type-check has only
-     a partial tree: it is left out. */
+     a partial tree: it is left out. So is one whose annotations are out
+     of date or whose interface did not compile, when the earlier graph
+     has it. [lost] remembers what such modules are compiled as. */
   let unreadable = ref(0);
+  let lost = ref([]);
   let found =
     List.filter_map(
       path =>
@@ -1511,6 +2061,7 @@ let extract =
           incr(unreadable);
           None;
         | cmt =>
+          let lose = file => lost := [(file, cmt.cmt_modname), ...lost^];
           switch (cmt.cmt_annots) {
           | Implementation(str) =>
             let generated =
@@ -1525,14 +2076,30 @@ let extract =
             } else {
               switch (source_file(~root, cmt, str)) {
               | Some(file) =>
-                Some((cmt.cmt_modname, file, str, interface_of(path)))
+                let vis = interface_of(path);
+                if (List.mem(file, previous_files)
+                    && (
+                      !up_to_date(~dir, cmt)
+                      || interface_lost(~root, ~file, vis)
+                    )) {
+                  lose(file);
+                  None;
+                } else {
+                  Some((cmt.cmt_modname, file, str, vis));
+                };
               | None => None
               };
             };
           | _ =>
             incr(unreadable);
+            Option.map(strip_pp, cmt.cmt_sourcefile)
+            |> Option.iter(file =>
+                 if (in_project(~root, file)) {
+                   lose(file);
+                 }
+               );
             None;
-          }
+          };
         },
       cmts,
     );
@@ -1549,7 +2116,20 @@ let extract =
       found,
     );
 
-  if (found == []) {
+  /* What is carried over: the earlier graph's files that were not read
+     this time and still exist. */
+  let carried =
+    switch (previous) {
+    | None => []
+    | Some(g) =>
+      List.filter(
+        file => !Hashtbl.mem(sources, file) && in_project(~root, file),
+        previous_files,
+      )
+      |> List.map(carry(~root, ~build=dir, g))
+    };
+
+  if (found == [] && carried == []) {
     Error(
       if (cmts == []) {
         Printf.sprintf(
@@ -1567,8 +2147,23 @@ let extract =
       },
     );
   } else {
+    let carried =
+      List.map(
+        c =>
+          (
+            switch (List.assoc_opt(c.c_file, lost^)) {
+            | Some(modname) => [modname]
+            | None => guess_modnames(ctx, c.c_file)
+            },
+            c,
+          ),
+        carried,
+      );
     let units =
-      name_units(found)
+      name_units(
+        ~also=List.map(((modnames, _)) => List.hd(modnames), carried),
+        found,
+      )
       |> List.map(((mpath, (modname, file, str, vis))) =>
            {
              u_modname: modname,
@@ -1592,6 +2187,18 @@ let extract =
         },
       units,
     );
+    Option.iter(
+      (g: G.t) =>
+        List.iter(
+          (n: G.node) => Hashtbl.replace(ctx.previous_nodes, n.key, n),
+          g.nodes,
+        ),
+      previous,
+    );
+    List.iter(
+      ((modnames, c)) => register_carried(ctx, ~modnames, c),
+      carried,
+    );
     List.iter(
       u =>
         collect(
@@ -1605,7 +2212,30 @@ let extract =
         ),
       units,
     );
-    List.iter(u => List.iter(emit(ctx, u), List.rev(u.u_items)), units);
-    Ok(assemble(ctx));
+    /* Pass 2, file by file in the order of their names, carried files
+       taking their turn among the others. */
+    let file_of =
+      fun
+      | Fresh(u) => u.u_file
+      | Carried(c) => c.c_file;
+    List.map(u => Fresh(u), units)
+    @ List.map(((_, c)) => Carried(c), carried)
+    |> List.stable_sort((a, b) => compare(file_of(a), file_of(b)))
+    |> List.iter(
+         fun
+         | Fresh(u) => List.iter(emit(ctx, u), List.rev(u.u_items))
+         | Carried(c) => emit_carried(ctx, Option.get(previous), c),
+       );
+    Ok(
+      mark_broken(
+        ~root,
+        ~build=dir,
+        ~prefixes=
+          List.map(u => (u.u_file, u.u_mpath), units)
+          @ List.map(((_, c)) => (c.c_file, c.c_prefix), carried),
+        broken,
+        assemble(ctx),
+      ),
+    );
   };
 };
