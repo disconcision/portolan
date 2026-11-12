@@ -40,7 +40,7 @@ window.PortolanMap = (function () {
       const [a, b] = k.split(' '), list = [...names];
       return {
         name: a + ' uses ' + b, label: '', m_path: [], ty: a + ' uses ' + b + ': ' + list.slice(0, 12).join(', ') + (list.length > 12 ? ', …' : ''),
-        src: a, dst: b, doc: null, err: false, hole: false, main: false, deps: [], exported: true, tests: [], at: mods.get(a).at,
+        src: a, dst: b, doc: null, err: false, hole: false, main: false, deps: list.map(n => b + '.' + n), exported: true, tests: [], at: mods.get(a).at,
       };
     });
     return { nodes, edges, values: [], loose_tests: [] };

@@ -44,10 +44,14 @@
   let surface = kept('surface') === '1';
   const opaque = n => (n.kind === 'alias' && n.abstract ? { ...n, parts: [], ctors: [], ty: null, former: null } : n); // an abstract type shows no inside
   const outside = g => ({ ...g, nodes: g.nodes.filter(n => n.kind !== 'alias' || n.exported !== false).map(opaque), edges: g.edges.filter(e => e.exported !== false), values: (g.values || []).filter(v => v.exported !== false) });
+  // A module's outside: the modules it uses and is used by, each a closed node beside it, or only
+  // the types it uses from elsewhere, as faint nodes.
+  let outsideAs = (params.get('outside') || kept('outside')) === 'types' ? 'types' : 'modules';
   function moduleView(g, mod) {
     if (mod === PortolanMap.MAP) return PortolanMap.graph(g);
     if (surface) g = outside(g);
     if (!mod) return wholeView(g);
+    if (outsideAs === 'modules') return besideView(g, mod);
     const inMod = x => top(x) === mod, cut = x => ({ ...x, m_path: (x.m_path || []).slice(1) });
     const edges = g.edges.filter(inMod), values = (g.values || []).filter(inMod);
     const byKey = new Map(g.nodes.map(n => [n.key, n])), want = new Set();
@@ -58,34 +62,50 @@
     const nodes = g.nodes.filter(n => want.has(n.key)).map(n => (n.kind === 'alias' && !inMod(n) ? { ...n, kind: 'ghost', label: n.key, m_path: [] } : cut(n)));
     return { ...g, nodes, edges: edges.map(cut), values: values.map(cut), loose_tests: (g.loose_tests || []).filter(t => t.at && moduleOfFile(g, t.at.file) === mod) };
   }
+  // One module open, the modules beside it closed on the board's rim: those that use it to the
+  // left, those it uses to the right. `rim` tells the canvas which they are, and what each uses here.
+  function besideView(g, mod) {
+    const near = PortolanMap.graph(g).edges.filter(e => e.src === mod || e.dst === mod);
+    const rim = near.map(e => (e.src === mod ? { key: e.dst, side: 'used', uses: [] } : { key: e.src, side: 'users', uses: e.deps }));
+    const v = picture(g, m => (m === mod ? 'open' : 'closed'), new Set([mod, ...rim.map(r => r.key)]));
+    return { ...v, edges: v.edges.filter(e => e.label !== ''), rim: rim.filter((r, i) => rim.findIndex(x => x.key === r.key) === i) };
+  }
   // ---- the whole project, each module at one of three levels (an experiment, logbook entry 9) ----
   // closed: one node, with arrows to the closed modules it uses; interface: what it exports; open: everything.
-  // A click on a module's node moves it to the next level. A large project starts all closed.
+  // A double-click on a module's node moves it to the next level. A large project starts all closed.
   let levels = null, clickedTest = null;
   const allLevels = () => { if (!levels) { try { levels = JSON.parse(kept('levels.' + project) || '{}'); } catch (e) { levels = {}; } } return levels; };
   const level = (g, m) => allLevels()[m] || (modules(g).reduce((n, x) => n + x.size, 0) > 60 ? 'closed' : 'open');
   function wholeView(g) {
-    const ms = modules(g);
-    if (ms.length < 2) return flatten(g);
-    const lvl = x => level(g, top(x)), closed = new Set(ms.filter(m => level(g, m.name) === 'closed').map(m => m.name));
-    const kept_ = x => !closed.has(top(x)) && (lvl(x) !== 'interface' || x.exported !== false);
+    return modules(g).length < 2 ? flatten(g) : picture(g, m => level(g, m), null);
+  }
+  // The modules in `only` (all of them when it is null), each at the level `lv` gives it. A closed
+  // module is one node: it stands in for its types, and an unnamed arrow says which modules it
+  // uses, ending on an open module's own node.
+  function picture(g, lv, only) {
+    const ms = modules(g).filter(m => !only || only.has(m.name)), names = new Set(ms.map(m => m.name));
+    const lvl = x => lv(top(x)), closed = new Set(ms.filter(m => lv(m.name) === 'closed').map(m => m.name));
+    const kept_ = x => (!only || names.has(top(x))) && !closed.has(top(x)) && (lvl(x) !== 'interface' || x.exported !== false);
     const owner = new Map(g.nodes.filter(n => n.kind === 'alias').map(n => [n.key, top(n)]));
+    const home = new Map([...owner, ...g.edges.map(e => [e.name, top(e)]), ...(g.values || []).map(v => [v.name, top(v)])]);
     const sub = k => (closed.has(owner.get(k)) ? owner.get(k) : k); // a closed module stands in for its types
-    const edges = g.edges.filter(kept_).map(e => ({ ...e, src: sub(e.src), dst: sub(e.dst) }));
+    const calls = ds => [...new Set((ds || []).map(d => (closed.has(home.get(d)) ? home.get(d) : d)))]; // and for what is called in it
+    const edges = g.edges.filter(kept_).map(e => ({ ...e, src: sub(e.src), dst: sub(e.dst), deps: calls(e.deps) }));
     const values = (g.values || []).filter(kept_).map(v => ({ ...v, key: sub(v.key) }));
     const byKey = new Map(g.nodes.map(n => [n.key, n])), want = new Set();
     const need = k => { const n = byKey.get(k); if (!n || want.has(k)) return; want.add(k); (n.parts || []).forEach(need); };
     g.nodes.forEach(n => { if (n.kind === 'alias' && kept_(n)) need(n.key); });
     edges.forEach(e => { need(e.src); need(e.dst); });
     values.forEach(v => need(v.key));
-    const nodes = g.nodes.filter(n => want.has(n.key) && !(n.kind === 'alias' && closed.has(top(n))))
+    const nodes = g.nodes.filter(n => want.has(n.key) && !(n.kind === 'alias' && (closed.has(top(n)) || (only && !names.has(top(n))))))
       .map(n => ({ ...(n.kind === 'alias' && lvl(n) === 'interface' ? opaque(n) : n), parts: [...new Set((n.parts || []).map(sub))] }));
-    const map = PortolanMap.graph(g);
+    const map = PortolanMap.graph(g), end = m => (closed.has(m) ? m : '{}@' + m);
+    const uses = map.edges.filter(e => names.has(e.src) && names.has(e.dst) && (closed.has(e.src) || closed.has(e.dst)));
     return {
       ...g, values,
       nodes: [...nodes, ...map.nodes.filter(n => closed.has(n.key)).map(n => ({ ...n, m_path: [] }))],
-      edges: [...edges, ...map.edges.filter(e => closed.has(e.src) && closed.has(e.dst))],
-      loose_tests: (g.loose_tests || []).filter(t => !t.at || !closed.has(moduleOfFile(g, t.at.file))),
+      edges: [...edges, ...uses.map(e => ({ ...e, src: end(e.src), dst: end(e.dst) }))],
+      loose_tests: (g.loose_tests || []).filter(t => { const m = t.at ? moduleOfFile(g, t.at.file) : ''; return only ? names.has(m) && !closed.has(m) : !closed.has(m); }),
     };
   }
   function cycle(m) {
@@ -104,11 +124,13 @@
   let here = (history.state && history.state.pv) || null, histMax = 0;
   try { histMax = +sessionStorage.getItem('portolan.histMax') || 0; } catch (e) {}
   const multi = () => !!latest && modules(latest).length > 1;
+  const beside = () => !!moduleName && moduleName !== PortolanMap.MAP && outsideAs === 'modules'; // one module, its neighbours around it
   function drawNav() {
     $('back').disabled = !here || here.i < 1;
     $('forward').disabled = !here || here.i >= histMax;
     $('levels-reset').hidden = !(moduleName === '' && multi() && Object.keys(allLevels()).length);
-    $('hint').textContent = !multi() ? '' : moduleName === PortolanMap.MAP ? 'click selects · double-click opens' : moduleName === '' ? 'double-click a module: closed → interface → open' : '';
+    $('outside').hidden = !multi() || !moduleName || moduleName === PortolanMap.MAP;
+    $('hint').textContent = !multi() ? '' : moduleName === PortolanMap.MAP ? 'click a module: solid arrows to what it uses, dashed from what uses it · double-click opens it' : moduleName === '' ? 'double-click a module: closed → interface → open' : beside() ? 'left: modules that use ' + moduleName + ' · right: modules it uses · click one for what it touches, double-click to go there' : '';
   }
   function visit(by) {
     const pv = { module: moduleName, levels: { ...allLevels() }, by }, same = here && here.module === pv.module && JSON.stringify(here.levels) === JSON.stringify(pv.levels);
@@ -299,13 +321,14 @@
     },
   };
   // A double-click opens: a module on the map, a module's next level in the whole project,
-  // and an outside type's own module.
+  // a module beside the one shown, and an outside type's own module.
   let opening = 0;
-  const openable = (name, kind) => !!latest && modules(latest).some(m => m.name === name) && (moduleName === PortolanMap.MAP || (moduleName === '' && multi() && (kind === 'module' || level(latest, name) === 'closed')));
+  const openable = (name, kind) => !!latest && modules(latest).some(m => m.name === name) && (moduleName === PortolanMap.MAP || (moduleName === '' && multi() && (kind === 'module' || level(latest, name) === 'closed')) || (beside() && name !== moduleName));
   if (PC && PC.onOpen) PC.onOpen((name, kind) => {
     if (!latest || which !== 'hazel') return;
     clearTimeout(opening);
     if (openable(name, kind)) return moduleName === '' ? cycle(name) : choose(name);
+    if (beside() && kind === 'module' && name === moduleName) return choose(PortolanMap.MAP); // out again
     const home = kind === 'ghost' && latest.nodes.find(n => n.key === name && n.kind === 'alias');
     if (home && top(home) && top(home) !== moduleName) goTo({ x: home, kind: 'type', name });
   });
@@ -342,6 +365,9 @@
     chooser('layout', 'layout', PC.layouts(), id => PC.setLayout(id));
     chooser('edges', 'edges', PC.edgeStyles(), id => PC.setEdges(id));
   }
+  $('outside').replaceChildren(...[['modules', 'outside: modules'], ['types', 'outside: types']].map(([v, t]) => Object.assign(document.createElement('option'), { value: v, textContent: t })));
+  $('outside').value = outsideAs;
+  $('outside').onchange = () => { outsideAs = $('outside').value; keep('outside', outsideAs); present(null, true); drawNav(); };
   if (PC && PC.setContour) {
     chooser('contour', 'contour', PC.contours(), id => PC.setContour(id));
     chooser('pull', 'pull', PC.pulls(), id => PC.setPull(id));
