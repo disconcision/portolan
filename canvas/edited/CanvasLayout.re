@@ -53,6 +53,8 @@ type t = {
      re-anchor these without re-deriving rim geometry */
   formations: list((string, string, pos, pos)), /* component → product */
   dep_links: list((string, string, pos, pos)), /* alias-body dep hints */
+  /* PORTOLAN: the links the edge style routed, where it was asked to */
+  link_wires: list((string, string, list(pos))),
   width: float,
   height: float,
   /* the normalization translation: final = pre-norm + origin. Click
@@ -251,7 +253,13 @@ let link_d = (a: pos, c1: pos, c2: pos, b: pos): string =>
     b.y,
   );
 
-let relation_path = (~nodes, ~from_key, ~to_key, a, b) => {
+let relation_path = (~wires=[], ~nodes, ~from_key, ~to_key, a, b) => {
+  /* PORTOLAN: a link the edge style routed is drawn along its route */
+  let routed =
+    List.find_map(
+      ((f, t, ps)) => f == from_key && t == to_key ? Some(ps) : None,
+      wires,
+    );
   let local =
     List.exists(
       (n: node_layout) =>
@@ -261,7 +269,9 @@ let relation_path = (~nodes, ~from_key, ~to_key, a, b) => {
         && Option.map(fst, n.node.sat) == Some(from_key),
       nodes,
     );
-  if (Lab.wires^ == "circuit" && !local) {
+  if (routed != None) {
+    CanvasOptions.path(List.map(to_lab, Option.get(routed)));
+  } else if (Lab.wires^ == "circuit" && !local) {
     Lab.route(
       ~obstacles=obstacles(nodes),
       ~src=from_key,
@@ -1927,7 +1937,12 @@ let layout_core =
           edge_layouts,
         )
       : edge_layouts;
-  /* PORTOLAN: the edge styles of CanvasOptions */
+  /* PORTOLAN: the edge styles of CanvasOptions. Asked to, metro routes the
+     "made of" links too, as edges of their own beside the arrows. */
+  let link_wires = ref([]);
+  let routed_links =
+    CanvasOptions.links^ == "routed" && Lab.wires^ == "metro"
+      ? List.map(((a, b, _, _)) => (a, b), formations @ dep_links) : [];
   let edge_layouts =
     CanvasOptions.routes()
       ? {
@@ -1945,7 +1960,9 @@ let layout_core =
               List.map(((a, b, _, _)) => (a, b), formations @ dep_links),
             ~room=
               name =>
-                List.find_opt(
+                CanvasOptions.is_link_name(name)
+                  ? 8.
+                  : List.find_opt(
                   (e: CanvasGraph.edge) => e.e_name == name,
                   g.edges,
                 )
@@ -1958,9 +1975,25 @@ let layout_core =
                 el.endo
                   ? None : Some((el.edge.e_name, el.edge.e_src, el.edge.dst)),
               edge_layouts,
-            ),
+            )
+            @ List.map(
+                ((a, b)) => (CanvasOptions.link_name(a, b), a, b),
+                routed_links,
+              ),
           ),
         );
+        link_wires :=
+          List.filter_map(
+            ((a, b)) =>
+              switch (
+                Hashtbl.find_opt(wires, CanvasOptions.link_name(a, b))
+              ) {
+              | Some({points: [_, _, ..._] as points, _}) =>
+                Some((a, b, List.map(from_lab, points)))
+              | _ => None
+              },
+            routed_links,
+          );
         List.map(
           (el: edge_layout) =>
             switch (Hashtbl.find_opt(wires, el.edge.e_name)) {
@@ -2416,6 +2449,7 @@ let layout_core =
     value_layouts,
     formations,
     dep_links,
+    link_wires^,
     pad,
     (min_x, min_y, max_x, max_y),
   );
@@ -2432,6 +2466,7 @@ let layout_frame =
         value_layouts,
         formations,
         dep_links,
+        link_wires,
         pad,
         (min_x, min_y, max_x, max_y),
       ),
@@ -2444,6 +2479,7 @@ let layout_frame =
       values: value_layouts,
       formations,
       dep_links,
+      link_wires,
       width: 2. *. pad,
       height: 2. *. pad,
       origin: {
@@ -2515,6 +2551,8 @@ let layout_frame =
         List.map(((ka, kb, a, b)) => (ka, kb, sh(a), sh(b)), formations),
       dep_links:
         List.map(((ka, kb, a, b)) => (ka, kb, sh(a), sh(b)), dep_links),
+      link_wires:
+        List.map(((ka, kb, ps)) => (ka, kb, List.map(sh, ps)), link_wires),
       /* panned-up content can put the extent above the origin; svg
          size attrs reject negatives (overlays overflow: visible). The
          board also reaches past any card's right/bottom edge (cards do

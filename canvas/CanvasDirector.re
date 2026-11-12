@@ -2856,6 +2856,18 @@ let set_edges = (k: string): bool => {
   ok;
 };
 
+/* PORTOLAN: how the "made of" lines are drawn (CanvasOptions.links): a new
+   layout where the edge style routes them, a new drawing otherwise */
+let set_links = (k: string): bool => {
+  let ok = CanvasOptions.set_links(k);
+  if (ok) {
+    CanvasLog.log("links: " ++ k);
+    CanvasLayoutExperiments.revision := CanvasLayoutExperiments.revision^ + 1;
+    relayout();
+  };
+  ok;
+};
+
 /* PORTOLAN: what a module's region is drawn around (CanvasContour): the
    board is drawn again, and nothing moves. And the pull of a module's
    members toward each other (CanvasPull): a new arrangement, as a change

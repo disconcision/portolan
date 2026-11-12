@@ -48,6 +48,7 @@ sh canvas/tools/diff_upstream.sh /path/to/hazel-worktree     # upstream/ must be
 | `setThought(text)` | Streamed reasoning, shown in the thought cloud while busy. |
 | `fit()` | Frame the whole graph. |
 | `morph(snapshot, reveal?)` | The board the reader is looking at, changed by them: what stays glides to where it goes and the camera is not framed again. `reveal` names a module or node to bring into view if it is not; the camera then moves no further than it must. With a `base` in the snapshot, modules open in place: see Opening in place. |
+| `linkStyles()`, `setLinks(id)` | The ways the dotted "made of" lines can be drawn, and choosing one: `straight`, `routed` (with the arrows, in the metro style), `select` (only the selected node's), `off`. |
 | `frame()` | Frame it as `show` does: whole, but never magnified past 1:1. For a host that sees the board has settled. |
 | `onOpen(fn(name, kind))` | A double-click on a node. The canvas does nothing itself; the host decides what opening means. |
 | `repaint()` | Draws again in the colours now in force. The dot field is painted by script and otherwise keeps its old colour until the view scrolls: call this after changing a theme. |
@@ -312,6 +313,28 @@ Not done: the whole project still blocks the page for about seven seconds
 when picked, almost all of it outside layout (building and patching 1850
 nodes of vdom, the hulls, the score). A new pane width is a new stretch and
 so a new solve.
+
+## What Hazel could take
+
+Changes made here that are not about OCaml projects and would apply to Hazel's
+canvas as it is. Kept as a list, not a branch: add a row when a change of this
+kind lands, and strike one when it has gone upstream or been turned down.
+Nothing here has been proposed to Hazel yet.
+
+| Change | Where | Notes for a port |
+|---|---|---|
+| Hull colours as `var(--pc-hull-N, …)` | `edited/CanvasView.re` | 8 lines; lets a theme recolour regions. |
+| A selected node lights its arrows; the rest step back; into it dashed, out of it solid | `edited/CanvasView.re` (`edge_classes`, `touched`), `tools/portolan.css` | Small. Hazel has the dependency fan for functions but nothing for a selected type. |
+| A double-click on a node is a separate hook from a click | `CanvasDirector.re` (`on_open`), `edited/CanvasView.re` | Hazel would decide what opening means (jump to the definition, collapse a module). |
+| An arrow with no name draws no label chip or leader | `edited/CanvasView.re` | Only matters once something draws unnamed arrows. |
+| A new board is framed at once, and never magnified past 1:1 | `CanvasDirector.re` (`fresh_board`, `fit_view ~cap`) | Removes the pan-then-zoom on load. |
+| The fan of a selection is heavier than the "made of" dots | `tools/portolan.css` | CSS only. |
+| "Made of" lines: routed with the arrows, shown only for the selected node, or off | `CanvasOptions.re` (`links`), `edited/CanvasLayout.re`, `edited/CanvasView.re` | The routed one needs the metro router; the other two are CSS classes. |
+| Layouts and edge styles on offer by name (ledger, metro, …) | `CanvasOptions.re` | Large; see Layouts and edge styles. |
+| What a region is drawn around, and the pull of members toward each other | `CanvasContour.re`, `CanvasPull.re` | Pure geometry with native tests. |
+| A module opened in place among closed ones | `CanvasBlocks.re`, the hook in `edited/CanvasLayout.re`, `morph` in `CanvasDirector.re` | Hazel collapses a module by its hull label and lays the whole board out again; this keeps everything else where it was. Needs a "base" graph with every module collapsed. |
+| Tests past six fold to one pip per status and a count | `CanvasPips.re` | Pure, with native tests. |
+| Layout cost: the second memo, table-based copies of two passes | `edited/CanvasLayout.re` | See Layout cost. Matters past a few hundred nodes. |
 
 ## Left out
 

@@ -222,8 +222,16 @@ let edge_svg =
   };
 };
 
+/* PORTOLAN: how a "made of" line is shown (CanvasOptions.links), and
+   whether it is one of the selected node's */
+let link_classes = (~focused_ty: option(string), a: string, b: string) =>
+  ["links-" ++ CanvasOptions.links^]
+  @ (focused_ty == Some(a) || focused_ty == Some(b) ? ["link-touching"] : []);
+
 let formation_svg =
     (
+      ~focused_ty: option(string)=None,
+      ~wires=[],
       ~nodes: list(CanvasLayout.node_layout),
       _i: int,
       (a, b, cp, pp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
@@ -239,10 +247,17 @@ let formation_svg =
       /* keyed by endpoints so a beat can morph the same line across
          renders (an index would pair different lines) */
       Attr.id(formation_dom_id(a, b)),
-      clss(["canvas-formation"]),
+      clss(["canvas-formation", ...link_classes(~focused_ty, a, b)]),
       Attr.create(
         "d",
-        CanvasLayout.relation_path(~nodes, ~from_key=a, ~to_key=b, cp, pp'),
+        CanvasLayout.relation_path(
+          ~wires,
+          ~nodes,
+          ~from_key=a,
+          ~to_key=b,
+          cp,
+          pp',
+        ),
       ),
       /* the end is pulled back for this arrowhead (lost in round 105) */
       Attr.create("marker-end", "url(#cnv-arrow-sm)"),
@@ -279,6 +294,8 @@ let dep_dom_id = (a: string, b: string): string =>
 
 let dep_link_svg =
     (
+      ~focused_ty: option(string)=None,
+      ~wires=[],
       ~nodes: list(CanvasLayout.node_layout),
       _i: int,
       (a, b, dp, np): (string, string, CanvasLayout.pos, CanvasLayout.pos),
@@ -292,10 +309,17 @@ let dep_link_svg =
     "path",
     [
       Attr.id(dep_dom_id(a, b)),
-      clss(["canvas-dep"]),
+      clss(["canvas-dep", ...link_classes(~focused_ty, a, b)]),
       Attr.create(
         "d",
-        CanvasLayout.relation_path(~nodes, ~from_key=a, ~to_key=b, dp, np'),
+        CanvasLayout.relation_path(
+          ~wires,
+          ~nodes,
+          ~from_key=a,
+          ~to_key=b,
+          dp,
+          np',
+        ),
       ),
     ],
     [],
@@ -1387,8 +1411,22 @@ let view =
       "svg",
       [clss(["canvas-edges"])] @ layer_box(lay),
       [defs]
-      @ List.mapi(dep_link_svg(~nodes=lay.nodes), lay.dep_links)
-      @ List.mapi(formation_svg(~nodes=lay.nodes), lay.formations)
+      @ List.mapi(
+          dep_link_svg(
+            ~focused_ty,
+            ~wires=lay.link_wires,
+            ~nodes=lay.nodes,
+          ),
+          lay.dep_links,
+        )
+      @ List.mapi(
+          formation_svg(
+            ~focused_ty,
+            ~wires=lay.link_wires,
+            ~nodes=lay.nodes,
+          ),
+          lay.formations,
+        )
       @ List.concat_map(leader_svg, lay.edges)
       @ List.concat_map(
           edge_svg(

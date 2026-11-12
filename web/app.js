@@ -361,9 +361,9 @@
   // The layout, the edge style, and the two region settings (contour and pull, logbook entry 15):
   // the canvas lists what it offers; the choice is kept, and ?layout=, ?edges=, ?contour= and
   // ?pull= in the address override it.
-  const chooser = (id, key, list, set) => {
+  const chooser = (id, key, list, set, label = key) => {
     const sel = $(id), want = params.get(key) || kept(key);
-    sel.replaceChildren(...list.map(o => Object.assign(document.createElement('option'), { value: o.id, textContent: key + ': ' + o.label })));
+    sel.replaceChildren(...list.map(o => Object.assign(document.createElement('option'), { value: o.id, textContent: label + ': ' + o.label })));
     if (want && set(want)) sel.value = want;
     sel.onchange = () => { if (set(sel.value)) keep(key, sel.value); };
     sel.hidden = false;
@@ -375,6 +375,7 @@
   $('outside').replaceChildren(...[['modules', 'outside: modules'], ['types', 'outside: types']].map(([v, t]) => Object.assign(document.createElement('option'), { value: v, textContent: t })));
   $('outside').value = outsideAs;
   $('outside').onchange = () => { outsideAs = $('outside').value; keep('outside', outsideAs); present(null, true); drawNav(); };
+  if (PC && PC.setLinks) chooser('links', 'links', PC.linkStyles(), id => PC.setLinks(id), 'made of');
   if (PC && PC.setContour) {
     chooser('contour', 'contour', PC.contours(), id => PC.setContour(id));
     chooser('pull', 'pull', PC.pulls(), id => PC.setPull(id));

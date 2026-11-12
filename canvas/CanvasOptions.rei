@@ -24,6 +24,17 @@ let set_edges: string => bool;
 /* The pane's width over its height: what the packing layouts aim for. */
 let aspect: ref(float);
 
+/* How the dotted "made of" lines are drawn: "straight" (chords, as Hazel
+   draws them), "routed" (in the edge style, where that is "metro": they take
+   lanes beside the arrows), "select" (only those of the selected node) or
+   "off". */
+let link_styles: list((string, string));
+let links: ref(string);
+let set_links: string => bool;
+/* A "made of" line from one node to another, as an edge for [route]. */
+let link_name: (string, string) => string;
+let is_link_name: string => bool;
+
 /* What `CanvasLayoutExperiments.place("components", items, links, [])`
    returns (the default layout's packing of separate pieces), computed with
    tables instead of list searches. */

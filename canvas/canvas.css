@@ -2710,6 +2710,24 @@
   opacity: 0.35;
 }
 
+/* the "made of" lines, by CanvasOptions.links: hidden, or only the selected
+   node's; a routed one runs in a bundle, so it is drawn a little heavier */
+.canvas-formation.links-off,
+.canvas-dep.links-off,
+.canvas-formation.links-select:not(.link-touching),
+.canvas-dep.links-select:not(.link-touching) {
+  display: none;
+}
+.canvas-formation.link-touching,
+.canvas-dep.link-touching {
+  stroke: var(--pc-canvas-select);
+  opacity: 0.9;
+}
+.canvas-formation.links-routed,
+.canvas-dep.links-routed {
+  opacity: 0.6;
+}
+
 /* the fan of a selection (what a function calls, what a module on the rim
    touches) is told from the grey "made of" dots by weight as well as colour */
 .canvas-depfan path {

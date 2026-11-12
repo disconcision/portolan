@@ -43,6 +43,26 @@ let set_edges = (k: string): bool =>
     false;
   };
 
+/* how the "made of" lines are drawn */
+let link_styles = [
+  ("straight", "straight"),
+  ("routed", "as the arrows"),
+  ("select", "on select"),
+  ("off", "off"),
+];
+let links: ref(string) = ref("straight");
+let set_links = (k: string): bool =>
+  if (List.mem_assoc(k, link_styles)) {
+    links := k;
+    true;
+  } else {
+    false;
+  };
+/* the name a "made of" line is routed under, beside the arrows */
+let link_name = (a: string, b: string): string => "\001" ++ a ++ "\002" ++ b;
+let is_link_name = (name: string): bool =>
+  String.length(name) > 0 && name.[0] == '\001';
+
 let aspect: ref(float) = ref(1.6);
 let grid = 14.;
 let snap = (v: float): float => Float.round(v /. grid) *. grid;

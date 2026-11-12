@@ -22,6 +22,7 @@
      PortolanCanvas.layout() / edges()      the ones in use (ids)
      PortolanCanvas.setLayout(id)           lays the board out again; false
      PortolanCanvas.setEdges(id)            for an id that is not on offer
+     PortolanCanvas.linkStyles(), setLinks(id)   the same for the "made of" lines
      PortolanCanvas.contours()              [{id, label}]: what a module's
                                             region is drawn around
      PortolanCanvas.pulls()                 [{id, label}]: how hard a module's
@@ -305,6 +306,22 @@ let () = {
           Js.wrap_callback((k: Js.Unsafe.any) =>
             Js.bool(
               CanvasDirector.set_edges(Js.to_string(Js.Unsafe.coerce(k))),
+            )
+          ),
+        ),
+      ),
+      (
+        "linkStyles",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() => options(CanvasOptions.link_styles)),
+        ),
+      ),
+      (
+        "setLinks",
+        Js.Unsafe.inject(
+          Js.wrap_callback((k: Js.Unsafe.any) =>
+            Js.bool(
+              CanvasDirector.set_links(Js.to_string(Js.Unsafe.coerce(k))),
             )
           ),
         ),
