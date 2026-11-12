@@ -21,9 +21,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # The notebook, plus the page itself under app/ so recorded runs in site/runs/ can be replayed
-      # in the browser (app/?trace=../runs/<name>.jsonl) with no sidecar.
+      # in the browser (app/?trace=../runs/<name>.jsonl) with no sidecar. A study that draws the
+      # canvas gets the bundle and the page's schemes in its lib/ folder.
       - name: Assemble the site
-        run: mkdir _site && cp -R site/. _site/ && cp -R web _site/app && cp -R canvas/dist _site/app/canvas && for d in _site/studies/*/lib; do cp canvas/dist/* "$d"/; done
+        run: mkdir _site && cp -R site/. _site/ && cp -R web _site/app && cp -R canvas/dist _site/app/canvas && for d in _site/studies/*/lib; do cp canvas/dist/* web/schemes.js "$d"/; done
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
