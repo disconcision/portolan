@@ -40,7 +40,7 @@ sh canvas/tools/diff_upstream.sh /path/to/hazel-worktree     # upstream/ must be
 |---|---|
 | `mount(element)` | Draws the canvas into `element` and fills it. One canvas per page (the copied code finds its elements by id). |
 | `push(snapshot, cause)` | A new snapshot and what caused it: one beat. `snapshot` is Graph JSON (string or object). `cause` is `{label, site?, ok?}` (string or object; `err: true` or `status: "err"` also mean not ok). `site` is a definition's qualified name: where the avatar goes. |
-| `show(snapshot)` | A snapshot with no story (an existing code base): shown at once and framed whole. |
+| `show(snapshot)` | A snapshot with no story (an existing code base): shown at once and framed whole. A snapshot may carry a `rim` beside its nodes and edges: see The rim. |
 | `reset()` | A clean board. |
 | `setFollow(bool)` | The camera follows the score and the avatar (default on). |
 | `setPace(bool)` | Off: snapshots are shown as they arrive, no beats, no scores. |
@@ -106,6 +106,7 @@ in `test/` build and run them natively.
 | `CanvasOptions.re`, `.rei` | — | new | The layouts and edge styles on offer, and the ones written for Portolan. |
 | `CanvasContour.re`, `.rei` | — | new | What a module's region is drawn around. See Regions. |
 | `CanvasPull.re`, `.rei` | — | new | The pass that draws a module's members toward each other. See Regions. |
+| `CanvasRim.re`, `.rei` | — | new | Where the modules beside the one shown are put. See The rim. |
 | `portolan_canvas_js.re` | — | new | The global API. |
 | `canvas.css` | `src/web/www/style/canvas.css`, `animations.css` | generated | By `tools/make_css.py`: variables renamed `--pc-*`, every literal colour turned into a palette variable, Hazel's values as zero-specificity defaults, `tools/portolan.css` appended. |
 
@@ -227,6 +228,27 @@ whole of Portolan (about 1850 nodes) it has not been timed. A change of pull lea
 in the journal for label leaders that appear, as a change of layout does.
 `smooth` blurs twice as wide as the other contours and has not been timed on
 a large board either.
+
+## The rim
+
+A host that shows one module of a project can keep the modules beside it on the
+board: each is one node of the snapshot, and the snapshot's `rim` says which,
+as a list of `{key, side, uses}`. `side` is `"users"` (it uses the module
+shown) or `"used"` (the module shown uses it); `uses` names the definitions on
+the board it uses. The extractor never writes a rim, and the graph record's
+type does not have one: `CanvasGraph.of_json` reads it into the picture.
+
+`CanvasLayout` calls `CanvasRim.place` after the pull and before manual
+offsets: the users go to a column left of everything else, the used to a column
+on the right, each in the order the layout left them. Nothing is drawn between
+a rim node and the board at rest beyond the arrows of functions that take or
+return its types. Selecting a rim node draws the dependency fan from it to what
+it uses, and from the functions that call into it (a host rewrites those calls'
+`deps` to the rim node's key); selecting a function includes the rim nodes that
+use it. Native tests: `test/test_rim.re`.
+
+A selected node's arrows carry `edge-out` or `edge-in` as well as
+`edge-touching`: `tools/portolan.css` draws those into it dashed.
 
 ## Layout cost
 

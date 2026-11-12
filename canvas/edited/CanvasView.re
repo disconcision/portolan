@@ -137,7 +137,10 @@ let edge_classes =
   @ (focused == Some(e.e_name) ? ["edge-focused"] : [])
   @ (
     switch (focused_ty) {
-    | Some(k) when meets(k) => ["edge-touching"]
+    | Some(k) when meets(k) => [
+        "edge-touching",
+        e.e_src == k ? "edge-out" : "edge-in",
+      ]
     | Some(_) when touched => ["edge-away"]
     | _ => []
     }

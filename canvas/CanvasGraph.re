@@ -109,6 +109,18 @@ type handle =
     end_line: int,
   };
 
+/* PORTOLAN: a module beside the one a board shows, drawn as one node on
+   the board's rim. A view says which nodes these are (the record's "rim"
+   field); the extractor never does. */
+type rim_side =
+  | Users /* it uses the module shown */
+  | Used; /* the module shown uses it */
+type rim = {
+  r_key: string,
+  r_side: rim_side,
+  r_uses: list(string) /* the definitions on the board it uses */
+};
+
 type t = {
   nodes: list(tynode),
   edges: list(edge),
@@ -121,6 +133,7 @@ type t = {
   livelit_defs: list(Id.t),
   /* PORTOLAN: id -> where it is declared */
   handles: list((Id.t, handle)),
+  rim: list(rim),
 };
 
 let empty: t = {
@@ -132,6 +145,7 @@ let empty: t = {
   last_def: None,
   livelit_defs: [],
   handles: [],
+  rim: [],
 };
 
 let mk_node =
@@ -1005,6 +1019,7 @@ module Read: {
       last_def: None,
       livelit_defs: [],
       handles: handles(g),
+      rim: [],
     };
   };
 };
@@ -1014,10 +1029,60 @@ let of_graph: Graph.t => t = Read.graph;
 
 /* [of_graph] of a record's JSON; [Error] says what is not a graph record
    about it. */
+/* The record's "rim", where a view has put one: absent or malformed is none. */
+let rim_of_json = (j: Yojson.Safe.t): list(rim) => {
+  let field = (name, o) =>
+    switch (o) {
+    | `Assoc(l) => Option.value(List.assoc_opt(name, l), ~default=`Null)
+    | _ => `Null
+    };
+  let one = o =>
+    switch (field("key", o), field("side", o), field("uses", o)) {
+    | (`String(r_key), `String(("users" | "used") as side), uses) =>
+      Some({
+        r_key,
+        r_side: side == "users" ? Users : Used,
+        r_uses:
+          switch (uses) {
+          | `List(l) =>
+            List.filter_map(
+              fun
+              | `String(s) => Some(s)
+              | _ => None,
+              l,
+            )
+          | _ => []
+          },
+      })
+    | _ => None
+    };
+  switch (field("rim", j)) {
+  | `List(l) => List.filter_map(one, l)
+  | _ => []
+  };
+};
+
 let of_json = (j: Yojson.Safe.t): result(t, string) =>
-  Result.map(of_graph, Graph.of_json(j));
+  Result.map(
+    g =>
+      {
+        ...of_graph(g),
+        rim: rim_of_json(j),
+      },
+    Graph.of_json(j),
+  );
 let of_string = (s: string): result(t, string) =>
-  Result.map(of_graph, Graph.of_string(s));
+  Result.map(
+    g =>
+      {
+        ...of_graph(g),
+        rim:
+          try(rim_of_json(Yojson.Safe.from_string(s))) {
+          | _ => []
+          },
+      },
+    Graph.of_string(s),
+  );
 
 let handle_of = (g: t, id: Id.t): option(handle) =>
   List.assoc_opt(id, g.handles);

@@ -1,9 +1,10 @@
 ; What CanvasGraph makes of a graph record, and what the two region
-; settings (CanvasContour, CanvasPull) make of a placed graph, checked
-; natively:
+; settings (CanvasContour, CanvasPull) and the rim (CanvasRim) make of a
+; placed graph, checked natively:
 ;   dune test canvas/test
+
 (include_subdirs no)
 
 (tests
- (names test_canvas_graph test_regions test_pips)
+ (names test_canvas_graph test_regions test_pips test_rim)
  (libraries portolan_canvas_graph portolan_graph alcotest))

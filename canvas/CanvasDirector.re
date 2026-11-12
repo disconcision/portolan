@@ -57,8 +57,7 @@ let hovered_edge: ref(option(string)) = ref(None);
 let on_open: ref((string, string) => unit) = ref((_, _) => ());
 /* (name, kind, where) of what was clicked; kind is "function", "type",
    "module", "value", "test", "builtin", "derived", "ghost" or "product" */
-let on_select:
-  ref((string, string, option(CanvasGraph.handle)) => unit) =
+let on_select: ref((string, string, option(CanvasGraph.handle)) => unit) =
   ref((_, _, _) => ());
 
 /* manual arrangement (upstream: settings.canvas_node_offsets), per slide */
@@ -546,7 +545,11 @@ let last_logged_busy: ref(bool) = ref(false);
    identity, so the filtered graph must be the same value while its
    inputs are */
 let collapse_cache:
-  ref(option((CanvasGraph.t, list(string), (CanvasGraph.t, list((string, int)))))) =
+  ref(
+    option(
+      (CanvasGraph.t, list(string), (CanvasGraph.t, list((string, int)))),
+    ),
+  ) =
   ref(None);
 let collapse_cached = (g: CanvasGraph.t) =>
   switch (collapse_cache^) {
@@ -777,10 +780,16 @@ let locate = (lay: CanvasLayout.t, id: string): option(CanvasLayout.pos) => {
   let dots = String.map(c => c == '/' ? '.' : c);
   let id' = dots(id);
   let edge = (pred: CanvasGraph.edge => bool, ()) =>
-    List.find_opt((el: CanvasLayout.edge_layout) => pred(el.edge), lay.edges)
+    List.find_opt(
+      (el: CanvasLayout.edge_layout) => pred(el.edge),
+      lay.edges,
+    )
     |> Option.map((el: CanvasLayout.edge_layout) => el.label_p);
   let node = (pred: CanvasGraph.tynode => bool, ()) =>
-    List.find_opt((nl: CanvasLayout.node_layout) => pred(nl.node), lay.nodes)
+    List.find_opt(
+      (nl: CanvasLayout.node_layout) => pred(nl.node),
+      lay.nodes,
+    )
     |> Option.map((nl: CanvasLayout.node_layout) => nl.p);
   let value = (pred: CanvasGraph.value => bool, ()) =>
     List.find_opt(
@@ -1082,10 +1091,7 @@ let view = (graph0: CanvasGraph.t): Node.t => {
   let focus_dom = dom_id =>
     Effect.of_sync_fun(CanvasView.focus_selector, "#" ++ dom_id);
   let inject_jump = (id: string) =>
-    Effect.Many([
-      select(id, "test", Some(id)),
-      Effect.Stop_propagation,
-    ]);
+    Effect.Many([select(id, "test", Some(id)), Effect.Stop_propagation]);
   let on_edge_click = (e: CanvasGraph.edge) => {
     focused_value := None;
     focused := Some(e.e_name);
@@ -1581,7 +1587,7 @@ let view = (graph0: CanvasGraph.t): Node.t => {
       (
         max(0., pan_slack +. (lw -. aw) /. 2.),
         max(0., pan_slack +. (lay.height *. zoom -. ah) /. 2.),
-      )
+      );
   | _ => ()
   };
   ensure_scroll_anchor(slide);
@@ -2300,6 +2306,53 @@ let view = (graph0: CanvasGraph.t): Node.t => {
   /* dependency fan: subdued under-layer curves from the hovered or
      focused function's pill to what it references */
   let dep_fan = {
+    /* PORTOLAN: where a name is on the board: a function's pill, a value,
+       or a node (a module on the rim stands for what is called in it) */
+    let at = (name: string): option(CanvasLayout.pos) =>
+      switch (
+        List.find_opt(
+          (dl: CanvasLayout.edge_layout) => dl.edge.e_name == name,
+          lay.edges,
+        )
+      ) {
+      | Some(dl) => Some(dl.label_p)
+      | None =>
+        switch (
+          List.find_opt(
+            (vl: CanvasLayout.value_layout) => vl.value.v_name == name,
+            lay.values,
+          )
+        ) {
+        | Some(vl) => Some(vl.p)
+        | None =>
+          List.find_opt(
+            (nl: CanvasLayout.node_layout) => nl.node.key == name,
+            lay.nodes,
+          )
+          |> Option.map((nl: CanvasLayout.node_layout) => nl.p)
+        }
+      };
+    /* PORTOLAN: a module on the rim fans to what it uses on the board, and
+       from what calls into it */
+    let fan_for_node = (key: string) =>
+      switch (at(key)) {
+      | None => []
+      | Some(p) =>
+        let uses =
+          switch (
+            List.find_opt((r: CanvasGraph.rim) => r.r_key == key, graph0.rim)
+          ) {
+          | Some(r) =>
+            List.filter_map(d => at(d) |> Option.map(t => (p, t)), r.r_uses)
+          | None => []
+          };
+        let used_by =
+          lay.edges
+          |> List.filter_map((dl: CanvasLayout.edge_layout) =>
+               List.mem(key, dl.edge.e_deps) ? Some((dl.label_p, p)) : None
+             );
+        uses @ used_by;
+      };
     let fan_for = (name: string) =>
       switch (
         List.find_opt(
@@ -2311,25 +2364,9 @@ let view = (graph0: CanvasGraph.t): Node.t => {
       | Some(el) =>
         let uses =
           el.edge.e_deps
-          |> List.filter_map(dep => {
-               let tgt =
-                 switch (
-                   List.find_opt(
-                     (dl: CanvasLayout.edge_layout) => dl.edge.e_name == dep,
-                     lay.edges,
-                   )
-                 ) {
-                 | Some(dl) => Some(dl.label_p)
-                 | None =>
-                   List.find_opt(
-                     (vl: CanvasLayout.value_layout) =>
-                       vl.value.v_name == dep,
-                     lay.values,
-                   )
-                   |> Option.map((vl: CanvasLayout.value_layout) => vl.p)
-                 };
-               tgt |> Option.map(t => (el.label_p, t));
-             });
+          |> List.filter_map(dep =>
+               at(dep) |> Option.map(t => (el.label_p, t))
+             );
         /* and the reverse: who uses THIS function */
         let used_by =
           lay.edges
@@ -2337,12 +2374,19 @@ let view = (graph0: CanvasGraph.t): Node.t => {
                dl.edge.e_name != name && List.mem(name, dl.edge.e_deps)
                  ? Some((dl.label_p, el.label_p)) : None
              );
-        uses @ used_by;
+        let rim_users =
+          graph0.rim
+          |> List.filter_map((r: CanvasGraph.rim) =>
+               List.mem(name, r.r_uses)
+                 ? at(r.r_key) |> Option.map(p => (p, el.label_p)) : None
+             );
+        uses @ used_by @ rim_users;
       };
-    switch (hovered_edge^, focused^) {
-    | (Some(n), _)
-    | (None, Some(n)) => fan_for(n)
-    | (None, None) => []
+    switch (hovered_edge^, focused^, focused_ty^) {
+    | (Some(n), _, _)
+    | (None, Some(n), _) => fan_for(n)
+    | (None, None, Some(k)) => fan_for_node(k)
+    | (None, None, None) => []
     };
   };
   let on_hull_toggle = (root: string) => {
@@ -2602,7 +2646,9 @@ render_fwd := render;
 let mount = (el: Js.t(Dom_html.element)): unit => {
   switch (rendered^) {
   | Some((_, old)) =>
-    Js.Opt.iter(old##.parentNode, p => ignore(p##removeChild((old :> Js.t(Dom.node)))))
+    Js.Opt.iter(old##.parentNode, p =>
+      ignore(p##removeChild((old :> Js.t(Dom.node))))
+    )
   | None => ()
   };
   rendered := None;
@@ -2634,7 +2680,7 @@ let push = (g: CanvasGraph.t, c: cause): unit => {
 let show = (g: CanvasGraph.t): unit => {
   /* PORTOLAN: on a board already showing something, what stays glides
      to its new place */
-  if (!fresh_board^) {
+  if (! fresh_board^) {
     CanvasBuffer.stage_beat(~slow=true, ~ms=Some(reader_ms), ());
   };
   live := g;

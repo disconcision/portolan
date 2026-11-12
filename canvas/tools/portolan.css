@@ -43,6 +43,11 @@
   stroke-width: 2.2;
   opacity: 1;
 }
+/* out of it solid, into it dashed */
+.canvas-line.edge-in,
+.canvas-orbit.edge-in {
+  stroke-dasharray: 7 4;
+}
 .canvas-edge-label.edge-touching {
   border-color: var(--pc-canvas-select);
   color: var(--pc-canvas-select);
@@ -53,4 +58,12 @@
 }
 .canvas-edge-label.edge-away {
   opacity: 0.35;
+}
+
+/* the fan of a selection (what a function calls, what a module on the rim
+   touches) is told from the grey "made of" dots by weight as well as colour */
+.canvas-depfan path {
+  stroke-width: 1.9px;
+  stroke-dasharray: 0.1 3.4;
+  opacity: 1;
 }

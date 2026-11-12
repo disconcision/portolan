@@ -1483,6 +1483,34 @@ let layout_core =
         node_layouts,
       );
     };
+  /* PORTOLAN: the modules beside the one shown go to the rim (CanvasRim) */
+  let node_layouts =
+    switch (
+      CanvasRim.place(
+        g.rim,
+        List.map(
+          (n: node_layout) => (n.node.key, (n.p.x, n.p.y), n.r),
+          node_layouts,
+        ),
+      )
+    ) {
+    | [] => node_layouts
+    | moved =>
+      List.map(
+        (n: node_layout) =>
+          switch (List.assoc_opt(n.node.key, moved)) {
+          | Some((x, y)) => {
+              ...n,
+              p: {
+                x,
+                y,
+              },
+            }
+          | None => n
+          },
+        node_layouts,
+      )
+    };
   let node_layouts = apply_manual_positions(~offsets, ~pins, node_layouts);
   let placed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
   List.iter(
