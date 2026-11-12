@@ -5,6 +5,7 @@
                                             object); cause: {label, site?,
                                             ok?} (string or object)
      PortolanCanvas.show(snapshot)          no story: shown as it is
+     PortolanCanvas.morph(snapshot, key?)   the reader changed the board: no re-framing
      PortolanCanvas.reset()
      PortolanCanvas.setFollow(bool)         the camera follows the avatar
      PortolanCanvas.setPace(bool)           false: snapshots jump-cut
@@ -140,6 +141,21 @@ let () = {
                   };
               CanvasDirector.push(graph_of_any(snap), c);
             })
+          ),
+        ),
+      ),
+      (
+        "morph",
+        Js.Unsafe.inject(
+          Js.Unsafe.callback_with_arity(
+            2, (snap: Js.Unsafe.any, reveal: Js.Unsafe.any) =>
+            guard("morph", () =>
+              CanvasDirector.morph(
+                graph_of_any(snap),
+                present(reveal)
+                  ? Some(Js.to_string(Js.Unsafe.coerce(reveal))) : None,
+              )
+            )
           ),
         ),
       ),

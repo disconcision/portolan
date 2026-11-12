@@ -576,6 +576,8 @@ let graph_delta = (a: CanvasGraph.t, b: CanvasGraph.t): int => {
    render that lays it out */
 let fit_pending: ref(bool) = ref(false);
 let overview_pending: ref(bool) = ref(false);
+/* PORTOLAN: after a [morph], the module (or node) to bring into view */
+let reveal_pending: ref(option(string)) = ref(None);
 /* PORTOLAN: nothing has been framed since the board was cleared: the
    first framing is where the camera starts, not a move from where the
    last board left it */
@@ -1369,6 +1371,75 @@ let view = (graph0: CanvasGraph.t): Node.t => {
     let dur = fresh_board^ ? 1. : 320.;
     fresh_board := false;
     CanvasEnact.after_render(fit_view(~cap=Some(1.), ~dur));
+  };
+  /* PORTOLAN: after a morph the camera stays where the reader left it. If
+     what they opened does not fit in view, it moves no further than it
+     must, and zooms out only if the thing is larger than the pane. */
+  switch (reveal_pending^, avail_width, avail_height) {
+  | (Some(root), Some(aw), Some(ah)) =>
+    reveal_pending := None;
+    let own =
+      List.filter(
+        (nl: CanvasLayout.node_layout) =>
+          nl.node.key == root
+          || (
+            switch (nl.node.m_path) {
+            | [r, ..._] => r == root
+            | [] => false
+            }
+          ),
+        lay.nodes,
+      );
+    switch (own, CanvasCamera.center(~aw, ~ah)) {
+    | ([first, ...rest], Some((vx, vy))) =>
+      let pad = 70.;
+      let (x0, x1, y0, y1) =
+        List.fold_left(
+          ((x0, x1, y0, y1), nl: CanvasLayout.node_layout) =>
+            (
+              min(x0, nl.p.x -. nl.r),
+              max(x1, nl.p.x +. nl.r),
+              min(y0, nl.p.y -. nl.r),
+              max(y1, nl.p.y +. nl.r),
+            ),
+          (
+            first.p.x -. first.r,
+            first.p.x +. first.r,
+            first.p.y -. first.r,
+            first.p.y +. first.r,
+          ),
+          rest,
+        );
+      let (x0, x1, y0, y1) = (x0 -. pad, x1 +. pad, y0 -. pad, y1 +. pad);
+      let z0 = CanvasCamera.zoom_now^;
+      let z =
+        min(z0, CanvasZoom.fit(~width=x1 -. x0, ~height=y1 -. y0, ~aw, ~ah));
+      let hw = aw /. (2. *. z)
+      and hh = ah /. (2. *. z);
+      /* the nearest centre that has it all in view */
+      let near = (v, lo, hi, half) =>
+        hi -. lo >= 2. *. half
+          ? (lo +. hi) /. 2. : max(hi -. half, min(lo +. half, v));
+      let cx = near(vx, x0, x1, hw)
+      and cy = near(vy, y0, y1, hh);
+      if (z < z0
+          -. 0.001
+          || abs_float(cx -. vx) > 1.
+          || abs_float(cy -. vy) > 1.) {
+        CanvasEnact.after_render(() =>
+          CanvasCamera.animate(
+            ~aw,
+            ~ah,
+            ~zoom=Some(z),
+            ~dur=float_of_int(reader_ms),
+            (cx, cy),
+          )
+        );
+      };
+    | _ => ()
+    };
+  | (Some(_), _, _) => reveal_pending := None
+  | (None, _, _) => ()
   };
 
   /* ---- the avatar ---- */
@@ -2685,6 +2756,18 @@ let show = (g: CanvasGraph.t): unit => {
   };
   live := g;
   overview_pending := true;
+  request_render();
+};
+
+/* PORTOLAN: the board the reader is looking at, changed by them (a module
+   opened or closed in place): what stays glides to where it goes, and the
+   camera is not framed again. [reveal] names what they opened or closed. */
+let morph = (g: CanvasGraph.t, reveal: option(string)): unit => {
+  if (! fresh_board^) {
+    CanvasBuffer.stage_beat(~slow=true, ~ms=Some(reader_ms), ());
+  };
+  live := g;
+  reveal_pending := reveal;
   request_render();
 };
 

@@ -747,6 +747,13 @@ type ranking =
   | Combined
   | FunctionFlow
   | TypeDependencies;
+/* PORTOLAN: a graph placed on its own, for CanvasBlocks: [layout], set
+   once that is defined; and the last graph put together from such */
+let place_alone: ref(CanvasGraph.t => CanvasBlocks.placed) = ref(_ => []);
+let blocks_memo:
+  ref(option((CanvasGraph.t, list((string, (float, float)))))) =
+  ref(None);
+
 /* PORTOLAN: upstream's layout_impl is cut in two where its last step
    begins. `layout_core` is everything that does not depend on the frame;
    `layout_frame` translates the result into the frame. A render asks for
@@ -1471,6 +1478,46 @@ let layout_core =
       List.map(
         (n: node_layout) =>
           switch (Hashtbl.find_opt(moved, n.node.key)) {
+          | Some((x, y)) => {
+              ...n,
+              p: {
+                x,
+                y,
+              },
+            }
+          | None => n
+          },
+        node_layouts,
+      );
+    };
+  /* PORTOLAN: modules opened in place (CanvasBlocks): the closed project
+     and each open module are placed on their own, then put together */
+  let node_layouts =
+    switch (CanvasBlocks.roots(g), g.base) {
+    | ([], _)
+    | (_, None) => node_layouts
+    | (roots, Some(base)) =>
+      let moved =
+        switch (blocks_memo^) {
+        | Some((g0, m)) when g0 === g => m
+        | _ =>
+          let m =
+            CanvasBlocks.compose(
+              ~base=place_alone^(base),
+              ~blocks=
+                List.map(
+                  r => (r, place_alone^(CanvasBlocks.sub(g, r))),
+                  roots,
+                ),
+            );
+          blocks_memo := Some((g, m));
+          m;
+        };
+      let at: Hashtbl.t(string, (float, float)) = Hashtbl.create(64);
+      List.iter(((k, p)) => Hashtbl.replace(at, k, p), moved);
+      List.map(
+        (n: node_layout) =>
+          switch (Hashtbl.find_opt(at, n.node.key)) {
           | Some((x, y)) => {
               ...n,
               p: {
@@ -2633,3 +2680,14 @@ let layout =
     r;
   };
 };
+
+/* PORTOLAN */
+let () =
+  place_alone :=
+    (
+      g =>
+        List.map(
+          (n: node_layout) => (n.node.key, (n.p.x, n.p.y), n.r),
+          layout(~cards=[], g).nodes,
+        )
+    );

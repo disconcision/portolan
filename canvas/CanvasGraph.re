@@ -134,6 +134,9 @@ type t = {
   /* PORTOLAN: id -> where it is declared */
   handles: list((Id.t, handle)),
   rim: list(rim),
+  /* PORTOLAN: the same project with every module closed, where a view
+     opens modules in place (CanvasBlocks) */
+  base: option(t),
 };
 
 let empty: t = {
@@ -146,6 +149,7 @@ let empty: t = {
   livelit_defs: [],
   handles: [],
   rim: [],
+  base: None,
 };
 
 let mk_node =
@@ -1020,6 +1024,7 @@ module Read: {
       livelit_defs: [],
       handles: handles(g),
       rim: [],
+      base: None,
     };
   };
 };
@@ -1029,13 +1034,14 @@ let of_graph: Graph.t => t = Read.graph;
 
 /* [of_graph] of a record's JSON; [Error] says what is not a graph record
    about it. */
+let field = (name: string, o: Yojson.Safe.t): Yojson.Safe.t =>
+  switch (o) {
+  | `Assoc(l) => Option.value(List.assoc_opt(name, l), ~default=`Null)
+  | _ => `Null
+  };
+
 /* The record's "rim", where a view has put one: absent or malformed is none. */
 let rim_of_json = (j: Yojson.Safe.t): list(rim) => {
-  let field = (name, o) =>
-    switch (o) {
-    | `Assoc(l) => Option.value(List.assoc_opt(name, l), ~default=`Null)
-    | _ => `Null
-    };
   let one = o =>
     switch (field("key", o), field("side", o), field("uses", o)) {
     | (`String(r_key), `String(("users" | "used") as side), uses) =>
@@ -1062,24 +1068,25 @@ let rim_of_json = (j: Yojson.Safe.t): list(rim) => {
   };
 };
 
+/* What a view adds to a record: its "rim", and its "base" (a record). */
+let with_view = (j: Yojson.Safe.t, g: t): t => {
+  ...g,
+  rim: rim_of_json(j),
+  base:
+    switch (field("base", j)) {
+    | `Null => None
+    | b => Result.to_option(Result.map(of_graph, Graph.of_json(b)))
+    },
+};
+
 let of_json = (j: Yojson.Safe.t): result(t, string) =>
-  Result.map(
-    g =>
-      {
-        ...of_graph(g),
-        rim: rim_of_json(j),
-      },
-    Graph.of_json(j),
-  );
+  Result.map(g => with_view(j, of_graph(g)), Graph.of_json(j));
 let of_string = (s: string): result(t, string) =>
   Result.map(
     g =>
-      {
-        ...of_graph(g),
-        rim:
-          try(rim_of_json(Yojson.Safe.from_string(s))) {
-          | _ => []
-          },
+      switch (Yojson.Safe.from_string(s)) {
+      | j => with_view(j, of_graph(g))
+      | exception _ => of_graph(g)
       },
     Graph.of_string(s),
   );

@@ -21,7 +21,8 @@
   CanvasContour
   CanvasPull
   CanvasPips
-  CanvasRim)
+  CanvasRim
+  CanvasBlocks)
  (wrapped false)
  (libraries portolan_graph yojson))
 
@@ -36,7 +37,8 @@
   CanvasContour
   CanvasPull
   CanvasPips
-  CanvasRim)
+  CanvasRim
+  CanvasBlocks)
  (modes byte)
  (libraries js_of_ocaml virtual_dom yojson portolan_canvas_graph)
  (js_of_ocaml)

@@ -76,8 +76,13 @@
   let levels = null, clickedTest = null;
   const allLevels = () => { if (!levels) { try { levels = JSON.parse(kept('levels.' + project) || '{}'); } catch (e) { levels = {}; } } return levels; };
   const level = (g, m) => allLevels()[m] || (modules(g).reduce((n, x) => n + x.size, 0) > 60 ? 'closed' : 'open');
+  // With a module open, the picture carries its `base`, the project all closed: the canvas places
+  // that, and sets each open module down where its closed node was (logbook entry 9, revised).
   function wholeView(g) {
-    return modules(g).length < 2 ? flatten(g) : picture(g, m => level(g, m), null);
+    const ms = modules(g);
+    if (ms.length < 2) return flatten(g);
+    const v = picture(g, m => level(g, m), null);
+    return ms.some(m => level(g, m.name) !== 'closed') ? { ...v, base: picture(g, () => 'closed', null) } : v;
   }
   // The modules in `only` (all of them when it is null), each at the level `lv` gives it. A closed
   // module is one node: it stands in for its types, and an unnamed arrow says which modules it
@@ -112,10 +117,10 @@
     const now = level(latest, m), hides = [...latest.nodes, ...latest.edges, ...(latest.values || [])].some(x => top(x) === m && x.exported === false);
     levels[m] = now === 'closed' ? (hides ? 'interface' : 'open') : now === 'interface' ? 'open' : 'closed';
     keep('levels.' + project, JSON.stringify(levels));
-    present(null, 'morph');
+    present(null, 'morph', m);
     visit('reader');
   }
-  $('levels-reset').onclick = () => { levels = {}; keep('levels.' + project, '{}'); present(null, 'morph'); visit('reader'); };
+  $('levels-reset').onclick = () => { levels = {}; keep('levels.' + project, '{}'); present(null, 'morph'); fitWhenSettled(); visit('reader'); };
 
   // ---- where the reader has been ----
   // Each change of view (the module shown, a module opened or closed in the whole project) is an
@@ -183,7 +188,7 @@
     visit(cause ? 'agent' : 'reader');
   }
   // Draw the current module of the latest graph: at once after a switch, as a paced beat otherwise.
-  function present(cause, fresh) {
+  function present(cause, fresh, reveal) {
     if (!latest) return;
     if (moduleName === null) {
       const ms = modules(latest), saved = kept('module.' + project);
@@ -198,7 +203,7 @@
     shown = g;
     shownKey = key;
     if (!live) return;
-    if (fresh === 'morph') view.show(g); // the same board, changed by the reader: no score, no reset
+    if (fresh === 'morph') view.morph(g, reveal); // the same board, changed by the reader: no score, no reset, the camera left alone
     else if (fresh) { view.reset(); view.show(g); } else view.push(g, cause);
   }
   $('module').onchange = () => choose($('module').value);
@@ -293,6 +298,7 @@
       mount: el => PC.mount(el),
       push: (g, c) => PC.push(g, { label: (c && c.label) || 'edit', ok: true }),
       show: g => { PC.show(g); fitWhenSettled(); },
+      morph: (g, reveal) => { clearInterval(settling); if (PC.morph) PC.morph(g, reveal || null); else { PC.show(g); fitWhenSettled(); } },
       reset: () => PC.reset(),
       onSelect: cb => PC.onSelect((name, kind, at) => {
         const g = shown;
@@ -316,6 +322,7 @@
       mount: el => PlainView.mount(el),
       push: (g, c) => PlainView.push(g, c, true),
       show: g => PlainView.push(g, null, false),
+      morph: g => PlainView.push(g, null, false),
       reset: () => PlainView.reset(),
       onSelect: cb => PlainView.onSelect((item, kind) => cb(item, kind, item.at)),
     },

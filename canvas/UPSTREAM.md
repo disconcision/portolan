@@ -47,6 +47,7 @@ sh canvas/tools/diff_upstream.sh /path/to/hazel-worktree     # upstream/ must be
 | `setBusy(bool)` | The agent is working: the avatar is embodied and "thinks" between edits. |
 | `setThought(text)` | Streamed reasoning, shown in the thought cloud while busy. |
 | `fit()` | Frame the whole graph. |
+| `morph(snapshot, reveal?)` | The board the reader is looking at, changed by them: what stays glides to where it goes and the camera is not framed again. `reveal` names a module or node to bring into view if it is not; the camera then moves no further than it must. With a `base` in the snapshot, modules open in place: see Opening in place. |
 | `frame()` | Frame it as `show` does: whole, but never magnified past 1:1. For a host that sees the board has settled. |
 | `onOpen(fn(name, kind))` | A double-click on a node. The canvas does nothing itself; the host decides what opening means. |
 | `repaint()` | Draws again in the colours now in force. The dot field is painted by script and otherwise keeps its old colour until the view scrolls: call this after changing a theme. |
@@ -107,6 +108,7 @@ in `test/` build and run them natively.
 | `CanvasContour.re`, `.rei` | — | new | What a module's region is drawn around. See Regions. |
 | `CanvasPull.re`, `.rei` | — | new | The pass that draws a module's members toward each other. See Regions. |
 | `CanvasRim.re`, `.rei` | — | new | Where the modules beside the one shown are put. See The rim. |
+| `CanvasBlocks.re`, `.rei` | — | new | A module opened in place among closed ones. See Opening in place. |
 | `portolan_canvas_js.re` | — | new | The global API. |
 | `canvas.css` | `src/web/www/style/canvas.css`, `animations.css` | generated | By `tools/make_css.py`: variables renamed `--pc-*`, every literal colour turned into a palette variable, Hazel's values as zero-specificity defaults, `tools/portolan.css` appended. |
 
@@ -249,6 +251,24 @@ use it. Native tests: `test/test_rim.re`.
 
 A selected node's arrows carry `edge-out` or `edge-in` as well as
 `edge-touching`: `tools/portolan.css` draws those into it dashed.
+
+## Opening in place
+
+A host that draws a project's modules closed (one node each) and lets the
+reader open some can send, with a snapshot that has modules open, the same
+project all closed as the snapshot's `base` (a graph record). `CanvasLayout`
+then places the base and each open module's own graph separately (through
+`layout` itself, once per snapshot) and `CanvasBlocks.compose` puts them
+together: a closed module stays where the base has it; an open module's
+members are set down in a box whose corner is where its closed node was,
+growing right and down; what was right of that node moves right by what the
+box grew, what was below moves down, and nothing else moves. Each open module
+pushes independently, so opening or closing one moves every other node by that
+one's growth alone, whatever else is open. A node of no module (a type from
+outside, a shared terminal) goes with the first open module it hangs on.
+
+The arrows are routed afterwards as always, and do not yet keep clear of an
+open module's box. Native tests: `test/test_blocks.re`.
 
 ## Layout cost
 
