@@ -16,5 +16,6 @@ let () =
       ("Agent", Test_agent.tests),
       ("Syntax", Test_syntax.tests),
       ("Watcher", Test_watcher.tests),
+      ("Http", Test_http.tests),
     ],
   );

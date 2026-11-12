@@ -357,6 +357,7 @@
     if (root.dataset.theme === 'dark') delete root.dataset.theme; else root.dataset.theme = 'dark';
     keep('theme', root.dataset.theme || 'light');
     chrome();
+    scheme();
     redraw();
   };
   $('corners').onclick = () => {
@@ -365,6 +366,21 @@
     chrome();
   };
   chrome();
+
+  // ---- colour schemes (schemes.js): light and dark each have one, chosen from the menu ----
+  const PS = window.PortolanSchemes, shade = () => (root.dataset.theme === 'dark' ? 'dark' : 'light');
+  // Sets the scheme kept for the mode now showing, and lists that mode's schemes in the menu.
+  function scheme() {
+    if (!PS) return;
+    const saved = PS.load(), id = PS.apply(root, shade(), kept('scheme.' + shade()), saved);
+    $('scheme').replaceChildren(...PS.list(shade(), saved, id).map(s => new Option(s.name, s.id, false, s.id === id)));
+    $('scheme-edit').href = '../studies/2026-11-10-colour-schemes/#' + id; // the editor, at the same place here and on the published site
+    $('scheme-wrap').hidden = false;
+  }
+  $('scheme').onchange = () => { keep('scheme.' + shade(), $('scheme').value); scheme(); redraw(); };
+  // The editor is another tab on this origin: when it saves a change, show it here.
+  window.addEventListener('storage', ev => { if (PS && (ev.key === PS.KEY || ev.key === null)) { scheme(); redraw(); } });
+  scheme();
 
   // ---- the chat pane's width ----
   const main = $('main'), setSide = w => main.style.setProperty('--side-w', Math.round(Math.max(260, Math.min(w, main.clientWidth - 320))) + 'px');

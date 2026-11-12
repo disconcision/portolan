@@ -7,14 +7,17 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
 <link rel="stylesheet" href="canvas/canvas.css">
 <link rel="stylesheet" href="style.css">
+<script src="schemes.js"></script>
 <script>
 // Theme and corner style: from the address (?theme=dark, ?corners=round), else what was last chosen.
-// Square bar tabs are the default.
+// Square bar tabs are the default. The scheme chosen for the theme is set here too, before the page is drawn.
 (function () {
   var q = new URLSearchParams(location.search), get = function (k) { try { return localStorage.getItem('portolan.' + k); } catch (e) { return null; } };
   var theme = q.get('theme') || get('theme') || 'light', corners = q.get('corners') || get('corners') || 'square';
   if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
   document.documentElement.dataset.corners = corners === 'round' ? 'round' : 'square';
+  var mode = theme === 'dark' ? 'dark' : 'light';
+  if (window.PortolanSchemes) PortolanSchemes.apply(document.documentElement, mode, get('scheme.' + mode));
 })();
 </script>
 </head>
@@ -34,6 +37,8 @@
       <button id="lang" title="Show code and types in OCaml or Reason syntax"></button>
       <button id="corners" title="Switch the bar tabs between rounded and square"></button>
       <button id="theme" title="Switch between light and dark"></button>
+      <span id="scheme-wrap" hidden><select id="scheme" aria-label="Colour scheme" title="The colour scheme for this mode. Light and dark each keep their own."></select>
+        <a id="scheme-edit" target="_blank" rel="noopener" title="Open this scheme in the editor. Changes made there show here at once.">edit</a></span>
       <a href="trace" target="_blank" rel="noopener">trace</a>
     </div>
   </div>

@@ -85,6 +85,11 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
 #top-right button { font: 400 12px var(--code-font); color: var(--text-accent); background: transparent; border: 0.6px solid var(--border-soft); border-radius: 4px; padding: 1px 8px; cursor: pointer; }
 #top-right button:hover { background: var(--surface-highlight-soft); }
 #top-right button:focus-visible { outline: 0.6px solid var(--border-strong); outline-offset: 1px; }
+#scheme-wrap { display: flex; align-items: center; gap: 6px; }
+#scheme { font: 400 12px var(--code-font); color: var(--text-accent); background: transparent; border: 0.6px solid var(--border-soft); border-radius: 4px; padding: 1px 4px; max-width: 13em; cursor: pointer; }
+#scheme:hover { background: var(--surface-highlight-soft); }
+#scheme:focus-visible { outline: 0.6px solid var(--border-strong); outline-offset: 1px; }
+#scheme option { background: Canvas; color: CanvasText; }
 
 /* ---- main: canvas pane and chat sidebar ---- */
 #main { display: grid; grid-template-columns: minmax(0, 1fr) 5px var(--side-w, 432px); min-height: 0; }
@@ -259,6 +264,28 @@ body { background: var(--ui-bkg); color: var(--text-default); font: 16px/1.3 var
 #bottom-bar .cell.bad { color: var(--err); } #bottom-bar .cell.live { color: var(--text-strong); }
 #bottom-bar .spacer { flex: 1; }
 #bottom-bar .tail { background: var(--surface-highlight-soft); border-radius: 16px 0 0 0; border-left: 0.6px solid var(--border-default); }
+
+/* ---- colour schemes (schemes.js) ----
+   The parts a scheme can colour apart from the page's main colours. Each falls back to what the
+   rules above give, so with no scheme chosen nothing changes. */
+#top-bar { background: var(--top-bkg, var(--ui-bkg)); }
+#logo { color: var(--logo-ink, var(--text-accent)); background: var(--logo-bkg, transparent); }
+#editor-mode #project, #module, #projects { color: var(--tab-ink, var(--text-default)); }
+#canvas-pane .canvas-header { background: var(--head-bkg, transparent); }
+#canvas-pane .canvas-title { color: var(--title-ink, var(--text-accent)); }
+.canvas-tool-btn, .canvas-tool-select { background: var(--tool-bkg, transparent); }
+.canvas-tool-btn.tool-active { background: var(--tool-on, var(--surface-highlight)); }
+.canvas-edge-label { background: var(--chip-bkg, var(--pc-df-bg, var(--pc-paper-2))); }
+#info, #info-code .cm-gutters { background: var(--info-bkg, var(--df-bg)); }
+.tpip.pass { background: var(--pip-pass, #4A9A4A); border-color: var(--pip-pass, #3A7A3A); }
+.tpip.fail { background: var(--pip-fail, #D04030); border-color: var(--pip-fail, #A03020); }
+#sidebar { background: var(--side-bkg, var(--ui-bkg)); }
+.msg.you { background: var(--say-bkg, var(--df-bg)); }
+#prompt { background: var(--composer-bkg, var(--df-bg)); }
+#send { background: var(--send-bkg, var(--surface-highlight)); }
+#bottom-bar { background: var(--bot-bkg, var(--ui-bkg)); }
+#bottom-bar .lead { background: var(--run-bkg, var(--surface-tab)); }
+#bottom-bar .tail { background: var(--agent-cell, var(--surface-highlight-soft)); }
 
 /* ---- variation: square bar tabs ---- */
 :root[data-corners="square"] #title, :root[data-corners="square"] #editor-mode,
