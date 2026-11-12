@@ -43,6 +43,8 @@
       <div class="canvas-header">
         <span class="canvas-title">Chart</span>
         <div class="canvas-toolbar">
+          <button class="canvas-tool-btn" id="back" title="Back to the view before this one" aria-label="Back" disabled>‹</button>
+          <button class="canvas-tool-btn" id="forward" title="Forward again" aria-label="Forward" disabled>›</button>
           <button class="canvas-tool-btn tool-active" id="pace" title="Play each change as a paced score">pace</button>
           <button class="canvas-tool-btn tool-active" id="follow" title="The camera follows the agent">follow</button>
           <button class="canvas-tool-btn" id="fit" title="Frame the whole graph">fit</button>
@@ -51,11 +53,12 @@
           <select class="canvas-tool-select" id="edges" aria-label="Edge style" title="How the arrows are drawn" hidden></select>
           <select class="canvas-tool-select" id="contour" aria-label="Region contour" title="What a module's region is drawn around (an experiment)" hidden></select>
           <select class="canvas-tool-select" id="pull" aria-label="Pull" title="How hard a module's members are drawn toward each other (an experiment)" hidden></select>
+          <button class="canvas-tool-btn" id="levels-reset" title="Every module back to how the whole project first shows" hidden>reset</button>
           <span class="toolbar-spacer"></span>
           <button class="canvas-tool-btn" id="which" hidden></button>
         </div>
       </div>
-      <div id="canvas-host"><div id="canvas"></div><div id="flux" hidden></div></div>
+      <div id="canvas-host"><div id="canvas"></div><span id="hint"></span><div id="flux" hidden></div></div>
       <section id="info">
         <div id="info-grip" role="separator" aria-orientation="horizontal" aria-label="Resize the code panel" tabindex="0" title="Drag to resize the code panel. Double-click to let it fit the code."></div>
         <div id="info-head"><span id="info-path">Pick a function or type on the canvas to see its definition.</span><span id="info-type"></span>

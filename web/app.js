@@ -62,10 +62,8 @@
   // closed: one node, with arrows to the closed modules it uses; interface: what it exports; open: everything.
   // A click on a module's node moves it to the next level. A large project starts all closed.
   let levels = null, clickedTest = null;
-  const level = (g, m) => {
-    if (!levels) { try { levels = JSON.parse(kept('levels.' + project) || '{}'); } catch (e) { levels = {}; } }
-    return levels[m] || (modules(g).reduce((n, x) => n + x.size, 0) > 60 ? 'closed' : 'open');
-  };
+  const allLevels = () => { if (!levels) { try { levels = JSON.parse(kept('levels.' + project) || '{}'); } catch (e) { levels = {}; } } return levels; };
+  const level = (g, m) => allLevels()[m] || (modules(g).reduce((n, x) => n + x.size, 0) > 60 ? 'closed' : 'open');
   function wholeView(g) {
     const ms = modules(g);
     if (ms.length < 2) return flatten(g);
@@ -95,7 +93,47 @@
     levels[m] = now === 'closed' ? (hides ? 'interface' : 'open') : now === 'interface' ? 'open' : 'closed';
     keep('levels.' + project, JSON.stringify(levels));
     present(null, 'morph');
+    visit('reader');
   }
+  $('levels-reset').onclick = () => { levels = {}; keep('levels.' + project, '{}'); present(null, 'morph'); visit('reader'); };
+
+  // ---- where the reader has been ----
+  // Each change of view (the module shown, a module opened or closed in the whole project) is an
+  // entry in the browser's history, so its Back works as well as the two buttons here.
+  // The agent's moves under "follow" share one entry: Back returns to where the reader last was.
+  let here = (history.state && history.state.pv) || null, histMax = 0;
+  try { histMax = +sessionStorage.getItem('portolan.histMax') || 0; } catch (e) {}
+  const multi = () => !!latest && modules(latest).length > 1;
+  function drawNav() {
+    $('back').disabled = !here || here.i < 1;
+    $('forward').disabled = !here || here.i >= histMax;
+    $('levels-reset').hidden = !(moduleName === '' && multi() && Object.keys(allLevels()).length);
+    $('hint').textContent = !multi() ? '' : moduleName === PortolanMap.MAP ? 'click selects · double-click opens' : moduleName === '' ? 'double-click a module: closed → interface → open' : '';
+  }
+  function visit(by) {
+    const pv = { module: moduleName, levels: { ...allLevels() }, by }, same = here && here.module === pv.module && JSON.stringify(here.levels) === JSON.stringify(pv.levels);
+    if (!here || same || (by === 'agent' && here.by === 'agent')) { here = { ...pv, by: same ? here.by : by, i: here ? here.i : 0 }; history.replaceState({ pv: here }, ''); }
+    else { here = { ...pv, i: here.i + 1 }; history.pushState({ pv: here }, ''); histMax = here.i; }
+    histMax = Math.max(histMax, here.i);
+    try { sessionStorage.setItem('portolan.histMax', histMax); } catch (e) {}
+    drawNav();
+  }
+  window.addEventListener('popstate', e => {
+    const pv = e.state && e.state.pv;
+    if (!pv || !latest) return;
+    const same = pv.module === moduleName;
+    here = pv;
+    levels = { ...pv.levels };
+    keep('levels.' + project, JSON.stringify(levels));
+    if (!same) unpick();
+    moduleName = pv.module;
+    keep('module.' + project, moduleName);
+    drawPicker();
+    present(null, same ? 'morph' : true);
+    drawNav();
+  });
+  $('back').onclick = () => history.back();
+  $('forward').onclick = () => history.forward();
   function drawPicker() {
     const ms = latest ? modules(latest) : [], sel = $('module');
     $('module-wrap').hidden = ms.length < 2;
@@ -120,6 +158,7 @@
     keep('module.' + project, mod);
     drawPicker();
     present(cause, true);
+    visit(cause ? 'agent' : 'reader');
   }
   // Draw the current module of the latest graph: at once after a switch, as a paced beat otherwise.
   function present(cause, fresh) {
@@ -129,6 +168,7 @@
       moduleName = ms.length < 2 ? '' : saved === PortolanMap.MAP || ms.some(m => m.name === saved) ? saved : ms[0].name;
       drawPicker();
       fresh = fresh || moduleName !== ''; // a one-module project's first definitions arrive as a beat
+      visit('reader');
     }
     if (moduleName && moduleName !== PortolanMap.MAP && !modules(latest).some(m => m.name === moduleName)) moduleName = '';
     const g = inSyntax(moduleView(latest, moduleName)), key = JSON.stringify(g);
@@ -189,6 +229,10 @@
   }
   function go(h) {
     found = []; drawHits(); find.value = ''; find.blur();
+    goTo(h);
+  }
+  // Show a definition where it lives: its module on the canvas, its source in the code panel, itself selected.
+  function goTo(h) {
     const mod = top(h.x);
     if (mod && mod !== moduleName) choose(mod);
     showSource(h.x, h.kind === 'edge' ? 'edge' : 'node', h.x.at);
@@ -216,7 +260,7 @@
       const now = n + '|' + (board ? board.style.width + board.style.height : '');
       same = n > 0 && now === last ? same + 1 : 0;
       last = now;
-      if (same === 2 || same === 8) PC.fit(); // once when it stops moving, once more after its own camera has finished
+      if (same === 2 || same === 8) (PC.frame || PC.fit)(); // once when it stops moving, once more after its own camera has finished
       if (same >= 8 || ++tries > 60) clearInterval(settling);
     }, 250);
   }
@@ -230,12 +274,14 @@
       reset: () => PC.reset(),
       onSelect: cb => PC.onSelect((name, kind, at) => {
         const g = shown;
-        if (moduleName === '' && latest && modules(latest).length > 1 && modules(latest).some(m => m.name === name) && (kind === 'module' || level(latest, name) === 'closed')) return cycle(name);
-        if (moduleName === PortolanMap.MAP && latest && modules(latest).some(m => m.name === name)) return choose(name); // on the map, a module opens
         const item = g && (g.edges.find(e => e.name === name || e.label === name) || g.nodes.find(n => n.key === name || n.label === name) || (g.values || []).find(v => v.name === name));
         // A click on a pip arrives as the test, then at once as the function it sits on.
         if (kind === 'test') { clickedTest = { at, when: Date.now() }; if (!at) return; }
         const isEdge = !!item && g.edges.includes(item);
+        // A module that a double-click would open: its source waits a moment, because showing it
+        // resizes the code panel and moves the board out from under the second click.
+        clearTimeout(opening);
+        if (!isEdge && openable(name, kind)) { opening = setTimeout(() => cb(item || { label: name, at }, 'node', at || (item && item.at)), 320); return; }
         cb(item || { label: name, at }, isEdge ? 'edge' : 'node', at || (item && item.at));
         if (isEdge && clickedTest && Date.now() - clickedTest.when < 150) {
           const t = (item.tests || []).find(x => x.at && clickedTest.at && x.at.file === clickedTest.at.file && x.at.line === clickedTest.at.line);
@@ -252,6 +298,17 @@
       onSelect: cb => PlainView.onSelect((item, kind) => cb(item, kind, item.at)),
     },
   };
+  // A double-click opens: a module on the map, a module's next level in the whole project,
+  // and an outside type's own module.
+  let opening = 0;
+  const openable = (name, kind) => !!latest && modules(latest).some(m => m.name === name) && (moduleName === PortolanMap.MAP || (moduleName === '' && multi() && (kind === 'module' || level(latest, name) === 'closed')));
+  if (PC && PC.onOpen) PC.onOpen((name, kind) => {
+    if (!latest || which !== 'hazel') return;
+    clearTimeout(opening);
+    if (openable(name, kind)) return moduleName === '' ? cycle(name) : choose(name);
+    const home = kind === 'ghost' && latest.nodes.find(n => n.key === name && n.kind === 'alias');
+    if (home && top(home) && top(home) !== moduleName) goTo({ x: home, kind: 'type', name });
+  });
   function use(name) {
     which = name;
     $('canvas').innerHTML = '';
