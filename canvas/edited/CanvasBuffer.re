@@ -250,7 +250,9 @@ let avatar_prev: ref(option((float, float))) =
   ref(None: option((float, float)));
 /* ~slow: a non-agent relayout that should still glide (the frame
    re-deriving when a burst settles) */
-let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
+/* PORTOLAN: ~ms: how long the glide takes, when the reader caused it */
+let stage_beat =
+    (~lead: bool=false, ~slow: bool=false, ~ms: option(int)=None, ()): unit => {
   let scale = canvas_zoom^;
   /* where the avatar visibly IS, as a board SITE: its static anchor plus
      any in-flight translate, minus the box offset. Board units, so a
@@ -308,7 +310,11 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
        });
   let delay = lead ? lead_ms : 0;
   let stagger = lead ? arrival_stagger_ms : 0;
-  let move_dur = lead || slow ? relayout_ms : 125;
+  let move_dur =
+    switch (ms) {
+    | Some(ms) => ms
+    | None => lead || slow ? relayout_ms : 125
+    };
   /* while a score plays, nothing is staged: a staged beat makes the next
      render re-run the position animation on every node, which replaces a
      pending grow-in and flashes the node before its act. The beat that

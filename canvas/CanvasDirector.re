@@ -53,6 +53,8 @@ let focused: ref(option(string)) = ref(None);
 let focused_ty: ref(option(string)) = ref(None);
 let focused_value: ref(option(string)) = ref(None);
 let hovered_edge: ref(option(string)) = ref(None);
+/* PORTOLAN: a double-click on a node: the host opens it (name, kind) */
+let on_open: ref((string, string) => unit) = ref((_, _) => ());
 /* (name, kind, where) of what was clicked; kind is "function", "type",
    "module", "value", "test", "builtin", "derived", "ghost" or "product" */
 let on_select:
@@ -571,6 +573,13 @@ let graph_delta = (a: CanvasGraph.t, b: CanvasGraph.t): int => {
    render that lays it out */
 let fit_pending: ref(bool) = ref(false);
 let overview_pending: ref(bool) = ref(false);
+/* PORTOLAN: nothing has been framed since the board was cleared: the
+   first framing is where the camera starts, not a move from where the
+   last board left it */
+let fresh_board: ref(bool) = ref(true);
+/* PORTOLAN: a glide the reader asked for (a layout chosen, a module
+   opened in place) is slower than an agent's, to be followed by eye */
+let reader_ms = 800;
 /* the render right after a burst ends re-frames the graph: that one big
    move is the tidy act. A big move the USER caused is not scored: it
    plays on the staged beat at once, not after an actor's drift. */
@@ -808,6 +817,11 @@ let kind_name = (n: CanvasGraph.tynode): string =>
       | Product => "product"
       }
     );
+
+/* a module's node is named for its module */
+let node_name = (n: CanvasGraph.tynode): string =>
+  kind_name(n) == "module"
+    ? String.sub(n.key, 3, String.length(n.key) - 3) : n.key;
 
 /* ---------- the view (LIFTED from CanvasSidebar.view_impl) ---------- */
 
@@ -1087,11 +1101,8 @@ let view = (graph0: CanvasGraph.t): Node.t => {
     focused_value := None;
     focused_ty := Some(n.key);
     focused := None;
-    let name =
-      kind_name(n) == "module"
-        ? String.sub(n.key, 3, String.length(n.key) - 3) : n.key;
     Effect.Many([
-      select(name, kind_name(n), n.n_id),
+      select(node_name(n), kind_name(n), n.n_id),
       tick,
       focus_dom(CanvasView.node_dom_id(n.key)),
     ]);
@@ -1294,7 +1305,7 @@ let view = (graph0: CanvasGraph.t): Node.t => {
   /* Explicit Fit is an overview, independent of Follow's readability
      floor. Include the rendered labels and wires, not just node radii:
      any of them can extend beyond the layout's nominal box. */
-  let fit_view = (~cap: option(float)=None, ()) => {
+  let fit_view = (~cap: option(float)=None, ~dur: float=320., ()) => {
     let capped = z =>
       switch (cap) {
       | Some(c) => min(c, z)
@@ -1324,7 +1335,7 @@ let view = (graph0: CanvasGraph.t): Node.t => {
         ~aw,
         ~ah,
         ~zoom=Some(z),
-        ~dur=320.,
+        ~dur,
         ~easing=CanvasCamera.EaseOut,
         ((x0 +. x1) /. 2., (y0 +. y1) /. 2. -. top /. (2. *. z)),
       );
@@ -1349,7 +1360,9 @@ let view = (graph0: CanvasGraph.t): Node.t => {
      never magnified past 1:1 */
   if (overview_pending^) {
     overview_pending := false;
-    CanvasEnact.after_render(fit_view(~cap=Some(1.)));
+    let dur = fresh_board^ ? 1. : 320.;
+    fresh_board := false;
+    CanvasEnact.after_render(fit_view(~cap=Some(1.), ~dur));
   };
 
   /* ---- the avatar ---- */
@@ -2428,6 +2441,12 @@ let view = (graph0: CanvasGraph.t): Node.t => {
             ~on_canvas_plain_click,
             ~just_placed,
             ~on_node_select=n => click_effect(n),
+            ~on_node_dblclick=
+              n =>
+                Effect.of_sync_fun(
+                  () => on_open^(node_name(n), kind_name(n)),
+                  (),
+                ),
             ~on_delete_definition=_ => Effect.Ignore,
             ~on_edge_contextmenu=(_, _) => Effect.Ignore,
             ~focused_ty=focused_ty^,
@@ -2613,7 +2632,19 @@ let push = (g: CanvasGraph.t, c: cause): unit => {
 /* a snapshot with no story: shown at once when nothing is playing (an
    already-existing code base, a reload) */
 let show = (g: CanvasGraph.t): unit => {
+  /* PORTOLAN: on a board already showing something, what stays glides
+     to its new place */
+  if (!fresh_board^) {
+    CanvasBuffer.stage_beat(~slow=true, ~ms=Some(reader_ms), ());
+  };
   live := g;
+  overview_pending := true;
+  request_render();
+};
+
+/* PORTOLAN: frame the whole graph as [show] does (never past 1:1), for a
+   host that sees the board has settled */
+let frame = (): unit => {
   overview_pending := true;
   request_render();
 };
@@ -2645,6 +2676,7 @@ let reset = (): unit => {
   focused_value := None;
   hovered_edge := None;
   thought := "";
+  fresh_board := true;
   pending_anchor := true;
   /* synchronously, so a push right after a reset is diffed against the
      empty board */
@@ -2674,7 +2706,7 @@ let select = (~is_type: bool, name: string): unit => {
 let relayout = (): unit => {
   cached_frame := None;
   node_offsets := [];
-  CanvasBuffer.stage_beat(~slow=true, ());
+  CanvasBuffer.stage_beat(~slow=true, ~ms=Some(reader_ms), ());
   fit_pending := true;
   request_render();
 };

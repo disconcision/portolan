@@ -118,12 +118,41 @@ let test_pip =
   div(~attrs=[clss(["test-pip", cls]), ...click], []);
 };
 
+/* PORTOLAN: [focused_ty] is the selected node and [touched] whether any
+   arrow meets it: its arrows are lit and the rest step back. An arrow
+   with no name (the map of modules) draws no label. */
 let edge_classes =
-    (~focused: option(string)=None, e: CanvasGraph.edge): list(string) =>
+    (
+      ~focused: option(string)=None,
+      ~focused_ty: option(string)=None,
+      ~touched: bool=false,
+      e: CanvasGraph.edge,
+    )
+    : list(string) => {
+  let meets = k => e.e_src == k || e.dst == k;
   [e.main ? "edge-main" : "edge-helper"]
   @ (e.e_hole ? ["edge-hole"] : [])
   @ (e.e_err ? ["edge-err"] : [])
-  @ (focused == Some(e.e_name) ? ["edge-focused"] : []);
+  @ (e.e_label == "" ? ["label-empty"] : [])
+  @ (focused == Some(e.e_name) ? ["edge-focused"] : [])
+  @ (
+    switch (focused_ty) {
+    | Some(k) when meets(k) => ["edge-touching"]
+    | Some(_) when touched => ["edge-away"]
+    | _ => []
+    }
+  );
+};
+let touched = (focused_ty: option(string), es: list(CanvasLayout.edge_layout)) =>
+  switch (focused_ty) {
+  | Some(k) =>
+    List.exists(
+      (el: CanvasLayout.edge_layout) =>
+        el.edge.e_src == k || el.edge.dst == k,
+      es,
+    )
+  | None => false
+  };
 
 /* End curves at the arrowhead BASE: pull the path end back along its
    final tangent so the marker (refX=0) occupies the gap and the tip
@@ -143,12 +172,14 @@ let pull_back =
 let edge_svg =
     (
       ~focused: option(string),
+      ~focused_ty: option(string)=None,
+      ~touched: bool=false,
       ~radius_of: string => float,
       el: CanvasLayout.edge_layout,
     )
     : list(Node.t) => {
   let e = el.edge;
-  let cls = edge_classes(~focused, e);
+  let cls = edge_classes(~focused, ~focused_ty, ~touched, e);
   if (el.endo) {
     let r = radius_of(e.dst) +. 16. +. float_of_int(el.orbit_rank) *. 15.;
     [
@@ -170,7 +201,7 @@ let edge_svg =
        the arrowhead's tip lands on the rim point */
 
     let marker =
-      List.mem("edge-focused", cls)
+      List.mem("edge-focused", cls) || List.mem("edge-touching", cls)
         ? "url(#cnv-arrow-focus)" : "url(#cnv-arrow)";
     [
       svg(
@@ -220,7 +251,8 @@ let formation_svg =
 let leader_svg = (el: CanvasLayout.edge_layout): list(Node.t) => {
   let a = el.label_anchor
   and p = el.label_p;
-  Float.hypot(a.x -. p.x, a.y -. p.y) < 30.
+  /* PORTOLAN: no label, no leader */
+  el.edge.e_label == "" || Float.hypot(a.x -. p.x, a.y -. p.y) < 30.
     ? []
     : [
       svg(
@@ -645,6 +677,8 @@ let edge_label =
     (
       ~inject_jump: Haz3lcore.Id.t => Effect.t(unit),
       ~focused: option(string),
+      ~focused_ty: option(string)=None,
+      ~touched: bool=false,
       ~on_edge_click: CanvasGraph.edge => Effect.t(unit),
       ~on_edge_contextmenu:
          (CanvasGraph.edge, (float, float)) => Effect.t(unit),
@@ -681,7 +715,10 @@ let edge_label =
     ~attrs=[
       Attr.id(edge_dom_id(e.e_name)),
       clss(
-        ["canvas-edge-label", ...edge_classes(~focused, e)]
+        [
+          "canvas-edge-label",
+          ...edge_classes(~focused, ~focused_ty, ~touched, e),
+        ]
         @ (el.on_wire ? ["label-on-wire"] : []),
       ),
       anchor_style(el.label_p),
@@ -1350,7 +1387,15 @@ let view =
       @ List.mapi(dep_link_svg(~nodes=lay.nodes), lay.dep_links)
       @ List.mapi(formation_svg(~nodes=lay.nodes), lay.formations)
       @ List.concat_map(leader_svg, lay.edges)
-      @ List.concat_map(edge_svg(~focused, ~radius_of), lay.edges),
+      @ List.concat_map(
+          edge_svg(
+            ~focused,
+            ~focused_ty,
+            ~touched=touched(focused_ty, lay.edges),
+            ~radius_of,
+          ),
+          lay.edges,
+        ),
     );
   /* target==currentTarget: only true background events (nodes/labels
      are their own targets; the edges svg is pointer-events: none) */
@@ -1913,6 +1958,8 @@ let view =
             edge_label(
               ~inject_jump,
               ~focused,
+              ~focused_ty,
+              ~touched=touched(focused_ty, lay.edges),
               ~on_edge_click,
               ~on_edge_contextmenu,
               ~on_delete_definition,

@@ -11,7 +11,9 @@
      PortolanCanvas.setBusy(bool)           the agent is working
      PortolanCanvas.setThought(text)        streamed reasoning (thought cloud)
      PortolanCanvas.fit()
+     PortolanCanvas.frame()                 as show frames it: whole, never past 1:1
      PortolanCanvas.onSelect(fn(name, kind, at))
+     PortolanCanvas.onOpen(fn(name, kind))  a double-click on a node
      PortolanCanvas.pending()               beats still queued
      PortolanCanvas.log()                   the canvas journal, as text
      PortolanCanvas.layouts()               [{id, label}]: the layouts on offer
@@ -169,6 +171,25 @@ let () = {
         ),
       ),
       ("fit", fn1(_ => guard("fit", CanvasDirector.fit))),
+      ("frame", fn1(_ => guard("frame", CanvasDirector.frame))),
+      (
+        "onOpen",
+        fn1(cb =>
+          CanvasDirector.on_open :=
+            (
+              (name, kind) =>
+                ignore(
+                  Js.Unsafe.fun_call(
+                    cb,
+                    [|
+                      Js.Unsafe.inject(Js.string(name)),
+                      Js.Unsafe.inject(Js.string(kind)),
+                    |],
+                  ),
+                )
+            )
+        ),
+      ),
       (
         "onSelect",
         fn1(cb =>

@@ -30,3 +30,27 @@
   color: var(--pc-token-exp);
   opacity: 0.8;
 }
+
+/* an arrow with no name (the map of modules) has no label to draw */
+.canvas-edge-label.label-empty {
+  display: none;
+}
+
+/* a selected node lights the arrows into and out of it; the rest step back */
+.canvas-line.edge-touching,
+.canvas-orbit.edge-touching {
+  stroke: var(--pc-canvas-select);
+  stroke-width: 2.2;
+  opacity: 1;
+}
+.canvas-edge-label.edge-touching {
+  border-color: var(--pc-canvas-select);
+  color: var(--pc-canvas-select);
+}
+.canvas-line.edge-away,
+.canvas-orbit.edge-away {
+  opacity: 0.18;
+}
+.canvas-edge-label.edge-away {
+  opacity: 0.35;
+}
