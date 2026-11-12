@@ -156,6 +156,26 @@ let serve_file = (oc, path) =>
     not_found(oc);
   };
 
+/* The notebook's pages, laid out as the Pages workflow assembles them: a
+   study's lib/ gets the canvas bundle and the page's schemes copied in. */
+let site_file = (~home, path) =>
+  switch (String.split_on_char('/', path)) {
+  | ["", "assets", ...rest] =>
+    Some(home / "site" / "assets" / String.concat("/", rest))
+  | ["", "studies", ...rest] =>
+    switch (List.rev(rest)) {
+    | [("portolan_canvas.js" | "canvas.css") as file, "lib", ..._] =>
+      Some(home / "canvas" / "dist" / file)
+    | ["schemes.js", "lib", ..._] => Some(home / "web" / "schemes.js")
+    | ["", ..._] =>
+      Some(
+        home / "site" / "studies" / String.concat("/", rest) ++ "index.html",
+      )
+    | _ => Some(home / "site" / "studies" / String.concat("/", rest))
+    }
+  | _ => None
+  };
+
 /* ---------- the event stream ---------- */
 
 let sse_headers = oc => {
@@ -354,7 +374,11 @@ let route = (oc, ~home, source, {meth, path, query, body}) =>
       home / "canvas" / "dist" / String.sub(p, 8, String.length(p) - 8),
     )
   | ("GET", p, _) =>
-    serve_file(oc, home / "web" / String.sub(p, 1, String.length(p) - 1))
+    switch (site_file(~home, p)) {
+    | Some(file) => serve_file(oc, file)
+    | None =>
+      serve_file(oc, home / "web" / String.sub(p, 1, String.length(p) - 1))
+    }
   | _ => respond(oc, ~status="405 Method Not Allowed", "no")
   };
 

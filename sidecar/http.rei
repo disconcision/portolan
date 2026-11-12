@@ -4,6 +4,10 @@
      GET  /                 the page (`web/index.html`); other paths are
                             files under `web/`
      GET  /canvas/FILE      the canvas bundle, from `canvas/dist/`
+     GET  /studies/…        the notebook's studies (`site/studies/`), at
+     GET  /assets/…         the same paths as on the published site, so
+                            the page can link to one: the colour-scheme
+                            editor shares this origin's storage
      GET  /events           server-sent events: each `data:` line is one
                             bus event. First `reset`, the trace so far
                             (its graph events as one whole graph) and
@@ -47,3 +51,8 @@ type source =
 /** Serves on the loopback address at [port] until the process ends.
     [home] is the Portolan folder holding `web/` and `canvas/dist/`. */
 let serve: (~port: int, ~home: string, source) => unit;
+
+/** The file a request path under `/studies/` or `/assets/` names, or
+    [None] for any other path. A study's `lib/` holds what the Pages
+    workflow copies there: the canvas bundle and `web/schemes.js`. */
+let site_file: (~home: string, string) => option(string);
